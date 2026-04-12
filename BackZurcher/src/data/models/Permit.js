@@ -1,4 +1,5 @@
 const { DataTypes } = require('sequelize');
+const { autoSubscribeToNewsletter } = require('../../utils/autoSubscribeNewsletter');
 
 module.exports = (sequelize) => {
   return sequelize.define('Permit', {
@@ -340,6 +341,24 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: '🆕 Public ID del PPI en Cloudinary para eliminación'
     },  }, {
-    timestamps: true
+    timestamps: true,
+    hooks: {
+      // 📧 Auto-suscribir al Newsletter cuando se crea un Permit con email
+      afterCreate: async (permit, options) => {
+        if (permit.applicantEmail) {
+          await autoSubscribeToNewsletter(
+            permit.applicantEmail,
+            permit.applicantName,
+            'permit',
+            {
+              propertyAddress: permit.propertyAddress,
+              permitId: permit.idPermit,
+              permitNumber: permit.permitNumber,
+              subscribedFrom: 'permit_creation'
+            }
+          );
+        }
+      }
+    }
   });
 };

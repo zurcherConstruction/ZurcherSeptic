@@ -974,9 +974,221 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
     } catch (error) {
       console.error('❌ Error regenerando enlace de firma:', error);
 
+      // Manejo específico para documentos enviados por email tradicional
+      if (error.message && error.message.includes('email tradicional')) {
+        return res.status(400).json({
+          error: true,
+          code: 'TRADITIONAL_EMAIL_ENVELOPE',
+          message: 'No se puede regenerar el enlace de este documento',
+          details: error.message,
+          solution: 'El enlace original enviado por email de DocuSign es permanente y no expira. Por favor, revise su bandeja de entrada (o spam) y use el enlace del email de DocuSign.'
+        });
+      }
+
       res.status(500).json({
         error: true,
         message: 'Error al regenerar enlace de firma',
+        details: error.message
+      });
+    }
+  },
+
+  // ✅ NUEVO: Verificar si un envelope soporta regeneración de enlace (tiene clientUserId)
+  async checkEnvelopeSupport(req, res) {
+    const { idBudget } = req.params;
+
+    try {
+      console.log('\n🔍 === VERIFICANDO SOPORTE DE ENVELOPE ===');
+      console.log(`📋 ID Presupuesto: ${idBudget}`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{
+          model: Permit,
+          attributes: ['applicantEmail', 'applicantName']
+        }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      const envelopeId = budget.docusignEnvelopeId || budget.signatureDocumentId;
+      
+      if (!envelopeId || budget.signatureMethod !== 'docusign') {
+        return res.status(400).json({
+          error: true,
+          message: 'Este presupuesto no usa DocuSign'
+        });
+      }
+
+      // Inicializar servicio DocuSign
+      const docuSignService = new DocuSignService();
+      await docuSignService.getAccessToken();
+
+      // Obtener información del envelope
+      const docusign = require('docusign-esign');
+      const envelopesApi = new docusign.EnvelopesApi(docuSignService.apiClient);
+      
+      const envelope = await envelopesApi.getEnvelope(docuSignService.accountId, envelopeId);
+      const recipients = await envelopesApi.listRecipients(docuSignService.accountId, envelopeId);
+      
+      const signer = recipients.signers?.find(s => 
+        s.email.toLowerCase() === budget.Permit?.applicantEmail?.toLowerCase()
+      );
+
+      const supportsRegeneration = !!(signer && signer.clientUserId);
+
+      console.log(`📊 Estado: ${envelope.status}`);
+      console.log(`🔑 ClientUserId: ${signer?.clientUserId || 'NO CONFIGURADO'}`);
+      console.log(`✅ Soporta regeneración: ${supportsRegeneration ? 'SÍ' : 'NO'}`);
+
+      res.status(200).json({
+        error: false,
+        data: {
+          budgetId: budget.idBudget,
+          envelopeId: envelopeId,
+          status: envelope.status,
+          supportsRegeneration: supportsRegeneration,
+          hasClientUserId: !!signer?.clientUserId,
+          signerEmail: signer?.email,
+          signerName: signer?.name,
+          signerStatus: signer?.status,
+          sentAt: envelope.sentDateTime,
+          message: supportsRegeneration 
+            ? 'Este documento soporta regeneración de enlaces' 
+            : 'Este documento fue enviado con sistema antiguo. Use el enlace del email original o reenvíe con sistema nuevo.'
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error verificando soporte de envelope:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al verificar envelope',
+        details: error.message
+      });
+    }
+  },
+
+  // ✅ NUEVO: Reenviar documento con firma embebida (para documentos antiguos sin clientUserId)
+  async resendWithEmbeddedSigning(req, res) {
+    const { idBudget } = req.params;
+
+    try {
+      console.log('\n🔄 === REENVIANDO DOCUMENTO CON FIRMA EMBEBIDA ===');
+      console.log(`📋 ID Presupuesto: ${idBudget}`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{
+          model: Permit,
+          attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
+        }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      if (!budget.Permit?.applicantEmail) {
+        return res.status(400).json({
+          error: true,
+          message: 'El presupuesto no tiene email del cliente'
+        });
+      }
+
+      // Generar PDF del presupuesto
+      console.log('📄 Generando PDF del presupuesto...');
+      const pdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
+
+      // Enviar con DocuSign usando sistema de firma embebida
+      console.log('📤 Enviando documento con firma embebida...');
+      const docuSignService = new DocuSignService();
+
+      const fileName = `Budget_${budget.invoiceNumber || budget.idBudget}.pdf`;
+      const emailSubject = `Please sign your ${budget.invoiceNumber ? 'invoice' : 'budget'} - Zurcher Construction`;
+      const emailMessage = `Dear ${budget.Permit.applicantName || 'Valued Client'},\n\n` +
+        `Please review and sign the attached ${budget.invoiceNumber ? 'invoice' : 'budget'} document.\n\n` +
+        `Best regards,\nZurcher Construction`;
+
+      const signatureResult = await docuSignService.sendBudgetForSignature(
+        pdfPath,
+        budget.Permit.applicantEmail,
+        budget.Permit.applicantName || 'Valued Client',
+        fileName,
+        emailSubject,
+        emailMessage,
+        false // ✅ Remote signing con clientUserId (soporta regeneración)
+      );
+
+      console.log('✅ Documento enviado exitosamente');
+
+      // Actualizar presupuesto con nuevo envelope ID
+      await budget.update({
+        signatureDocumentId: signatureResult.envelopeId,
+        docusignEnvelopeId: signatureResult.envelopeId,
+        signatureMethod: 'docusign',
+        signatureSentAt: new Date(),
+        signatureStatus: 'pending'
+      });
+
+      console.log('💾 Presupuesto actualizado con nuevo envelope');
+
+      // Enviar correo con botón de firma
+      console.log('📧 Enviando correo con enlace de firma...');
+      const EmailService = require('../services/EmailService');
+      const frontendUrl = process.env.FRONTEND_URL || 'https://zurcher-construction.vercel.app';
+      const signButtonUrl = `${frontendUrl}/sign-budget/${budget.idBudget}`;
+
+      await EmailService.sendEmail({
+        to: budget.Permit.applicantEmail,
+        subject: emailSubject,
+        html: `
+          <h2>Please Sign Your ${budget.invoiceNumber ? 'Invoice' : 'Budget'}</h2>
+          <p>Dear ${budget.Permit.applicantName || 'Valued Client'},</p>
+          <p>Your ${budget.invoiceNumber ? 'invoice' : 'budget'} is ready for signature.</p>
+          <p><strong>Budget Number:</strong> ${budget.invoiceNumber || budget.idBudget}</p>
+          <p>Click the button below to review and sign:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${signButtonUrl}" 
+               style="background-color: #4CAF50; color: white; padding: 14px 28px; 
+                      text-decoration: none; border-radius: 4px; display: inline-block; 
+                      font-size: 16px;">
+              📝 Sign Document
+            </a>
+          </div>
+          <p>This link will remain valid and you can access it anytime you need.</p>
+          <p>Best regards,<br>Zurcher Construction Team</p>
+        `
+      });
+
+      console.log('✅ Correo enviado exitosamente');
+
+      res.status(200).json({
+        error: false,
+        message: 'Documento reenviado exitosamente con sistema de firma embebida',
+        data: {
+          budgetId: budget.idBudget,
+          envelopeId: signatureResult.envelopeId,
+          status: signatureResult.status,
+          signerEmail: budget.Permit.applicantEmail,
+          signerName: budget.Permit.applicantName,
+          sentAt: new Date().toISOString(),
+          note: 'El nuevo documento soporta regeneración de enlaces. El cliente puede hacer clic en el enlace múltiples veces.',
+          signButtonUrl: signButtonUrl
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error reenviando documento:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al reenviar documento',
         details: error.message
       });
     }
@@ -1616,10 +1828,12 @@ async getBudgets(req, res) {
         'convertedToInvoiceAt',
         'sentForReviewAt',
         'signatureMethod',
+        'signatureDocumentId', // 🆕 Envelope ID para DocuSign/SignNow
+        'docusignEnvelopeId', // 🆕 Envelope ID específico de DocuSign
+        'signNowDocumentId', // Ya existía
         'manualSignedPdfPath',
         'manualSignedPdfPublicId',
         'signedPdfPath',
-        'signNowDocumentId',
         'requiresFollowUp', // ✅ Incluir para mostrar el estado de la campana en BudgetList
         'leadSource',
         'createdByStaffId',

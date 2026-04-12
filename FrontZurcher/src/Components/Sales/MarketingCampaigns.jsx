@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { Link } from 'react-router-dom';
 import {
   EnvelopeIcon,
   PlusIcon,
@@ -127,13 +128,22 @@ const MarketingCampaigns = () => {
                 Envía emails masivos a tus clientes en fechas especiales
               </p>
             </div>
-            <button
-              onClick={handleNewCampaign}
-              className="flex items-center gap-2 bg-gradient-to-r from-[#1a3a5c] to-[#2563a8] text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity shadow-lg"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Nueva Campaña
-            </button>
+            <div className="flex gap-3">
+              <Link
+                to="/marketing-campaigns/newsletter"
+                className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors shadow-lg"
+              >
+                <EnvelopeIcon className="h-5 w-5" />
+                Newsletter
+              </Link>
+              <button
+                onClick={handleNewCampaign}
+                className="flex items-center gap-2 bg-gradient-to-r from-[#1a3a5c] to-[#2563a8] text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity shadow-lg"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Nueva Campaña
+              </button>
+            </div>
           </div>
         </div>
 

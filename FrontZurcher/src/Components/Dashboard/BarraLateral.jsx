@@ -33,7 +33,8 @@ import {
   FaExclamationTriangle, // 🆕 Icono para reclamos
   FaUserPlus, // 🆕 Icon for sales leads
   FaEnvelope, // 🆕 Icon for email marketing
-  FaBook // 🆕 Icon for knowledge base
+  FaBook, // 🆕 Icon for knowledge base
+  FaNewspaper // 🆕 Icon for newsletter
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -147,6 +148,7 @@ const BarraLateral = () => {
       items: [
         { name: "Gallery Manager", path: "/gallery-manager", icon: FaImage },
          { name: "Email Marketing", path: "/marketing-campaigns", icon: FaEnvelope },
+         { name: "Newsletter", path: "/marketing-campaigns/newsletter", icon: FaNewspaper },
       ],
     },
   ];
