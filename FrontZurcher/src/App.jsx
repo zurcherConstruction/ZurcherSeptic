@@ -97,6 +97,7 @@ import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboa
 import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
 import SalesDashboard from './Components/Sales/SalesDashboard'; // 🆕 Dashboard de ventas
 import MarketingCampaigns from './Components/Sales/MarketingCampaigns'; // 🆕 Email marketing campaigns
+import NewsletterDashboard from './Components/Newsletter/NewsletterDashboard'; // 🆕 Newsletter system
 import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Recordatorios
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
@@ -293,6 +294,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner"]}>
                     <MarketingCampaigns />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Newsletter System */}
+              <Route
+                path="/marketing-campaigns/newsletter"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner"]}>
+                    <NewsletterDashboard />
                   </PrivateRoute>
                 }
               />

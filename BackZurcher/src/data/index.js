@@ -98,7 +98,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -912,6 +912,41 @@ KnowledgeProcedure.belongsTo(Staff, { foreignKey: 'updatedBy', as: 'updater' });
 Staff.hasMany(KnowledgeDocument, { foreignKey: 'createdBy', as: 'knowledgeDocumentsCreated' });
 KnowledgeDocument.belongsTo(Staff, { foreignKey: 'createdBy', as: 'creator' });
 KnowledgeDocument.belongsTo(Staff, { foreignKey: 'updatedBy', as: 'updater' });
+
+// ==================== NEWSLETTER ASSOCIATIONS ====================
+// Newsletter Template - Staff
+Staff.hasMany(NewsletterTemplate, { foreignKey: 'createdByStaffId', as: 'newsletterTemplates' });
+NewsletterTemplate.belongsTo(Staff, { foreignKey: 'createdByStaffId', as: 'creator' });
+
+// Newsletter - Staff
+Staff.hasMany(Newsletter, { foreignKey: 'createdByStaffId', as: 'newsletters' });
+Newsletter.belongsTo(Staff, { foreignKey: 'createdByStaffId', as: 'creator' });
+
+// Newsletter - Template
+Newsletter.belongsTo(NewsletterTemplate, { foreignKey: 'templateId', as: 'template' });
+NewsletterTemplate.hasMany(Newsletter, { foreignKey: 'templateId', as: 'newsletters' });
+
+// Newsletter - Recipients (many-to-many through NewsletterRecipient)
+Newsletter.hasMany(NewsletterRecipient, { foreignKey: 'newsletterId', as: 'recipients' });
+NewsletterRecipient.belongsTo(Newsletter, { foreignKey: 'newsletterId', as: 'newsletter' });
+
+NewsletterSubscriber.hasMany(NewsletterRecipient, { foreignKey: 'subscriberId', as: 'newsletters' });
+NewsletterRecipient.belongsTo(NewsletterSubscriber, { foreignKey: 'subscriberId', as: 'subscriber' });
+
+// Newsletter - Subscribers (through table)
+Newsletter.belongsToMany(NewsletterSubscriber, {
+  through: NewsletterRecipient,
+  foreignKey: 'newsletterId',
+  otherKey: 'subscriberId',
+  as: 'subscribers'
+});
+
+NewsletterSubscriber.belongsToMany(Newsletter, {
+  through: NewsletterRecipient,
+  foreignKey: 'subscriberId',
+  otherKey: 'newsletterId',
+  as: 'newslettersSent'
+});
 
 //---------------------------------------------------------------------------------//
 module.exports = {

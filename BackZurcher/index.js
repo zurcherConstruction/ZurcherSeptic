@@ -5,6 +5,7 @@ const { startSignatureCheckCron } = require("./src/services/checkPendingSignatur
 const { startFixedExpensesCron } = require("./src/services/autoGenerateFixedExpenses.js");
 const { startBudgetRemindersCron } = require("./src/services/checkBudgetReminders.js");
 const { startLeadRemindersCron } = require("./src/services/checkLeadReminders.js");
+const { startNewsletterSchedulerCron } = require("./src/services/newsletterSchedulerCron.js");
 
 require("dotenv").config();
 
@@ -69,6 +70,7 @@ function startServer() {
     startFixedExpensesCron(); // Iniciar el cron para auto-generar gastos fijos vencidos
     startBudgetRemindersCron(); // Iniciar el cron para recordatorios de budget
     startLeadRemindersCron(); // Iniciar el cron para recordatorios de leads
+    startNewsletterSchedulerCron(); // Iniciar el cron para newsletters programados y recurrentes
   });
 }
 

@@ -6,3 +6,9 @@ docusign_private.key
 # Archivos temporales de pruebas
 temp/
 uploads/signed-budgets/
+
+# Scripts de mantenimiento y sincronización
+fix-*.js
+audit-*.js
+verify-*.js
+sync-*.js

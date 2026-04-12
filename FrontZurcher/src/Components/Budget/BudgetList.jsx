@@ -209,6 +209,9 @@ const BudgetList = () => {
   const [checkingPPISignature, setCheckingPPISignature] = useState(null); // ID del permit verificando firma
   const [viewingPPISigned, setViewingPPISigned] = useState(null); // ID del permit viendo PPI firmado
 
+  // 🆕 ESTADO PARA MENÚ DESPLEGABLE DE OPCIONES DE FIRMA
+  const [signatureMenuOpen, setSignatureMenuOpen] = useState(null); // ID del budget con menú abierto
+
   // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -237,6 +240,23 @@ const BudgetList = () => {
       year: yearFilter
     }));
   }, [dispatch, page, pageSize, debouncedSearchTerm, statusFilter, monthFilter, yearFilter]);
+
+  // ✅ useEffect para cerrar menú de firma al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (signatureMenuOpen && !event.target.closest('.signature-menu-wrapper')) {
+        setSignatureMenuOpen(null);
+      }
+    };
+
+    if (signatureMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [signatureMenuOpen]);
 
   // ✅ Calcular total de páginas
   const totalPages = totalRecords ? Math.ceil(totalRecords / pageSize) : 1;
@@ -822,8 +842,31 @@ const BudgetList = () => {
   // 🆕 FUNCIÓN: Copiar enlace de firma de DocuSign
   const handleCopySignatureLink = async (budget) => {
     try {
+      // Verificar que el presupuesto tenga DocuSign configurado
+      if (!budget.signatureMethod || budget.signatureMethod === 'signnow') {
+        const migrate = window.confirm(
+          `⚠️ Este presupuesto usa ${budget.signatureMethod || 'sistema antiguo'}\n\n` +
+          `Para copiar enlaces de firma, necesitas migrar a DocuSign.\n\n` +
+          `¿Deseas reenviar con sistema DocuSign nuevo?`
+        );
+        
+        if (migrate) {
+          handleResendWithNewSystem(budget);
+        }
+        return;
+      }
+
+      if (!budget.docusignEnvelopeId && !budget.signatureDocumentId) {
+        alert(
+          `⚠️ No hay envelope ID de DocuSign\n\n` +
+          `Este presupuesto no tiene un documento enviado a DocuSign.\n\n` +
+          `Por favor, usa "Resend with New System" para enviarlo.`
+        );
+        return;
+      }
+      
       // Mostrar indicador de carga
-      const loadingMsg = alert('⏳ Generando enlace de firma...');
+      console.log('⏳ Generando enlace de firma...');
       
       const response = await api.get(`/budget/${budget.idBudget}/signature-link`);
       
@@ -849,6 +892,180 @@ const BudgetList = () => {
         `❌ Error al generar enlace de firma\n\n` +
         `${errorMsg}\n\n` +
         `${suggestion ? `💡 ${suggestion}` : ''}`
+      );
+    }
+  };
+
+  // 🆕 FUNCIÓN: Regenerar enlace de firma (cuando expira)
+  const handleRegenerateSignatureLink = async (budget) => {
+    // Verificar que sea DocuSign
+    if (!budget.signatureMethod || budget.signatureMethod !== 'docusign') {
+      const migrate = window.confirm(
+        `⚠️ Este presupuesto NO usa DocuSign\n\n` +
+        `Método actual: ${budget.signatureMethod || 'No definido'}\n\n` +
+        `La regeneración de enlaces solo funciona con DocuSign.\n\n` +
+        `¿Deseas reenviar con sistema DocuSign nuevo?`
+      );
+      
+      if (migrate) {
+        handleResendWithNewSystem(budget);
+      }
+      return;
+    }
+
+    if (!window.confirm(
+      `¿Regenerar enlace de firma?\n\n` +
+      `Cliente: ${budget.Permit?.applicantName || budget.applicantName}\n` +
+      `Email: ${budget.Permit?.applicantEmail || budget.applicantEmail}\n\n` +
+      `Se generará un nuevo enlace válido por 5-15 minutos.`
+    )) {
+      return;
+    }
+
+    try {
+      console.log('🔄 Regenerando enlace para budget:', budget.idBudget);
+      
+      const response = await api.post(`/budget/${budget.idBudget}/resend-signature-link`);
+      
+      if (response.data.error === false) {
+        // Copiar al portapapeles
+        await navigator.clipboard.writeText(response.data.data.signingUrl);
+        
+        alert(
+          `✅ Enlace regenerado y copiado al portapapeles\n\n` +
+          `Cliente: ${response.data.data.signerName}\n` +
+          `Email: ${response.data.data.signerEmail}\n\n` +
+          `⏰ El enlace expira en 5-15 minutos de inactividad.\n\n` +
+          `Envíalo al cliente por WhatsApp, SMS u otro medio.`
+        );
+      }
+    } catch (error) {
+      console.error('Error al regenerar enlace:', error);
+      
+      // Manejar documento antiguo sin clientUserId
+      if (error.response?.data?.code === 'TRADITIONAL_EMAIL_ENVELOPE') {
+        const useNewSystem = window.confirm(
+          `⚠️ Documento Antiguo Detectado\n\n` +
+          `${error.response.data.message}\n\n` +
+          `OPCIONES:\n\n` +
+          `1️⃣ El cliente debe buscar el email original de DocuSign\n` +
+          `   (El enlace NO EXPIRA)\n\n` +
+          `2️⃣ Reenviar con sistema nuevo que permite regeneración\n\n` +
+          `¿Deseas REENVIAR con el sistema nuevo? (Recomendado)\n` +
+          `El cliente recibirá un nuevo email.`
+        );
+        
+        if (useNewSystem) {
+          handleResendWithNewSystem(budget);
+        } else {
+          alert(
+            `📧 Instrucciones para el Cliente:\n\n` +
+            `Por favor, busque en su bandeja de entrada (o spam) ` +
+            `el email de DocuSign. El enlace en ese email es ` +
+            `permanente y NO EXPIRA.\n\n` +
+            `Si no lo encuentra, puede solicitar que se reenvíe ` +
+            `con el sistema nuevo.`
+          );
+        }
+      } else {
+        alert(
+          `❌ Error al regenerar enlace\n\n` +
+          `${error.response?.data?.message || error.message}\n\n` +
+          `${error.response?.data?.details || ''}`
+        );
+      }
+    }
+  };
+
+  // 🆕 FUNCIÓN: Reenviar con sistema nuevo (para documentos antiguos)
+  const handleResendWithNewSystem = async (budget) => {
+    if (!window.confirm(
+      `🔄 Reenviar Documento con Sistema Nuevo\n\n` +
+      `Cliente: ${budget.Permit?.applicantName}\n` +
+      `Email: ${budget.Permit?.applicantEmail}\n\n` +
+      `Esto creará un NUEVO envelope en DocuSign con el sistema ` +
+      `de firma embebida que soporta regeneración de enlaces.\n\n` +
+      `El cliente recibirá un nuevo correo con el enlace.\n\n` +
+      `¿Continuar?`
+    )) {
+      return;
+    }
+
+    try {
+      console.log('📤 Reenviando con sistema nuevo para budget:', budget.idBudget);
+      
+      const response = await api.post(`/budget/${budget.idBudget}/resend-with-embedded-signing`);
+      
+      if (response.data.error === false) {
+        alert(
+          `✅ Documento Reenviado Exitosamente\n\n` +
+          `Cliente: ${response.data.data.signerName}\n` +
+          `Email: ${response.data.data.signerEmail}\n\n` +
+          `📧 El cliente recibirá un correo con el enlace de firma.\n\n` +
+          `🔄 Ahora el enlace se puede regenerar cuantas veces sea necesario.\n\n` +
+          `Nuevo Envelope ID: ${response.data.data.envelopeId}`
+        );
+        
+        // Refrescar la lista de budgets
+        refreshBudgets();
+      }
+    } catch (error) {
+      console.error('Error al reenviar con sistema nuevo:', error);
+      alert(
+        `❌ Error al reenviar documento\n\n` +
+        `${error.response?.data?.message || error.message}\n\n` +
+        `${error.response?.data?.details || ''}`
+      );
+    }
+  };
+
+  // 🆕 FUNCIÓN: Verificar soporte del envelope (debugging/info)
+  const handleCheckEnvelopeSupport = async (budget) => {
+    try {
+      // Si no es DocuSign, mostrar info básica
+      if (!budget.signatureMethod || budget.signatureMethod !== 'docusign') {
+        alert(
+          `📊 Información del Presupuesto\n\n` +
+          `Budget ID: ${budget.idBudget}\n` +
+          `Estado: ${budget.status}\n` +
+          `Método de Firma: ${budget.signatureMethod || 'No definido'}\n\n` +
+          `Cliente: ${budget.Permit?.applicantName || budget.applicantName}\n` +
+          `Email: ${budget.Permit?.applicantEmail || budget.applicantEmail}\n\n` +
+          `⚠️ Este presupuesto NO usa DocuSign.\n\n` +
+          `Opciones disponibles:\n` +
+          `• Si usa SignNow: El enlace del email original no expira\n` +
+          `• Si no tiene método: Usa "Resend with New System" para enviar con DocuSign\n\n` +
+          `💡 Recomendación: Migrar a DocuSign para mejor control`
+        );
+        return;
+      }
+
+      console.log('🔍 Verificando soporte para budget:', budget.idBudget);
+      
+      const response = await api.get(`/budget/${budget.idBudget}/check-envelope-support`);
+      
+      if (response.data.error === false) {
+        const data = response.data.data;
+        
+        alert(
+          `📊 Información del Envelope\n\n` +
+          `Budget ID: ${data.budgetId}\n` +
+          `Envelope ID: ${data.envelopeId}\n` +
+          `Estado: ${data.status}\n\n` +
+          `Firmante: ${data.signerName}\n` +
+          `Email: ${data.signerEmail}\n` +
+          `Estado Firma: ${data.signerStatus}\n\n` +
+          `✅ Soporta Regeneración: ${data.supportsRegeneration ? 'SÍ' : 'NO'}\n` +
+          `🔑 Tiene clientUserId: ${data.hasClientUserId ? 'SÍ' : 'NO'}\n\n` +
+          `📅 Enviado: ${data.sentAt ? new Date(data.sentAt).toLocaleString() : 'N/A'}\n\n` +
+          `${data.message}`
+        );
+      }
+    } catch (error) {
+      console.error('Error al verificar soporte:', error);
+      alert(
+        `❌ Error al verificar envelope\n\n` +
+        `${error.response?.data?.message || error.message}`
       );
     }
   };
@@ -1545,15 +1762,68 @@ const BudgetList = () => {
                                     </button>
                                   )}
                                   
-                                  {/* 🆕 BOTÓN: Copiar enlace de firma de DocuSign si existe y no está firmado */}
-                                  {budget.docusignEnvelopeId && !['signed', 'approved'].includes(budget.status) && (
-                                    <button
-                                      onClick={() => handleCopySignatureLink(budget)}
-                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600 mb-0.5"
-                                      title="Copy DocuSign signature link to send via WhatsApp/SMS"
-                                    >
-                                      📋 Copy Link
-                                    </button>
+                                  {/* 🆕 OPCIONES DE FIRMA - Menú desplegable (SIEMPRE en estado send) */}
+                                  {!['signed', 'approved'].includes(budget.status) && (
+                                    <div className="relative w-full signature-menu-wrapper mb-0.5">
+                                      <button
+                                        onClick={() => setSignatureMenuOpen(
+                                          signatureMenuOpen === budget.idBudget ? null : budget.idBudget
+                                        )}
+                                        className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600"
+                                        title="Signature Options"
+                                      >
+                                        📋 Signature Options ▾
+                                      </button>
+                                      
+                                      {/* Menú desplegable */}
+                                      {signatureMenuOpen === budget.idBudget && (
+                                        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-hidden">
+                                          <button
+                                            onClick={() => {
+                                              handleCopySignatureLink(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-blue-50 flex items-center gap-1"
+                                          >
+                                            <span>📋</span>
+                                            <span>Copy Link</span>
+                                          </button>
+                                          
+                                          <button
+                                            onClick={() => {
+                                              handleRegenerateSignatureLink(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-green-50 flex items-center gap-1 border-t"
+                                          >
+                                            <span>🔄</span>
+                                            <span>Regenerate Link</span>
+                                          </button>
+                                          
+                                          <button
+                                            onClick={() => {
+                                              handleResendWithNewSystem(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-purple-50 flex items-center gap-1 border-t"
+                                          >
+                                            <span>📤</span>
+                                            <span>Resend (New System)</span>
+                                          </button>
+                                          
+                                          <button
+                                            onClick={() => {
+                                              handleCheckEnvelopeSupport(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-gray-50 flex items-center gap-1 border-t"
+                                          >
+                                            <span>ℹ️</span>
+                                            <span>Check Info</span>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                   
                                   <div className="flex gap-0.5">
@@ -1597,15 +1867,68 @@ const BudgetList = () => {
                                     ✍️ Signing
                                   </p>
                                   
-                                  {/* 🆕 BOTÓN: Copiar enlace de firma de DocuSign si existe y no está firmado */}
-                                  {budget.docusignEnvelopeId && !['signed', 'approved'].includes(budget.status) && (
-                                    <button
-                                      onClick={() => handleCopySignatureLink(budget)}
-                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600"
-                                      title="Copy DocuSign signature link to send via WhatsApp/SMS"
-                                    >
-                                      📋 Copy Link
-                                    </button>
+                                  {/* 🆕 OPCIONES DE FIRMA - Menú desplegable (SIEMPRE en sent_for_signature) */}
+                                  {!['signed', 'approved'].includes(budget.status) && (
+                                    <div className="relative w-full signature-menu-wrapper">
+                                      <button
+                                        onClick={() => setSignatureMenuOpen(
+                                          signatureMenuOpen === budget.idBudget ? null : budget.idBudget
+                                        )}
+                                        className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600"
+                                        title="Signature Options"
+                                      >
+                                        📋 Signature Options ▾
+                                      </button>
+                                      
+                                      {/* Menú desplegable */}
+                                      {signatureMenuOpen === budget.idBudget && (
+                                        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-hidden">
+                                          <button
+                                            onClick={() => {
+                                              handleCopySignatureLink(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-blue-50 flex items-center gap-1"
+                                          >
+                                            <span>📋</span>
+                                            <span>Copy Link</span>
+                                          </button>
+                                          
+                                          <button
+                                            onClick={() => {
+                                              handleRegenerateSignatureLink(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-green-50 flex items-center gap-1 border-t"
+                                          >
+                                            <span>🔄</span>
+                                            <span>Regenerate Link</span>
+                                          </button>
+                                          
+                                          <button
+                                            onClick={() => {
+                                              handleResendWithNewSystem(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-purple-50 flex items-center gap-1 border-t"
+                                          >
+                                            <span>📤</span>
+                                            <span>Resend (New System)</span>
+                                          </button>
+                                          
+                                          <button
+                                            onClick={() => {
+                                              handleCheckEnvelopeSupport(budget);
+                                              setSignatureMenuOpen(null);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-[10px] hover:bg-gray-50 flex items-center gap-1 border-t"
+                                          >
+                                            <span>ℹ️</span>
+                                            <span>Check Info</span>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
                                   )}
                                   
                                   <button
@@ -2348,6 +2671,73 @@ const BudgetList = () => {
                                     </p>
                                   )}
                                 </div>
+                                
+                                {/* 🆕 OPCIONES DE FIRMA - Menú desplegable (SIEMPRE en sent_for_signature) */}
+                                {!['signed', 'approved'].includes(budget.status) && (
+                                  <div className="relative w-full signature-menu-wrapper">
+                                    <button
+                                      onClick={() => setSignatureMenuOpen(
+                                        signatureMenuOpen === budget.idBudget ? null : budget.idBudget
+                                      )}
+                                      className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 flex items-center justify-center gap-1"
+                                      title="Signature Options"
+                                    >
+                                      <span>📋</span>
+                                      <span>Signature Options</span>
+                                      <span>▾</span>
+                                    </button>
+                                    
+                                    {/* Menú desplegable */}
+                                    {signatureMenuOpen === budget.idBudget && (
+                                      <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                                        <button
+                                          onClick={() => {
+                                            handleCopySignatureLink(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center gap-2"
+                                        >
+                                          <span>📋</span>
+                                          <span>Copy Link</span>
+                                        </button>
+                                        
+                                        <button
+                                          onClick={() => {
+                                            handleRegenerateSignatureLink(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-green-50 flex items-center gap-2 border-t"
+                                        >
+                                          <span>🔄</span>
+                                          <span>Regenerate Link</span>
+                                        </button>
+                                        
+                                        <button
+                                          onClick={() => {
+                                            handleResendWithNewSystem(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 flex items-center gap-2 border-t"
+                                        >
+                                          <span>📤</span>
+                                          <span>Resend (New System)</span>
+                                        </button>
+                                        
+                                        <button
+                                          onClick={() => {
+                                            handleCheckEnvelopeSupport(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-2 border-t"
+                                        >
+                                          <span>ℹ️</span>
+                                          <span>Check Info</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
                                 {/* 🆕 Botón: Reenviar */}
                                 <button
                                   onClick={() => handleResendBudget(budget)}
@@ -2390,6 +2780,73 @@ const BudgetList = () => {
                                     Sent to Sign
                                   </p>
                                 </div>
+                                
+                                {/* 🆕 OPCIONES DE FIRMA - Menú desplegable */}
+                                {budget.signatureMethod === 'docusign' && (budget.docusignEnvelopeId || budget.signatureDocumentId) && !['signed', 'approved'].includes(budget.status) && (
+                                  <div className="relative w-full signature-menu-wrapper">
+                                    <button
+                                      onClick={() => setSignatureMenuOpen(
+                                        signatureMenuOpen === budget.idBudget ? null : budget.idBudget
+                                      )}
+                                      className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 flex items-center justify-center gap-1"
+                                      title="Signature Options"
+                                    >
+                                      <span>📋</span>
+                                      <span>Signature Options</span>
+                                      <span>▾</span>
+                                    </button>
+                                    
+                                    {/* Menú desplegable */}
+                                    {signatureMenuOpen === budget.idBudget && (
+                                      <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                                        <button
+                                          onClick={() => {
+                                            handleCopySignatureLink(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center gap-2"
+                                        >
+                                          <span>📋</span>
+                                          <span>Copy Link</span>
+                                        </button>
+                                        
+                                        <button
+                                          onClick={() => {
+                                            handleRegenerateSignatureLink(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-green-50 flex items-center gap-2 border-t"
+                                        >
+                                          <span>🔄</span>
+                                          <span>Regenerate Link</span>
+                                        </button>
+                                        
+                                        <button
+                                          onClick={() => {
+                                            handleResendWithNewSystem(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 flex items-center gap-2 border-t"
+                                        >
+                                          <span>📤</span>
+                                          <span>Resend (New System)</span>
+                                        </button>
+                                        
+                                        <button
+                                          onClick={() => {
+                                            handleCheckEnvelopeSupport(budget);
+                                            setSignatureMenuOpen(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center gap-2 border-t"
+                                        >
+                                          <span>ℹ️</span>
+                                          <span>Check Info</span>
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                
                                 <button
                                   onClick={() =>
                                     handleUpdateStatus(

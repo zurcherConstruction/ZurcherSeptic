@@ -1,4 +1,5 @@
 const { DataTypes } = require('sequelize');
+const { autoSubscribeToNewsletter } = require('../../utils/autoSubscribeNewsletter');
 
 module.exports = (sequelize) => {
   const Work = sequelize.define('Work', {
@@ -243,6 +244,36 @@ module.exports = (sequelize) => {
           });
 
           console.log(`✅ WorkStateHistory y WorkNote registrados: ${fromStatus} → ${toStatus}`);
+        }
+      },
+      
+      // 📧 Auto-suscribir al Newsletter cuando se crea un Work (via Budget)
+      afterCreate: async (work, options) => {
+        try {
+          // Cargar el Budget asociado para obtener el email
+          const Budget = sequelize.models.Budget;
+          if (work.budgetId) {
+            const budget = await Budget.findByPk(work.budgetId, {
+              attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
+            });
+            
+            if (budget && budget.applicantEmail) {
+              await autoSubscribeToNewsletter(
+                budget.applicantEmail,
+                budget.applicantName,
+                'work',
+                {
+                  propertyAddress: work.propertyAddress || budget.propertyAddress,
+                  workId: work.idWork,
+                  budgetId: work.budgetId,
+                  subscribedFrom: 'work_creation'
+                }
+              );
+            }
+          }
+        } catch (error) {
+          console.error('Error en Work afterCreate hook:', error);
+          // No lanzar error para no interrumpir la creación del Work
         }
       }
     }

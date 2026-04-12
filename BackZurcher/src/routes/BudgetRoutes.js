@@ -125,6 +125,22 @@ router.post(
   BudgetController.resendSignatureLink
 );
 
+// ✅ NUEVA RUTA: Verificar si un envelope soporta regeneración de enlaces
+router.get(
+  '/:idBudget/check-envelope-support',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'finance']),
+  BudgetController.checkEnvelopeSupport
+);
+
+// ✅ NUEVA RUTA: Reenviar documento con firma embebida (para documentos antiguos)
+router.post(
+  '/:idBudget/resend-with-embedded-signing',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'finance']),
+  BudgetController.resendWithEmbeddedSigning
+);
+
 // Verificar estado de firma del presupuesto
 router.get(
   '/:idBudget/signature-status',

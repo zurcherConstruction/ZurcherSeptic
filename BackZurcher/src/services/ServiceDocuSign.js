@@ -871,6 +871,36 @@ class DocuSignService {
           throw new Error(`No se puede regenerar enlace. Estado actual: ${envelope.status}`);
         }
 
+        // ✅ VERIFICAR SI EL ENVELOPE TIENE clientUserId (firma embebida)
+        console.log('🔍 Verificando si el envelope usa firma embebida...');
+        const recipients = await envelopesApi.listRecipients(this.accountId, envelopeId);
+        
+        const signer = recipients.signers?.find(s => 
+          s.email.toLowerCase() === clientEmail.toLowerCase()
+        );
+
+        if (!signer) {
+          throw new Error(`No se encontró el firmante ${clientEmail} en el envelope`);
+        }
+
+        console.log(`👤 Firmante encontrado: ${signer.name} (${signer.email})`);
+        console.log(`🔑 ClientUserId: ${signer.clientUserId || 'NO CONFIGURADO'}`);
+
+        // Si no tiene clientUserId, fue enviado por email tradicional
+        if (!signer.clientUserId) {
+          console.log('⚠️ Este envelope fue enviado por EMAIL TRADICIONAL (sin firma embebida)');
+          console.log('📧 El enlace en el correo original de DocuSign NO EXPIRA');
+          
+          throw new Error(
+            'Este documento fue enviado por email tradicional de DocuSign. ' +
+            'El enlace en el correo original es permanente y no expira. ' +
+            'Por favor, use el enlace del email enviado por DocuSign (revise la bandeja de entrada o spam). ' +
+            'Los documentos enviados recientemente ya usan enlaces que sí se pueden regenerar.'
+          );
+        }
+
+        console.log('✅ Envelope usa firma embebida - generando nuevo enlace...');
+
         // Generar nuevo enlace de firma
         const signingUrl = await this.getRecipientViewUrl(
           envelopeId,

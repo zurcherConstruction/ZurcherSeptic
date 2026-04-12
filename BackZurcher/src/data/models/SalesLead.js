@@ -1,4 +1,5 @@
 const { DataTypes } = require('sequelize');
+const { autoSubscribeToNewsletter } = require('../../utils/autoSubscribeNewsletter');
 
 module.exports = (sequelize) => {
   return sequelize.define('SalesLead', {
@@ -162,6 +163,24 @@ module.exports = (sequelize) => {
     timestamps: true,
     underscored: true, // Usa snake_case para columnas automáticas (created_at, updated_at)
     tableName: 'SalesLeads',
+    hooks: {
+      // 📧 Auto-suscribir al Newsletter cuando se crea un Sales Lead con email
+      afterCreate: async (salesLead, options) => {
+        if (salesLead.applicantEmail) {
+          await autoSubscribeToNewsletter(
+            salesLead.applicantEmail,
+            salesLead.applicantName,
+            'sales_lead',
+            {
+              propertyAddress: salesLead.propertyAddress,
+              salesLeadId: salesLead.id,
+              source: salesLead.source,
+              subscribedFrom: 'sales_lead_creation'
+            }
+          );
+        }
+      }
+    },
     indexes: [
       {
         fields: ['status']

@@ -30,6 +30,7 @@ import reminderReducer from '../Reducer/reminderReducer'; // 🆕 Recordatorios 
 import salesLeadReducer from '../Reducer/SalesLeadReducer'; // 🆕 Sales Leads reducer
 import marketingCampaignsReducer from '../Reducer/marketingCampaignsReducer'; // 🆕 Marketing Campaigns reducer
 import knowledgeBaseReducer from '../Reducer/knowledgeBaseReducer'; // 🆕 Knowledge Base reducer
+import newsletterReducer from '../Reducers/newsletterReducer'; // 🆕 Newsletter reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -61,6 +62,7 @@ const rootReducer = combineReducers({
   salesLeads: salesLeadReducer, // 🆕 Sales Leads reducer
   marketingCampaigns: marketingCampaignsReducer, // 🆕 Marketing Campaigns reducer
   knowledgeBase: knowledgeBaseReducer, // 🆕 Knowledge Base reducer
+  newsletter: newsletterReducer, // 🆕 Newsletter reducer
 });
 
 export const store = configureStore({

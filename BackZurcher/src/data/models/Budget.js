@@ -1,4 +1,5 @@
 const { DataTypes, Op } = require('sequelize');
+const { autoSubscribeToNewsletter } = require('../../utils/autoSubscribeNewsletter');
 
 module.exports = (sequelize) => {
   return sequelize.define("Budget", {
@@ -364,6 +365,22 @@ module.exports = (sequelize) => {
   }, {
     // 🆕 Hooks para manejar transiciones de estado automáticas
     hooks: {
+      // 📧 Auto-suscribir al Newsletter cuando se crea un Budget con email
+      afterCreate: async (budget, options) => {
+        if (budget.applicantEmail) {
+          await autoSubscribeToNewsletter(
+            budget.applicantEmail,
+            budget.applicantName,
+            'budget',
+            {
+              propertyAddress: budget.propertyAddress,
+              budgetId: budget.idBudget,
+              subscribedFrom: 'budget_creation'
+            }
+          );
+        }
+      },
+      
       beforeUpdate: async (budget, options) => {
         // ✅ CASO 1: FIRMA PRIMERO, PAGO DESPUÉS
         // Si está en 'signed' y se agrega pago, pasar automáticamente a 'approved'

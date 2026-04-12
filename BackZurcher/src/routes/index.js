@@ -55,6 +55,7 @@ const salesLeadRoutes = require('./SalesLeadRoutes'); // 🆕 Rutas para prospec
 const leadNoteRoutes = require('./LeadNoteRoutes'); // 🆕 Rutas para notas de leads
 const companyEmailRoutes = require('./companyEmailRoutes'); // 🆕 Rutas para emails masivos de marketing
 const knowledgeBaseRoutes = require('./knowledgeBaseRoutes'); // 🆕 Rutas para base de conocimiento
+const newsletterRoutes = require('./newsletterRoutes'); // 🆕 Rutas para sistema de newsletter
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -76,6 +77,7 @@ router.use('/budgets', budgetPublicRoutes); // Rutas públicas de presupuestos
 router.use('/client-portal', clientPortalRoutes); // 🆕 Portal del cliente (público)
 router.use('/ppi', ppiPublicRoutes); // 🆕 Rutas públicas de firma de PPI
 router.use('/simple-works', simpleWorkPublicRoutes); // 🆕 Aprobación pública de SimpleWork
+router.use('/newsletter', newsletterRoutes); // 🆕 Sistema de newsletter (incluye rutas públicas: subscribe, public-unsubscribe)
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');
