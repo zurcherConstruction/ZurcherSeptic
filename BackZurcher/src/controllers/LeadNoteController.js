@@ -459,10 +459,6 @@ const LeadNoteController = {
             required: true,
             where: {
               isReminderActive: true,
-              reminderDate: {
-                [Op.gte]: now,
-                [Op.lte]: futureDate
-              },
               reminderCompletedAt: null
             },
             attributes: ['id', 'message', 'noteType', 'priority', 'reminderDate', 'createdAt'],
@@ -491,8 +487,9 @@ const LeadNoteController = {
           nearestAlert: {
             ...nearestAlert,
             daysRemaining,
+            isOverdue: daysRemaining < 0,
             isToday: daysRemaining === 0,
-            isUrgent: daysRemaining <= 2
+            isUrgent: daysRemaining <= 1
           },
           alertCount: leadData.leadNotes.length
         };

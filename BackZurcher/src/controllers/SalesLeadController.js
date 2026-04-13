@@ -42,7 +42,7 @@ const SalesLeadController = {
         serviceType: serviceType?.trim() || null,
         estimatedValue: estimatedValue || null,
         notes: notes?.trim() || null,
-        firstContactDate: status === 'contacted' ? new Date() : null,
+        firstContactDate: (status && !['new', 'archived'].includes(status)) ? new Date() : null,
         lastActivityDate: new Date(),
         createdBy
       });
@@ -147,30 +147,35 @@ const SalesLeadController = {
       // --- TELEFONO ---
       if (phone?.trim() && phone.trim().length > 5) {
         const phoneDigits = phone.trim().replace(/\D/g, '');
+        // Comparación normalizada directamente en la BD usando REGEXP_REPLACE
         checks.push(
           SalesLead.findAll({
             where: {
-              applicantPhone: { [Op.ne]: null },
-              ...(excludeLeadId ? { id: { [Op.ne]: excludeLeadId } } : {})
+              [Op.and]: [
+                sequelize.where(
+                  sequelize.fn('REGEXP_REPLACE', sequelize.col('applicant_phone'), '[^0-9]', '', 'g'),
+                  { [Op.eq]: phoneDigits }
+                ),
+                ...(excludeLeadId ? [{ id: { [Op.ne]: excludeLeadId } }] : [])
+              ]
             },
             attributes: ['id', 'applicantName', 'applicantPhone', 'applicantEmail', 'propertyAddress', 'status'],
-            limit: 200
+            limit: 10
           }).then(rows => {
             rows.forEach(r => {
-              if (r.applicantPhone && r.applicantPhone.replace(/\D/g, '') === phoneDigits) {
-                result.phone.matches.push({ source: 'lead', id: r.id, applicantName: r.applicantName, detail: r.propertyAddress || r.applicantEmail, status: r.status });
-              }
+              result.phone.matches.push({ source: 'lead', id: r.id, applicantName: r.applicantName, detail: r.propertyAddress || r.applicantEmail, status: r.status });
             });
           }),
           Permit.findAll({
-            where: { applicantPhone: { [Op.ne]: null } },
+            where: sequelize.where(
+              sequelize.fn('REGEXP_REPLACE', sequelize.col('applicant_phone'), '[^0-9]', '', 'g'),
+              { [Op.eq]: phoneDigits }
+            ),
             attributes: ['idPermit', 'applicantName', 'applicantPhone', 'propertyAddress'],
-            limit: 200
+            limit: 10
           }).then(rows => {
             rows.forEach(r => {
-              if (r.applicantPhone && r.applicantPhone.replace(/\D/g, '') === phoneDigits) {
-                result.phone.matches.push({ source: 'permit', id: r.idPermit, applicantName: r.applicantName, detail: r.propertyAddress, status: null });
-              }
+              result.phone.matches.push({ source: 'permit', id: r.idPermit, applicantName: r.applicantName, detail: r.propertyAddress, status: null });
             });
           })
         );
@@ -270,22 +275,22 @@ const SalesLeadController = {
       const offset = (parseInt(page) - 1) * parseInt(pageSize);
       const limit = parseInt(pageSize);
 
-      // Orden: si se pide agrupar por contacto, ordenar por email+teléfono (los duplicados quedan juntos en todas las páginas)
+      // Orden: si se pide agrupar por contacto, ordenar por la clave de grupo
+      // (MIN created_at del grupo) para que los duplicados queden juntos en TODAS las páginas
+      const isGroupMode = sortBy === 'contact_group';
       let orderClause;
-      if (sortBy === 'contact_group') {
-        // Subquery que asigna la clave de grupo = MIN(id) entre todos los leads que
-        // comparten email O teléfono con el lead actual. Así quedan juntos aunque
-        // solo coincidan en uno de los dos campos.
+      if (isGroupMode) {
         orderClause = [
           sequelize.literal(`(
             SELECT MIN(sl2.created_at)
             FROM "SalesLeads" sl2
             WHERE
               (sl2.applicant_email IS NOT NULL AND sl2.applicant_email != ''
-               AND sl2.applicant_email = "SalesLead"."applicant_email")
+               AND LOWER(sl2.applicant_email) = LOWER("SalesLead"."applicant_email"))
               OR
               (sl2.applicant_phone IS NOT NULL AND sl2.applicant_phone != ''
-               AND sl2.applicant_phone = "SalesLead"."applicant_phone")
+               AND REGEXP_REPLACE(sl2.applicant_phone, '[^0-9]', '', 'g')
+                 = REGEXP_REPLACE("SalesLead"."applicant_phone", '[^0-9]', '', 'g'))
           ) ASC NULLS LAST`),
           sequelize.literal(`"SalesLead"."last_activity_date" DESC`)
         ];
@@ -295,9 +300,40 @@ const SalesLeadController = {
         orderClause = [[safeSortBy, sortOrder === 'ASC' ? 'ASC' : 'DESC']];
       }
 
+      // Atributo calculado en DB: tipo de duplicado (email | phone | null)
+      // Solo se calcula cuando se solicita agrupación (evita subqueries innecesarias)
+      const groupTypeAttr = isGroupMode ? [
+        sequelize.literal(`
+          CASE
+            WHEN "SalesLead"."applicant_email" IS NOT NULL
+             AND "SalesLead"."applicant_email" != ''
+             AND EXISTS (
+               SELECT 1 FROM "SalesLeads" sl2
+               WHERE LOWER(sl2.applicant_email) = LOWER("SalesLead"."applicant_email")
+               AND sl2.id != "SalesLead".id
+             )
+            THEN 'email'
+            WHEN "SalesLead"."applicant_phone" IS NOT NULL
+             AND "SalesLead"."applicant_phone" != ''
+             AND EXISTS (
+               SELECT 1 FROM "SalesLeads" sl2
+               WHERE REGEXP_REPLACE(sl2.applicant_phone, '[^0-9]', '', 'g')
+                   = REGEXP_REPLACE("SalesLead"."applicant_phone", '[^0-9]', '', 'g')
+               AND sl2.id != "SalesLead".id
+             )
+            THEN 'phone'
+            ELSE NULL
+          END
+        `),
+        'groupType'
+      ] : null;
+
       // Consulta
       const { count, rows: leads } = await SalesLead.findAndCountAll({
         where: whereClause,
+        attributes: groupTypeAttr
+          ? { include: [groupTypeAttr] }
+          : undefined,
         include: [
           {
             model: Staff,
@@ -421,8 +457,9 @@ const SalesLeadController = {
         });
       }
 
-      // Si cambia a 'contacted' y no tiene firstContactDate, establecerla
-      if (updates.status === 'contacted' && !lead.firstContactDate) {
+      // Si cambia a cualquier estado de contacto y no tiene firstContactDate, establecerla
+      const CONTACTED_STATUSES = ['contacted', 'interested', 'quoted', 'negotiating', 'won', 'lost'];
+      if (updates.status && CONTACTED_STATUSES.includes(updates.status) && !lead.firstContactDate) {
         updates.firstContactDate = new Date();
       }
 
@@ -597,7 +634,101 @@ const SalesLeadController = {
     }
   },
 
-  // 📊 Dashboard de estadísticas
+  // � Obtener leads sin teléfono ni email
+  async getNoContactLeads(req, res) {
+    try {
+      const leads = await SalesLead.findAll({
+        where: {
+          [Op.and]: [
+            { [Op.or]: [{ applicantPhone: null }, { applicantPhone: '' }] },
+            { [Op.or]: [{ applicantEmail: null }, { applicantEmail: '' }] }
+          ]
+        },
+        attributes: ['id', 'applicantName', 'propertyAddress', 'status', 'createdAt', 'source'],
+        order: [['createdAt', 'DESC']]
+      });
+      res.json({ leads, count: leads.length });
+    } catch (error) {
+      console.error('Error al obtener leads sin contacto:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // 🗑️ Eliminar en lote leads sin teléfono ni email
+  async deleteNoContactLeads(req, res) {
+    try {
+      const { ids } = req.body;
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: 'Se requiere un array de IDs' });
+      }
+      // Validar que sean UUIDs válidos para evitar inyección
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const validIds = ids.filter(id => uuidRegex.test(id));
+      if (validIds.length === 0) {
+        return res.status(400).json({ error: 'No se encontraron IDs válidos' });
+      }
+      await LeadNote.destroy({ where: { leadId: { [Op.in]: validIds } } });
+      const deleted = await SalesLead.destroy({ where: { id: { [Op.in]: validIds } } });
+      res.json({ message: `${deleted} leads eliminados exitosamente`, deletedCount: deleted });
+    } catch (error) {
+      console.error('Error al eliminar leads sin contacto:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // 📈 Métricas de actividad (nuevos + contactados por período)
+  async getActivityMetrics(req, res) {
+    try {
+      const now = new Date();
+      const weekAgo      = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000);
+      const twoWeeksAgo  = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      const monthAgo     = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      const prevWeekEnd  = weekAgo;
+      const prevWeekStart = twoWeeksAgo;
+
+      const [
+        newThisWeek, newPrevWeek, newBiweekly, newMonthly,
+        contactedThisWeek, contactedPrevWeek, contactedBiweekly, contactedMonthly,
+        noContactCount
+      ] = await Promise.all([
+        SalesLead.count({ where: { createdAt: { [Op.gte]: weekAgo } } }),
+        SalesLead.count({ where: { createdAt: { [Op.between]: [prevWeekStart, prevWeekEnd] } } }),
+        SalesLead.count({ where: { createdAt: { [Op.gte]: twoWeeksAgo } } }),
+        SalesLead.count({ where: { createdAt: { [Op.gte]: monthAgo } } }),
+        SalesLead.count({ where: { firstContactDate: { [Op.gte]: weekAgo } } }),
+        SalesLead.count({ where: { firstContactDate: { [Op.between]: [prevWeekStart, prevWeekEnd] } } }),
+        SalesLead.count({ where: { firstContactDate: { [Op.gte]: twoWeeksAgo } } }),
+        SalesLead.count({ where: { firstContactDate: { [Op.gte]: monthAgo } } }),
+        SalesLead.count({
+          where: {
+            [Op.and]: [
+              { [Op.or]: [{ applicantPhone: null }, { applicantPhone: '' }] },
+              { [Op.or]: [{ applicantEmail: null }, { applicantEmail: '' }] }
+            ]
+          }
+        })
+      ]);
+
+      res.json({
+        new: {
+          weekly:   { current: newThisWeek,       previous: newPrevWeek },
+          biweekly: newBiweekly,
+          monthly:  newMonthly
+        },
+        contacted: {
+          weekly:   { current: contactedThisWeek,  previous: contactedPrevWeek },
+          biweekly: contactedBiweekly,
+          monthly:  contactedMonthly
+        },
+        noContactCount
+      });
+    } catch (error) {
+      console.error('Error al obtener métricas de actividad:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  // �📊 Dashboard de estadísticas
   async getDashboardStats(req, res) {
     try {
       const { startDate, endDate } = req.query;
