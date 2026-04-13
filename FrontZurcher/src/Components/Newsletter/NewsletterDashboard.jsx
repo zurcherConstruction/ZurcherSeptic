@@ -34,6 +34,10 @@ const NewsletterDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [dataLoaded, setDataLoaded] = useState(false);
   
+  // Estados de paginación
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20); // 20 suscriptores por página
+  
   // Modales
   const [showSubscriberModal, setShowSubscriberModal] = useState(false);
   const [showNewsletterModal, setShowNewsletterModal] = useState(false);
@@ -50,18 +54,24 @@ const NewsletterDashboard = () => {
     phone: ''
   });
   
-  const { subscribers = { data: [] }, newsletters = { data: [] }, images = { data: [] } } = useSelector(state => state.newsletter || {});
+  const { 
+    subscribers = { data: [], pagination: null }, 
+    newsletters = { data: [] }, 
+    images = { data: [] } 
+  } = useSelector(state => state.newsletter || {});
 
+  // Extraer datos de paginación
+  const total = subscribers.pagination?.total || 0;
+  const totalPages = subscribers.pagination?.totalPages || 1;
+
+  // Cargar datos cuando cambia la página
   useEffect(() => {
-    if (dataLoaded) return;
-    
     const loadData = async () => {
       try {
         setLoading(true);
         await Promise.all([
-          dispatch(getAllSubscribers()),
+          dispatch(getAllSubscribers({ page, limit: pageSize })),
           dispatch(getAllNewsletters())
-          // NO cargar imágenes automáticamente - solo cuando se abre la galería
         ]);
         setDataLoaded(true);
       } catch (error) {
@@ -72,12 +82,12 @@ const NewsletterDashboard = () => {
     };
     
     loadData();
-  }, [dataLoaded, dispatch]);
+  }, [page, dispatch]);
 
   const stats = [
     {
       title: 'Suscriptores Activos',
-      value: (subscribers.data || []).filter(s => s.status === 'active').length,
+      value: total, // Total de suscriptores (paginación)
       icon: FaUsers,
       color: 'blue'
     },
@@ -95,7 +105,8 @@ const NewsletterDashboard = () => {
       await dispatch(createSubscriber(subscriberForm));
       setShowSubscriberModal(false);
       setSubscriberForm({ email: '', firstName: '', lastName: '', phone: '' });
-      await dispatch(getAllSubscribers());
+      setPage(1); // Volver a la primera página para ver el nuevo suscriptor
+      await dispatch(getAllSubscribers({ page: 1, limit: pageSize }));
       alert('Suscriptor creado exitosamente');
     } catch (error) {
       alert('Error al crear suscriptor: ' + (error.response?.data?.message || error.message));
@@ -110,7 +121,7 @@ const NewsletterDashboard = () => {
         console.log('🗑️ Eliminando suscriptor ID:', id);
         await dispatch(deleteSubscriber(id));
         console.log('✅ Suscriptor eliminado, recargando lista...');
-        await dispatch(getAllSubscribers());
+        await dispatch(getAllSubscribers({ page, limit: pageSize }));
         console.log('✅ Lista actualizada');
       } catch (error) {
         console.error('❌ Error al eliminar suscriptor:', error);
@@ -125,7 +136,7 @@ const NewsletterDashboard = () => {
         console.log('📧 Desuscribiendo ID:', id);
         await dispatch(unsubscribeSubscriber(id));
         console.log('✅ Usuario desuscrito, recargando lista...');
-        await dispatch(getAllSubscribers());
+        await dispatch(getAllSubscribers({ page, limit: pageSize }));
         console.log('✅ Lista actualizada');
       } catch (error) {
         console.error('❌ Error al desuscribir:', error);
@@ -393,6 +404,92 @@ const NewsletterDashboard = () => {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Paginación */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-center gap-2 mt-6 flex-wrap">
+                        {/* Primera + Anterior */}
+                        <button
+                          onClick={() => setPage(1)}
+                          disabled={page === 1}
+                          className="px-2 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+                          title="Primera página"
+                        >
+                          «
+                        </button>
+                        <button
+                          onClick={() => setPage(p => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                          className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+                        >
+                          ‹ Anterior
+                        </button>
+
+                        {/* Números de página */}
+                        {(() => {
+                          const pages = [];
+                          const delta = 2; // Mostrar 2 páginas a cada lado de la actual
+                          const left = Math.max(1, page - delta);
+                          const right = Math.min(totalPages, page + delta);
+
+                          if (left > 1) {
+                            pages.push(
+                              <button key={1} onClick={() => setPage(1)}
+                                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+                                1
+                              </button>
+                            );
+                            if (left > 2) pages.push(<span key="left-ellipsis" className="px-2 py-2 text-gray-400">…</span>);
+                          }
+
+                          for (let i = left; i <= right; i++) {
+                            pages.push(
+                              <button key={i} onClick={() => setPage(i)}
+                                className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${
+                                  i === page
+                                    ? 'bg-blue-600 text-white border-blue-600'
+                                    : 'border-gray-300 hover:bg-gray-50'
+                                }`}>
+                                {i}
+                              </button>
+                            );
+                          }
+
+                          if (right < totalPages) {
+                            if (right < totalPages - 1) pages.push(<span key="right-ellipsis" className="px-2 py-2 text-gray-400">…</span>);
+                            pages.push(
+                              <button key={totalPages} onClick={() => setPage(totalPages)}
+                                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+                                {totalPages}
+                              </button>
+                            );
+                          }
+
+                          return pages;
+                        })()}
+
+                        {/* Siguiente + Última */}
+                        <button
+                          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                          disabled={page === totalPages}
+                          className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+                        >
+                          Siguiente ›
+                        </button>
+                        <button
+                          onClick={() => setPage(totalPages)}
+                          disabled={page === totalPages}
+                          className="px-2 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+                          title="Última página"
+                        >
+                          »
+                        </button>
+
+                        <span className="px-3 py-2 text-sm text-gray-500">
+                          {total} suscriptores totales
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
