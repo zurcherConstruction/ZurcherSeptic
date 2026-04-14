@@ -680,25 +680,56 @@ const SalesLeadController = {
   async getActivityMetrics(req, res) {
     try {
       const now = new Date();
-      const weekAgo      = new Date(now.getTime() - 7  * 24 * 60 * 60 * 1000);
-      const twoWeeksAgo  = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-      const monthAgo     = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      const prevWeekEnd  = weekAgo;
-      const prevWeekStart = twoWeeksAgo;
+      
+      // 📅 Calcular inicio y fin de la semana actual (Lunes 00:00 - Domingo 23:59)
+      const currentDayOfWeek = now.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+      const daysFromMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1; // Si es domingo, retroceder 6 días
+      
+      const thisWeekStart = new Date(now);
+      thisWeekStart.setDate(now.getDate() - daysFromMonday);
+      thisWeekStart.setHours(0, 0, 0, 0);
+      
+      const thisWeekEnd = new Date(thisWeekStart);
+      thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+      thisWeekEnd.setHours(23, 59, 59, 999);
+      
+      // 📅 Calcular inicio y fin de la semana anterior (Lunes 00:00 - Domingo 23:59)
+      const prevWeekStart = new Date(thisWeekStart);
+      prevWeekStart.setDate(thisWeekStart.getDate() - 7);
+      
+      const prevWeekEnd = new Date(prevWeekStart);
+      prevWeekEnd.setDate(prevWeekStart.getDate() + 6);
+      prevWeekEnd.setHours(23, 59, 59, 999);
+      
+      // 📅 Calcular inicio de período quincenal (hace 2 semanas desde el lunes)
+      const biweeklyStart = new Date(thisWeekStart);
+      biweeklyStart.setDate(thisWeekStart.getDate() - 14);
+      
+      // 📅 Calcular inicio de período mensual (hace 30 días)
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
       const [
         newThisWeek, newPrevWeek, newBiweekly, newMonthly,
         contactedThisWeek, contactedPrevWeek, contactedBiweekly, contactedMonthly,
         noContactCount
       ] = await Promise.all([
-        SalesLead.count({ where: { createdAt: { [Op.gte]: weekAgo } } }),
+        // Nuevos contactos esta semana (Lunes 00:00 hasta ahora)
+        SalesLead.count({ where: { createdAt: { [Op.gte]: thisWeekStart } } }),
+        // Nuevos contactos semana anterior (Lunes-Domingo pasado)
         SalesLead.count({ where: { createdAt: { [Op.between]: [prevWeekStart, prevWeekEnd] } } }),
-        SalesLead.count({ where: { createdAt: { [Op.gte]: twoWeeksAgo } } }),
+        // Nuevos contactos últimas 2 semanas
+        SalesLead.count({ where: { createdAt: { [Op.gte]: biweeklyStart } } }),
+        // Nuevos contactos último mes
         SalesLead.count({ where: { createdAt: { [Op.gte]: monthAgo } } }),
-        SalesLead.count({ where: { firstContactDate: { [Op.gte]: weekAgo } } }),
+        // Contactados esta semana (Lunes 00:00 hasta ahora)
+        SalesLead.count({ where: { firstContactDate: { [Op.gte]: thisWeekStart } } }),
+        // Contactados semana anterior (Lunes-Domingo pasado)
         SalesLead.count({ where: { firstContactDate: { [Op.between]: [prevWeekStart, prevWeekEnd] } } }),
-        SalesLead.count({ where: { firstContactDate: { [Op.gte]: twoWeeksAgo } } }),
+        // Contactados últimas 2 semanas
+        SalesLead.count({ where: { firstContactDate: { [Op.gte]: biweeklyStart } } }),
+        // Contactados último mes
         SalesLead.count({ where: { firstContactDate: { [Op.gte]: monthAgo } } }),
+        // Sin datos de contacto
         SalesLead.count({
           where: {
             [Op.and]: [
