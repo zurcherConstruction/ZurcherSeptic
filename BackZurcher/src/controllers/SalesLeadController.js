@@ -153,7 +153,7 @@ const SalesLeadController = {
             where: {
               [Op.and]: [
                 sequelize.where(
-                  sequelize.fn('REGEXP_REPLACE', sequelize.col('applicantPhone'), '[^0-9]', '', 'g'),
+                  sequelize.fn('REGEXP_REPLACE', sequelize.col('SalesLead.applicant_phone'), '[^0-9]', '', 'g'),
                   { [Op.eq]: phoneDigits }
                 ),
                 ...(excludeLeadId ? [{ id: { [Op.ne]: excludeLeadId } }] : [])
@@ -168,7 +168,7 @@ const SalesLeadController = {
           }),
           Permit.findAll({
             where: sequelize.where(
-              sequelize.fn('REGEXP_REPLACE', sequelize.col('applicantPhone'), '[^0-9]', '', 'g'),
+              sequelize.fn('REGEXP_REPLACE', sequelize.col('Permit.applicantPhone'), '[^0-9]', '', 'g'),
               { [Op.eq]: phoneDigits }
             ),
             attributes: ['idPermit', 'applicantName', 'applicantPhone', 'propertyAddress'],
@@ -282,17 +282,17 @@ const SalesLeadController = {
       if (isGroupMode) {
         orderClause = [
           sequelize.literal(`(
-            SELECT MIN(sl2."createdAt")
+            SELECT MIN(sl2."created_at")
             FROM "SalesLeads" sl2
             WHERE
-              (sl2."applicantEmail" IS NOT NULL AND sl2."applicantEmail" != ''
-               AND LOWER(sl2."applicantEmail") = LOWER("SalesLead"."applicantEmail"))
+              (sl2."applicant_email" IS NOT NULL AND sl2."applicant_email" != ''
+               AND LOWER(sl2."applicant_email") = LOWER("SalesLead"."applicant_email"))
               OR
-              (sl2."applicantPhone" IS NOT NULL AND sl2."applicantPhone" != ''
-               AND REGEXP_REPLACE(sl2."applicantPhone", '[^0-9]', '', 'g')
-                 = REGEXP_REPLACE("SalesLead"."applicantPhone", '[^0-9]', '', 'g'))
+              (sl2."applicant_phone" IS NOT NULL AND sl2."applicant_phone" != ''
+               AND REGEXP_REPLACE(sl2."applicant_phone", '[^0-9]', '', 'g')
+                 = REGEXP_REPLACE("SalesLead"."applicant_phone", '[^0-9]', '', 'g'))
           ) ASC NULLS LAST`),
-          sequelize.literal(`"SalesLead"."lastActivityDate" DESC`)
+          sequelize.literal(`"SalesLead"."last_activity_date" DESC`)
         ];
       } else {
         const validSortFields = ['lastActivityDate', 'createdAt', 'applicantName', 'status', 'priority'];
@@ -305,20 +305,20 @@ const SalesLeadController = {
       const groupTypeAttr = isGroupMode ? [
         sequelize.literal(`
           CASE
-            WHEN "SalesLead"."applicantEmail" IS NOT NULL
-             AND "SalesLead"."applicantEmail" != ''
+            WHEN "SalesLead"."applicant_email" IS NOT NULL
+             AND "SalesLead"."applicant_email" != ''
              AND EXISTS (
                SELECT 1 FROM "SalesLeads" sl2
-               WHERE LOWER(sl2."applicantEmail") = LOWER("SalesLead"."applicantEmail")
+               WHERE LOWER(sl2."applicant_email") = LOWER("SalesLead"."applicant_email")
                AND sl2.id != "SalesLead".id
              )
             THEN 'email'
-            WHEN "SalesLead"."applicantPhone" IS NOT NULL
-             AND "SalesLead"."applicantPhone" != ''
+            WHEN "SalesLead"."applicant_phone" IS NOT NULL
+             AND "SalesLead"."applicant_phone" != ''
              AND EXISTS (
                SELECT 1 FROM "SalesLeads" sl2
-               WHERE REGEXP_REPLACE(sl2."applicantPhone", '[^0-9]', '', 'g')
-                   = REGEXP_REPLACE("SalesLead"."applicantPhone", '[^0-9]', '', 'g')
+               WHERE REGEXP_REPLACE(sl2."applicant_phone", '[^0-9]', '', 'g')
+                   = REGEXP_REPLACE("SalesLead"."applicant_phone", '[^0-9]', '', 'g')
                AND sl2.id != "SalesLead".id
              )
             THEN 'phone'
