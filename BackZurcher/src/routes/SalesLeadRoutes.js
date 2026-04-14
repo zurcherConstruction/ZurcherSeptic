@@ -10,7 +10,14 @@ const authorizedRoles = ['admin', 'owner', 'recept', 'sales_rep', 'follow-up'];
 // 📊 Dashboard de estadísticas (debe ir antes de /:id para no confundir)
 router.get('/dashboard/stats', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getDashboardStats);
 
-// 🔍 Verificar si ya existe un lead con esa dirección
+// � Métricas de actividad (nuevos + contactados por período)
+router.get('/activity/metrics', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getActivityMetrics);
+
+// 🚫 Leads sin teléfono ni email
+router.get('/no-contact', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.getNoContactLeads);
+router.delete('/no-contact/bulk', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.deleteNoContactLeads);
+
+// �🔍 Verificar si ya existe un lead con esa dirección
 router.get('/check-by-address', verifyToken, allowRoles(authorizedRoles), SalesLeadController.checkLeadByAddress);
 
 // � Verificar duplicados (email, teléfono, dirección) en todo el sistema

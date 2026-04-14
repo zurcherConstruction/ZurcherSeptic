@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -141,6 +141,16 @@ const SalesLeads = () => {
   const [leadForProposal, setLeadForProposal] = useState(null);
   const [proposalSentLeads, setProposalSentLeads] = useState(new Set());
 
+  // 📈 Estados para métricas de actividad
+  const [activityMetrics, setActivityMetrics] = useState(null);
+  const [metricsExpanded, setMetricsExpanded] = useState(false);
+
+  // 🚫 Estado para modal de limpieza sin contacto
+  const [noContactLeads, setNoContactLeads] = useState([]);
+  const [showNoContactModal, setShowNoContactModal] = useState(false);
+  const [loadingNoContact, setLoadingNoContact] = useState(false);
+  const [selectedNoContactIds, setSelectedNoContactIds] = useState(new Set());
+
   // Sincronizar propuestas enviadas desde la DB (persiste entre sesiones y dispositivos)
   useEffect(() => {
     if (leads.length > 0) {
@@ -154,25 +164,15 @@ const SalesLeads = () => {
   // � Agrupación por contacto duplicado
   const [groupDuplicates, setGroupDuplicates] = useState(false);
 
-  // Etiqueta _groupType para indicadores visuales (el backend ya los ordena juntos)
+  // _groupType viene del backend cuando groupDuplicates está activo (calculado en DB,
+  // funciona en TODAS las páginas, no solo la actual).
   const displayedLeads = useMemo(() => {
     if (leads.length === 0) return leads;
-    const emailMap = {};
-    const phoneMap = {};
-    leads.forEach(l => {
-      const email = l.applicantEmail?.trim().toLowerCase();
-      if (email) emailMap[email] = (emailMap[email] || 0) + 1;
-      const phone = l.applicantPhone?.replace(/\D/g, '') || '';
-      if (phone.length > 5) phoneMap[phone] = (phoneMap[phone] || 0) + 1;
-    });
-    return leads.map(l => {
-      const email = l.applicantEmail?.trim().toLowerCase();
-      const phone = l.applicantPhone?.replace(/\D/g, '') || '';
-      if (email && emailMap[email] > 1) return { ...l, _groupType: 'email' };
-      if (phone.length > 5 && phoneMap[phone] > 1) return { ...l, _groupType: 'phone' };
-      return { ...l, _groupType: null };
-    });
-  }, [leads]);
+    if (groupDuplicates) {
+      return leads.map(l => ({ ...l, _groupType: l.groupType || null }));
+    }
+    return leads.map(l => ({ ...l, _groupType: null }));
+  }, [leads, groupDuplicates]);
 
   // Conteo de duplicados en la página actual (para el badge del botón)
   const duplicateCount = useMemo(() =>
@@ -269,6 +269,7 @@ const SalesLeads = () => {
   useEffect(() => {
     if (canAccess) {
       loadLeadAlerts();
+      loadActivityMetrics();
       
       const interval = setInterval(() => {
         loadLeadAlerts();
@@ -277,6 +278,48 @@ const SalesLeads = () => {
       return () => clearInterval(interval);
     }
   }, [canAccess]);
+
+  // 📈 Cargar métricas de actividad
+  const loadActivityMetrics = async () => {
+    try {
+      const response = await api.get('/sales-leads/activity/metrics');
+      setActivityMetrics(response.data);
+    } catch (error) {
+      console.error('Error al cargar métricas:', error);
+    }
+  };
+
+  // 🚫 Cargar leads sin teléfono ni email
+  const handleOpenNoContactModal = async () => {
+    setLoadingNoContact(true);
+    setShowNoContactModal(true);
+    try {
+      const response = await api.get('/sales-leads/no-contact');
+      setNoContactLeads(response.data.leads || []);
+      setSelectedNoContactIds(new Set((response.data.leads || []).map(l => l.id)));
+    } catch (error) {
+      alert('Error al cargar leads sin contacto: ' + error.message);
+      setShowNoContactModal(false);
+    } finally {
+      setLoadingNoContact(false);
+    }
+  };
+
+  const handleDeleteNoContact = async () => {
+    if (selectedNoContactIds.size === 0) return;
+    if (!window.confirm(`⚠️ Eliminar ${selectedNoContactIds.size} leads sin teléfono ni email?\n\nEsta acción NO se puede deshacer.`)) return;
+    try {
+      await api.delete('/sales-leads/no-contact/bulk', { data: { ids: [...selectedNoContactIds] } });
+      setShowNoContactModal(false);
+      setNoContactLeads([]);
+      loadLeads();
+      loadActivityMetrics();
+      alert(`✅ ${selectedNoContactIds.size} leads eliminados`);
+      setSelectedNoContactIds(new Set());
+    } catch (error) {
+      alert('Error al eliminar: ' + (error.response?.data?.error || error.message));
+    }
+  };
 
   // 🔔 Verificar recordatorios manualmente (ejecuta el cron ahora)
   const handleCheckReminders = async () => {
@@ -440,9 +483,119 @@ const SalesLeads = () => {
               <PlusIcon className="h-5 w-5" />
               New Lead
             </button>
+            {/* 🧹 Botón limpiar sin contacto (solo admin/owner) */}
+            {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && activityMetrics?.noContactCount > 0 && (
+              <button
+                onClick={handleOpenNoContactModal}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 text-sm font-medium"
+                title="Leads sin teléfono ni email"
+              >
+                🚫 Sin contacto
+                <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded-full font-bold">
+                  {activityMetrics.noContactCount}
+                </span>
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {/* 📈 Panel de Métricas de Actividad */}
+      {activityMetrics && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+          <button
+            onClick={() => setMetricsExpanded(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors rounded-lg"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-lg">📈</span>
+              <span className="font-semibold text-gray-800 text-sm md:text-base">Métricas de Actividad</span>
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                  +{activityMetrics.new.weekly.current} nuevos esta semana
+                </span>
+                <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                  {activityMetrics.contacted.weekly.current} contactados esta semana
+                </span>
+              </div>
+            </div>
+            <svg className={`w-5 h-5 text-gray-400 transition-transform ${metricsExpanded ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {metricsExpanded && (
+            <div className="px-5 pb-5 border-t border-gray-100">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {/* Nuevos contactos */}
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center gap-2">
+                    <span>👤</span> Nuevos Contactos
+                  </h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Semanal */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                      <p className="text-xs text-gray-500 mb-1">Esta semana</p>
+                      <p className="text-2xl font-bold text-blue-600">{activityMetrics.new.weekly.current}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        {activityMetrics.new.weekly.current >= activityMetrics.new.weekly.previous ? (
+                          <span className="text-green-600 text-xs font-medium">▲</span>
+                        ) : (
+                          <span className="text-red-500 text-xs font-medium">▼</span>
+                        )}
+                        <span className="text-xs text-gray-400">vs {activityMetrics.new.weekly.previous} sem. ant.</span>
+                      </div>
+                    </div>
+                    {/* Quincenal */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                      <p className="text-xs text-gray-500 mb-1">Últimos 15 días</p>
+                      <p className="text-2xl font-bold text-blue-500">{activityMetrics.new.biweekly}</p>
+                    </div>
+                    {/* Mensual */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                      <p className="text-xs text-gray-500 mb-1">Último mes</p>
+                      <p className="text-2xl font-bold text-blue-400">{activityMetrics.new.monthly}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contactados */}
+                <div className="bg-green-50 rounded-lg p-4">
+                  <h4 className="text-sm font-bold text-green-800 mb-3 flex items-center gap-2">
+                    <span>📞</span> Contactos Realizados
+                  </h4>
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Semanal */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                      <p className="text-xs text-gray-500 mb-1">Esta semana</p>
+                      <p className="text-2xl font-bold text-green-600">{activityMetrics.contacted.weekly.current}</p>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        {activityMetrics.contacted.weekly.current >= activityMetrics.contacted.weekly.previous ? (
+                          <span className="text-green-600 text-xs font-medium">▲</span>
+                        ) : (
+                          <span className="text-red-500 text-xs font-medium">▼</span>
+                        )}
+                        <span className="text-xs text-gray-400">vs {activityMetrics.contacted.weekly.previous} sem. ant.</span>
+                      </div>
+                    </div>
+                    {/* Quincenal */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                      <p className="text-xs text-gray-500 mb-1">Últimos 15 días</p>
+                      <p className="text-2xl font-bold text-green-500">{activityMetrics.contacted.biweekly}</p>
+                    </div>
+                    {/* Mensual */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm text-center">
+                      <p className="text-xs text-gray-500 mb-1">Último mes</p>
+                      <p className="text-2xl font-bold text-green-400">{activityMetrics.contacted.monthly}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Estadísticas por Estado - Botones Clickeables */}
       {stats && Object.keys(stats).length > 0 && (
@@ -574,10 +727,10 @@ const SalesLeads = () => {
               <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
               </svg>
-              🔔 Leads con Recordatorios Próximos ({upcomingAlertLeads.length})
+              🔔 Leads con Recordatorios Pendientes ({upcomingAlertLeads.length})
             </h3>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-orange-600 font-medium">Próximos 7 días</span>
+              <span className="text-sm text-orange-600 font-medium">Hasta completarlas</span>
               <svg
                 className={`w-5 h-5 text-orange-600 transition-transform ${alertsCollapsed ? '' : 'rotate-180'}`}
                 fill="none"
@@ -605,6 +758,7 @@ const SalesLeads = () => {
                   <div
                     key={lead.id}
                     className={`border-l-4 rounded-lg p-4 ${
+                      alert.isOverdue ? 'bg-red-50 border-red-700' :
                       alert.isToday ? 'bg-red-50 border-red-600' :
                       alert.isUrgent ? 'bg-orange-50 border-orange-500' :
                       'bg-white border-gray-300'
@@ -616,17 +770,22 @@ const SalesLeads = () => {
                         <div className="flex items-center gap-3 mb-2">
                           <span className="font-bold text-gray-900">{lead.applicantName}</span>
                           <span className="text-sm font-medium text-gray-700">{lead.propertyAddress}</span>
-                          {alert.isToday && (
+                          {alert.isOverdue && (
+                            <span className="px-2 py-1 bg-red-700 text-white text-xs font-bold rounded-full animate-pulse">
+                              ⚠️ VENCIDA ({Math.abs(alert.daysRemaining)}d)
+                            </span>
+                          )}
+                          {!alert.isOverdue && alert.isToday && (
                             <span className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse">
                               ¡HOY!
                             </span>
                           )}
-                          {!alert.isToday && alert.isUrgent && (
+                          {!alert.isOverdue && !alert.isToday && alert.isUrgent && (
                             <span className="px-2 py-1 bg-orange-500 text-white text-xs font-bold rounded-full">
                               {alert.daysRemaining} día{alert.daysRemaining !== 1 ? 's' : ''}
                             </span>
                           )}
-                          {!alert.isToday && !alert.isUrgent && (
+                          {!alert.isOverdue && !alert.isToday && !alert.isUrgent && (
                             <span className="px-2 py-1 bg-blue-500 text-white text-xs font-medium rounded-full">
                               {alert.daysRemaining} día{alert.daysRemaining !== 1 ? 's' : ''}
                             </span>
@@ -1082,9 +1241,123 @@ const SalesLeads = () => {
           onClose={() => { setShowProposalModal(false); setLeadForProposal(null); }}
           onSent={(leadId) => {
             setProposalSentLeads(prev => new Set([...prev, leadId]));
-            loadLeads(); // refrescar lista para actualizar status a "Cotizado"
+            loadLeads();
           }}
         />
+      )}
+
+      {/* 🚫 Modal Leads Sin Contacto */}
+      {showNoContactModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  🚫 Leads Sin Teléfono ni Email
+                </h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  Estos contactos no pueden ser alcanzados. Podés eliminarlos para limpiar la base.
+                </p>
+              </div>
+              <button onClick={() => setShowNoContactModal(false)} className="text-gray-400 hover:text-gray-600">
+                <XCircleIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingNoContact ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
+                  <span className="ml-3 text-gray-600">Buscando leads...</span>
+                </div>
+              ) : noContactLeads.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <span className="text-4xl">✅</span>
+                  <p className="mt-2 font-medium">No hay leads sin datos de contacto</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-gray-600">
+                      {selectedNoContactIds.size} de {noContactLeads.length} seleccionados
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedNoContactIds(new Set(noContactLeads.map(l => l.id)))}
+                        className="text-xs text-blue-600 hover:underline"
+                      >Seleccionar todos</button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => setSelectedNoContactIds(new Set())}
+                        className="text-xs text-gray-500 hover:underline"
+                      >Ninguno</button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {noContactLeads.map(lead => (
+                      <div
+                        key={lead.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          selectedNoContactIds.has(lead.id)
+                            ? 'bg-red-50 border-red-300'
+                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => setSelectedNoContactIds(prev => {
+                          const next = new Set(prev);
+                          next.has(lead.id) ? next.delete(lead.id) : next.add(lead.id);
+                          return next;
+                        })}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedNoContactIds.has(lead.id)}
+                          onChange={() => {}}
+                          className="h-4 w-4 text-red-600 rounded"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{lead.applicantName || 'Sin nombre'}</p>
+                          <p className="text-xs text-gray-500 truncate">{lead.propertyAddress || 'Sin dirección'}</p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span className="text-xs text-gray-400">{lead.source || 'manual'}</span>
+                          <p className="text-xs text-gray-400">
+                            {new Date(lead.createdAt).toLocaleDateString('es-AR')}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!loadingNoContact && noContactLeads.length > 0 && (
+              <div className="border-t p-4 flex items-center justify-between gap-3">
+                <span className="text-sm text-gray-500">
+                  {selectedNoContactIds.size} leads seleccionados para eliminar
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowNoContactModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleDeleteNoContact}
+                    disabled={selectedNoContactIds.size === 0}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
+                  >
+                    🗑️ Eliminar {selectedNoContactIds.size} leads
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
