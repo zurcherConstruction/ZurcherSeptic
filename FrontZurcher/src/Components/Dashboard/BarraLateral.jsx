@@ -25,19 +25,19 @@ import {
   FaHistory,
   FaFileInvoice,
   FaUniversity,
-  FaMapMarkedAlt, // 🆕 Icono para mapa de zonas
-  FaChartPie, // 🆕 Icono para instalaciones mensuales
-  FaCalendarCheck, // 🆕 Icono para asistencia del personal
-  FaImage, // 🆕 Icono para galería
-  FaListUl, // 🆕 Icono para lista tracker
-  FaExclamationTriangle, // 🆕 Icono para reclamos
-  FaUserPlus, // 🆕 Icon for sales leads
-  FaEnvelope, // 🆕 Icon for email marketing
-  FaBook, // 🆕 Icon for knowledge base
-  FaNewspaper // 🆕 Icon for newsletter
+  FaMapMarkedAlt, 
+  FaChartPie, 
+  FaCalendarCheck,
+  FaImage, 
+  FaListUl, 
+  FaExclamationTriangle, 
+  FaUserPlus, 
+  FaEnvelope, 
+  FaBook, 
+  FaNewspaper 
 } from "react-icons/fa";
 
-const BarraLateral = () => {
+const BarraLateral = () => { 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(true);
   const navigate = useNavigate();
@@ -235,9 +235,9 @@ const BarraLateral = () => {
           icon: FaCog,
           color: "text-red-400",
           items: [
-            { name: "Materials", path: "/materiales", icon: FaTools },
+            
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
-            { name: "Staff", path: "/register", icon: FaUsers },
+            { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, 
           ],
         },
       ];
@@ -269,6 +269,7 @@ const BarraLateral = () => {
             { name: "Works", path: "/works", icon: FaTasks },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
             { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
+            { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, 
           ],
         },
       ];

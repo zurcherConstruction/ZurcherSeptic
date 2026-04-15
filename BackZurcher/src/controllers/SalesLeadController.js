@@ -42,7 +42,7 @@ const SalesLeadController = {
         serviceType: serviceType?.trim() || null,
         estimatedValue: estimatedValue || null,
         notes: notes?.trim() || null,
-        firstContactDate: (status && !['new', 'archived'].includes(status)) ? new Date() : null,
+        firstContactDate: (status && status !== 'new') ? new Date() : null,
         lastActivityDate: new Date(),
         createdBy
       });
@@ -457,8 +457,9 @@ const SalesLeadController = {
         });
       }
 
-      // Si cambia a cualquier estado de contacto y no tiene firstContactDate, establecerla
-      const CONTACTED_STATUSES = ['contacted', 'interested', 'quoted', 'negotiating', 'won', 'lost'];
+      // Si cambia a cualquier estado que NO sea 'new' y no tiene firstContactDate, establecerla
+      // Esto incluye 'archived' porque significa que se contactó (ej: llamó y dijo no)
+      const CONTACTED_STATUSES = ['contacted', 'interested', 'quoted', 'negotiating', 'won', 'lost', 'archived'];
       if (updates.status && CONTACTED_STATUSES.includes(updates.status) && !lead.firstContactDate) {
         updates.firstContactDate = new Date();
       }
@@ -708,6 +709,10 @@ const SalesLeadController = {
       // 📅 Calcular inicio de período mensual (hace 30 días)
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+      // Estados que consideramos "contactados" = TODOS excepto 'new'
+      // Incluye 'archived' porque significa que se contactó y se archivó (ej: no interesado)
+      const CONTACTED_STATUSES = ['contacted', 'interested', 'quoted', 'negotiating', 'won', 'lost', 'archived'];
+
       const [
         newThisWeek, newPrevWeek, newBiweekly, newMonthly,
         contactedThisWeek, contactedPrevWeek, contactedBiweekly, contactedMonthly,
@@ -721,14 +726,37 @@ const SalesLeadController = {
         SalesLead.count({ where: { createdAt: { [Op.gte]: biweeklyStart } } }),
         // Nuevos contactos último mes
         SalesLead.count({ where: { createdAt: { [Op.gte]: monthAgo } } }),
-        // Contactados esta semana (Lunes 00:00 hasta ahora)
-        SalesLead.count({ where: { firstContactDate: { [Op.gte]: thisWeekStart } } }),
-        // Contactados semana anterior (Lunes-Domingo pasado)
-        SalesLead.count({ where: { firstContactDate: { [Op.between]: [prevWeekStart, prevWeekEnd] } } }),
-        // Contactados últimas 2 semanas
-        SalesLead.count({ where: { firstContactDate: { [Op.gte]: biweeklyStart } } }),
-        // Contactados último mes
-        SalesLead.count({ where: { firstContactDate: { [Op.gte]: monthAgo } } }),
+        
+        // 🔄 CONTACTADOS: Cualquier estado que NO sea 'new' = fue contactado
+        // Esta semana: leads que PASARON a estado contactado esta semana
+        SalesLead.count({ 
+          where: { 
+            status: { [Op.in]: CONTACTED_STATUSES },
+            firstContactDate: { [Op.gte]: thisWeekStart }
+          } 
+        }),
+        // Semana anterior: leads que pasaron a contactado la semana pasada
+        SalesLead.count({ 
+          where: { 
+            status: { [Op.in]: CONTACTED_STATUSES },
+            firstContactDate: { [Op.between]: [prevWeekStart, prevWeekEnd] }
+          } 
+        }),
+        // Últimas 2 semanas: leads contactados en las últimas 2 semanas
+        SalesLead.count({ 
+          where: { 
+            status: { [Op.in]: CONTACTED_STATUSES },
+            firstContactDate: { [Op.gte]: biweeklyStart }
+          } 
+        }),
+        // Último mes: leads contactados en el último mes
+        SalesLead.count({ 
+          where: { 
+            status: { [Op.in]: CONTACTED_STATUSES },
+            firstContactDate: { [Op.gte]: monthAgo }
+          } 
+        }),
+        
         // Sin datos de contacto
         SalesLead.count({
           where: {
