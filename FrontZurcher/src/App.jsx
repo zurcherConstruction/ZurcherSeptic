@@ -312,7 +312,7 @@ function App() {
               <Route
                 path="/knowledge-base"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "owner"]}>
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept"]}>
                     <KnowledgeBase />
                   </PrivateRoute>
                 }
