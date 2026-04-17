@@ -54,6 +54,7 @@ router.get('/newsletters/:id/stats', verifyToken, newsletterController.getNewsle
 router.post('/newsletters', verifyToken, newsletterController.createNewsletter);
 router.put('/newsletters/:id', verifyToken, newsletterController.updateNewsletter);
 router.post('/newsletters/:id/send', verifyToken, newsletterController.sendNewsletter);
+router.post('/newsletters/:id/send-test', verifyToken, newsletterController.sendTestNewsletter); // 🆕 Envío de prueba
 router.post('/newsletters/:id/resend', verifyToken, newsletterController.resendNewsletter);
 router.delete('/newsletters/:id', verifyToken, newsletterController.deleteNewsletter);
 

@@ -21,7 +21,9 @@ import {
   deleteSubscriber,
   unsubscribeSubscriber,
   deleteNewsletter,
+  sendNewsletter, //  Importar para envío inmediato
   resendNewsletter,
+  sendTestNewsletter, //  Importar nueva acción
   getNewsletterImages,
   uploadNewsletterImage,
   deleteNewsletterImage
@@ -45,6 +47,17 @@ const NewsletterDashboard = () => {
   const [newImageUrl, setNewImageUrl] = useState('');
   const [showImageGallery, setShowImageGallery] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  
+  // 🆕 Estado para modal de envío de prueba
+  const [showTestEmailModal, setShowTestEmailModal] = useState(false);
+  const [newsletterToTest, setNewsletterToTest] = useState(null);
+  const [testEmail, setTestEmail] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
+  
+  // Estado para modal de programación
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [newsletterToSchedule, setNewsletterToSchedule] = useState(null);
+  const [scheduledDate, setScheduledDate] = useState('');  const [scheduling, setScheduling] = useState(false);
   
   // Formularios
   const [subscriberForm, setSubscriberForm] = useState({
@@ -174,6 +187,106 @@ const NewsletterDashboard = () => {
       } catch (error) {
         alert('Error al reenviar newsletter: ' + (error.response?.data?.message || error.message));
       }
+    }
+  };
+
+  // 🆕 Función para enviar newsletter ahora (desde draft o scheduled)
+  const handleSendNow = async (id, name) => {
+    if (window.confirm(`¿Enviar "${name}" AHORA a todos los suscriptores activos?\n\n⚠️ Esta acción enviará el newsletter inmediatamente.`)) {
+      try {
+        await dispatch(sendNewsletter(id));
+        alert('📧 Newsletter enviándose ahora...');
+        setTimeout(() => {
+          dispatch(getAllNewsletters());
+        }, 2000);
+      } catch (error) {
+        alert('❌ Error al enviar: ' + (error.response?.data?.message || error.message));
+      }
+    }
+  };
+
+  // 🆕 Función para abrir modal de programación
+  const handleOpenScheduleModal = (newsletter) => {
+    setNewsletterToSchedule(newsletter);
+    setShowScheduleModal(true);
+    // Pre-cargar fecha si ya tiene
+    if (newsletter.scheduledAt) {
+      const date = new Date(newsletter.scheduledAt);
+      const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+      setScheduledDate(localDate);
+    } else {
+      setScheduledDate('');
+    }
+  };
+
+  // 🆕 Función para programar newsletter
+  const handleScheduleNewsletter = async (e) => {
+    e.preventDefault();
+    
+    if (!scheduledDate) {
+      alert('⚠️ Selecciona una fecha y hora');
+      return;
+    }
+
+    const selectedDate = new Date(scheduledDate);
+    const now = new Date();
+    
+    if (selectedDate <= now) {
+      alert('⚠️ La fecha debe ser futura');
+      return;
+    }
+
+    try {
+      setScheduling(true);
+      
+      const { updateNewsletter } = await import('../../Redux/Actions/newsletterActions');
+      
+      await dispatch(updateNewsletter(newsletterToSchedule.id, {
+        scheduledAt: selectedDate.toISOString(),
+        status: 'scheduled'
+      }));
+      
+      alert(`✅ Newsletter programado para ${selectedDate.toLocaleString('es-AR')}`);
+      setShowScheduleModal(false);
+      dispatch(getAllNewsletters());
+    } catch (error) {
+      alert('❌ Error al programar: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  // 🆕 Función para mostrar modal de prueba
+  const handleOpenTestEmailModal = (newsletter) => {
+    setNewsletterToTest(newsletter);
+    setShowTestEmailModal(true);
+    setTestEmail(''); // Limpiar email anterior
+  };
+
+  // 🆕 Función para enviar email de prueba
+  const handleSendTestEmail = async (e) => {
+    e.preventDefault();
+    
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(testEmail)) {
+      alert('Por favor ingresa un email válido');
+      return;
+    }
+
+    try {
+      setSendingTest(true);
+      await dispatch(sendTestNewsletter(newsletterToTest.id, testEmail));
+      alert(`✅ Email de prueba enviado a ${testEmail}\n\nRevisa tu bandeja de entrada para aprobar el contenido.`);
+      setShowTestEmailModal(false);
+      setTestEmail('');
+      setNewsletterToTest(null);
+    } catch (error) {
+      alert('❌ Error al enviar prueba: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -590,20 +703,60 @@ const NewsletterDashboard = () => {
                                     </td>
                                     <td className="px-4 py-3 text-sm">
                                       <div className="flex gap-2">
+                                        {/* Botón Editar - Solo si es draft o scheduled */}
+                                        {['draft', 'scheduled'].includes(newsletter.status) && (
+                                          <button
+                                            onClick={() => handleEditNewsletter(newsletter)}
+                                            className="text-blue-600 hover:text-blue-800"
+                                            title="Editar"
+                                          >
+                                            <FaEdit />
+                                          </button>
+                                        )}
+                                        
+                                        {/* Botón Enviar Prueba - Siempre disponible */}
                                         <button
-                                          onClick={() => handleEditNewsletter(newsletter)}
-                                          className="text-blue-600 hover:text-blue-800"
-                                          title="Editar"
+                                          onClick={() => handleOpenTestEmailModal(newsletter)}
+                                          className="text-purple-600 hover:text-purple-800"
+                                          title="Enviar Prueba"
                                         >
-                                          <FaEdit />
+                                          <FaPaperPlane />
                                         </button>
-                                        <button
-                                          onClick={() => handleResendNewsletter(newsletter.id, newsletter.name)}
-                                          className="text-green-600 hover:text-green-800"
-                                          title="Reenviar"
-                                        >
-                                          <FaRedo />
-                                        </button>
+                                        
+                                        {/* Botón Programar - Si es draft o scheduled */}
+                                        {['draft', 'scheduled'].includes(newsletter.status) && (
+                                          <button
+                                            onClick={() => handleOpenScheduleModal(newsletter)}
+                                            className="text-blue-600 hover:text-blue-800"
+                                            title="Programar Envío"
+                                          >
+                                            <FaClock />
+                                          </button>
+                                        )}
+                                        
+                                        {/* Botón Enviar Ahora - Si es draft o scheduled */}
+                                        {['draft', 'scheduled'].includes(newsletter.status) && (
+                                          <button
+                                            onClick={() => handleSendNow(newsletter.id, newsletter.name)}
+                                            className="text-green-600 hover:text-green-800"
+                                            title="Enviar Ahora"
+                                          >
+                                            <FaCheckCircle />
+                                          </button>
+                                        )}
+                                        
+                                        {/* Botón Reenviar - Solo si ya fue enviado */}
+                                        {newsletter.status === 'sent' && (
+                                          <button
+                                            onClick={() => handleResendNewsletter(newsletter.id, newsletter.name)}
+                                            className="text-orange-600 hover:text-orange-800"
+                                            title="Reenviar"
+                                          >
+                                            <FaRedo />
+                                          </button>
+                                        )}
+                                        
+                                        {/* Botón Eliminar - Siempre disponible */}
                                         <button
                                           onClick={() => handleDeleteNewsletter(newsletter.id)}
                                           className="text-red-600 hover:text-red-800"
@@ -691,6 +844,180 @@ const NewsletterDashboard = () => {
                     className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                   >
                     Crear
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 🆕 Modal Enviar Email de Prueba */}
+        {showTestEmailModal && newsletterToTest && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-900">📧 Enviar Email de Prueba</h3>
+                <button 
+                  onClick={() => {
+                    setShowTestEmailModal(false);
+                    setTestEmail('');
+                    setNewsletterToTest(null);
+                  }}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900">
+                  <strong>Newsletter:</strong> {newsletterToTest.name}
+                </p>
+                <p className="text-sm text-blue-700 mt-2">
+                  💡 Este email de prueba incluirá un banner indicando que es una prueba y no afectará las estadísticas del newsletter.
+                </p>
+              </div>
+
+              <form onSubmit={handleSendTestEmail}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-700">
+                      Email de prueba *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={testEmail}
+                      onChange={(e) => setTestEmail(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="ejemplo@email.com"
+                      disabled={sendingTest}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      El newsletter se enviará a este email para revisión
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTestEmailModal(false);
+                      setTestEmail('');
+                      setNewsletterToTest(null);
+                    }}
+                    className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                    disabled={sendingTest}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={sendingTest}
+                  >
+                    {sendingTest ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <FaPaperPlane />
+                        Enviar Prueba
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* 🆕 Modal Programar Newsletter */}
+        {showScheduleModal && newsletterToSchedule && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-gray-900">📅 Programar Newsletter</h3>
+                <button 
+                  onClick={() => {
+                    setShowScheduleModal(false);
+                    setScheduledDate('');
+                    setNewsletterToSchedule(null);
+                  }}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+              
+              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900">
+                  <strong>Newsletter:</strong> {newsletterToSchedule.name}
+                </p>
+                <p className="text-sm text-blue-700 mt-2">
+                  💡 El newsletter se enviará automáticamente en la fecha y hora programada.
+                </p>
+              </div>
+
+              <form onSubmit={handleScheduleNewsletter}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-700">
+                      Fecha y hora de envío *
+                    </label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={scheduling}
+                      min={new Date().toISOString().slice(0, 16)}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      El sistema verifica a las 8 AM y 8 PM, y envía los newsletters programados
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScheduleModal(false);
+                      setScheduledDate('');
+                      setNewsletterToSchedule(null);
+                    }}
+                    className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                    disabled={scheduling}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={scheduling}
+                  >
+                    {scheduling ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Programando...
+                      </>
+                    ) : (
+                      <>
+                        <FaClock />
+                        Programar Envío
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

@@ -312,7 +312,7 @@ const editableBudgets = useMemo(() => {
           discountDescription: currentBudget.discountDescription || "",
           discountAmount: parseFloat(currentBudget.discountAmount) || 0,
           generalNotes: currentBudget.generalNotes || "",
-          initialPaymentPercentage: currentBudget.initialPaymentPercentage || '60',
+          initialPaymentPercentage: String(currentBudget.initialPaymentPercentage || 60),
           // 🆕 Campos de comisiones
           leadSource: currentBudget.leadSource || 'web',
           createdByStaffId: currentBudget.createdByStaffId || '',
@@ -398,8 +398,6 @@ const editableBudgets = useMemo(() => {
   useEffect(() => {
     if (!formData) return;
 
-   
-
     const subtotal = formData.lineItems.reduce((sum, item) => {
       const quantity = parseFloat(item.quantity) || 0;
       const price = parseFloat(item.unitPrice) || 0;
@@ -419,16 +417,27 @@ const editableBudgets = useMemo(() => {
     
     const total = subtotal - discount + commission;
 
+    // Calcular pago inicial usando el valor actual del porcentaje (como string en el input)
     let payment = 0;
-    const percentage = parseFloat(formData.initialPaymentPercentage);
-    if (!isNaN(percentage)) {
-      payment = (total * percentage) / 100;
-    } else if (formData.initialPaymentPercentage === 'total') {
+    const percentageValue = formData.initialPaymentPercentage;
+    if (percentageValue === 'total' || percentageValue === '100') {
       payment = total;
+    } else {
+      const percentage = parseFloat(percentageValue);
+      if (!isNaN(percentage) && percentage >= 0) {
+        payment = (total * percentage) / 100;
+      } else {
+        // Si el valor no es válido, usar 60% por defecto
+        payment = (total * 60) / 100;
+      }
     }
 
-    if (subtotal !== formData.subtotalPrice || total !== formData.totalPrice || payment !== formData.initialPayment) {
-      
+    // Solo actualizar si realmente cambió (evita re-renders innecesarios)
+    const subtotalChanged = Math.abs(subtotal - (formData.subtotalPrice || 0)) > 0.01;
+    const totalChanged = Math.abs(total - (formData.totalPrice || 0)) > 0.01;
+    const paymentChanged = Math.abs(payment - (formData.initialPayment || 0)) > 0.01;
+    
+    if (subtotalChanged || totalChanged || paymentChanged) {
       setFormData(prev => {
         if (!prev) return null;
         return {
@@ -436,6 +445,7 @@ const editableBudgets = useMemo(() => {
           subtotalPrice: subtotal,
           totalPrice: total,
           initialPayment: payment,
+          // Preservar el valor del porcentaje tal como está (no sobrescribirlo)
         };
       });
     }
@@ -444,7 +454,11 @@ const editableBudgets = useMemo(() => {
   // --- Handlers ---
   const handleGeneralInputChange = (e) => {
     const { name, value } = e.target;
+    
+    // Para campos numéricos, mantener como string para evitar conversiones no deseadas
+    // El parseFloat solo se hace al momento de guardar o calcular
     setFormData(prev => prev ? { ...prev, [name]: value } : null);
+    
     // Auto-poblar comisión al seleccionar staff
     if (name === 'createdByStaffId') {
       const selectedStaff = staffList.find(s => s.id === value);
@@ -1859,7 +1873,7 @@ const editableBudgets = useMemo(() => {
               {/* --- Descuento y Totales --- */}
               <fieldset className="border border-gray-200 p-4 rounded-lg mb-6" disabled={isBudgetLocked}>
                 <legend className="text-lg font-semibold text-blue-800 px-2">Financial Summary {isBudgetLocked && <span className="text-xs text-orange-600">(🔒 Bloqueado)</span>}</legend>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="discountDescription" className="block text-sm font-medium text-gray-700">Discount Description</label>
                     <input type="text" id="discountDescription" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style mt-1" disabled={isBudgetLocked} />
@@ -1867,6 +1881,23 @@ const editableBudgets = useMemo(() => {
                   <div>
                     <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700">Discount Amount ($)</label>
                     <input type="number" id="discountAmount" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" step="0.01" disabled={isBudgetLocked} />
+                  </div>
+                  <div>
+                    <label htmlFor="initialPaymentPercentage" className="block text-sm font-medium text-gray-700">Initial Payment %</label>
+                    <input 
+                      type="number" 
+                      id="initialPaymentPercentage" 
+                      name="initialPaymentPercentage" 
+                      value={formData.initialPaymentPercentage} 
+                      onChange={handleGeneralInputChange} 
+                      className="input-style mt-1" 
+                      min="0" 
+                      max="100" 
+                      step="1" 
+                      disabled={isBudgetLocked}
+                      placeholder="60"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Por defecto: 60%</p>
                   </div>
                 </div>
                 <div className="mt-4 space-y-2 text-right">
@@ -1885,7 +1916,9 @@ const editableBudgets = useMemo(() => {
                     </p>
                   )}
                   <p className="text-lg font-semibold text-blue-900">Total: ${formData.totalPrice.toFixed(2)}</p>
-                  <p className="text-md font-medium text-blue-700">Initial Payment Required: ${formData.initialPayment.toFixed(2)}</p>
+                  <p className="text-md font-medium text-blue-700">
+                    Initial Payment Required ({formData.initialPaymentPercentage}%): ${formData.initialPayment.toFixed(2)}
+                  </p>
                 </div>
               </fieldset>
               {/* --- Botón de Envío --- */}

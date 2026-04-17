@@ -316,6 +316,29 @@ export const sendNewsletter = (id, subscriberIds = null) => async (dispatch) => 
   }
 };
 
+// 🆕 Enviar newsletter de prueba a un email específico
+export const sendTestNewsletter = (id, testEmail) => async (dispatch) => {
+  try {
+    dispatch({ type: 'SEND_TEST_NEWSLETTER_REQUEST' });
+    
+    const { data } = await axios.post(
+      `${API_URL}/newsletter/newsletters/${id}/send-test`,
+      { testEmail },
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      }
+    );
+    
+    dispatch({ type: 'SEND_TEST_NEWSLETTER_SUCCESS', payload: data });
+    return data;
+  } catch (error) {
+    dispatch({ type: 'SEND_TEST_NEWSLETTER_FAILURE', payload: error.response?.data?.message || error.message });
+    throw error;
+  }
+};
+
 // Reenviar newsletter (crea nuevos recipients y envía)
 export const resendNewsletter = (id) => async (dispatch) => {
   try {

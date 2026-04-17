@@ -924,6 +924,77 @@ const sendNewsletter = async (req, res) => {
   }
 };
 
+// 🆕 Enviar newsletter de prueba a un email específico
+const sendTestNewsletter = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { testEmail } = req.body;
+
+    // Validar email
+    if (!testEmail || !testEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email de prueba inválido'
+      });
+    }
+
+    const newsletter = await Newsletter.findByPk(id);
+    if (!newsletter) {
+      return res.status(404).json({
+        success: false,
+        message: 'Newsletter no encontrado'
+      });
+    }
+
+    console.log(`📧 [Newsletter TEST] Enviando newsletter de prueba "${newsletter.name}" a ${testEmail}...`);
+
+    // Configurar transporter SMTP
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD
+      }
+    });
+
+    // Personalizar HTML (sin tracking pixel para pruebas)
+    let testHtml = newsletter.htmlContent;
+    
+    // Reemplazar placeholder de unsubscribe con mensaje de prueba
+    testHtml = testHtml.replace(/\{\{subscriberId\}\}/g, 'TEST-ID');
+
+    // Enviar email de prueba
+    await transporter.sendMail({
+      from: `"Zurcher Septic [TEST]" <${process.env.SMTP_USER}>`,
+      to: testEmail,
+      subject: `[TEST] ${newsletter.subject}`,
+      html: testHtml,
+      text: `[TEST EMAIL]\n\n${newsletter.textContent || 'Este es un email de prueba del newsletter.'}`
+    });
+
+    console.log(`✅ [Newsletter TEST] Email de prueba enviado exitosamente a ${testEmail}`);
+
+    res.status(200).json({
+      success: true,
+      message: `Email de prueba enviado exitosamente a ${testEmail}`,
+      data: {
+        newsletterId: newsletter.id,
+        testEmail: testEmail,
+        sentAt: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error en sendTestNewsletter:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al enviar email de prueba',
+      error: error.message
+    });
+  }
+};
+
 // Reenviar newsletter (crear nuevos recipients y enviar inmediatamente)
 const resendNewsletter = async (req, res) => {
   try {
@@ -1009,6 +1080,7 @@ async function processNewsletterSending(newsletterId) {
     const newsletter = await Newsletter.findByPk(newsletterId);
     if (!newsletter) return;
 
+    // 🔧 FIX: Buscar TODOS los recipients pendientes (sin limit)
     const recipients = await NewsletterRecipient.findAll({
       where: {
         newsletterId,
@@ -1019,8 +1091,8 @@ async function processNewsletterSending(newsletterId) {
           model: NewsletterSubscriber,
           as: 'subscriber'
         }
-      ],
-      limit: 100 // Procesar en lotes
+      ]
+      // SIN LIMIT - procesar todos los suscriptores
     });
 
     // Configurar transporter SMTP (misma configuración que Email Marketing)
@@ -1355,6 +1427,7 @@ module.exports = {
   createNewsletter,
   updateNewsletter,
   sendNewsletter,
+  sendTestNewsletter, // 🆕 Envío de prueba
   resendNewsletter,
   deleteNewsletter,
   getNewsletterStats,
