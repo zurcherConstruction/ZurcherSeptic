@@ -436,7 +436,7 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
         textContent,
         recipientFilter: formData.recipientFilter,
         scheduledAt: formData.scheduling === 'scheduled' ? formData.scheduledAt : null,
-        sendNow: formData.scheduling === 'now' && !isEditMode, // Solo sendNow si no estamos editando
+        sendNow: false, // 🔧 NUNCA enviar automáticamente al crear - siempre guardar como borrador
         metadata: {
           layout: formData.layout,
           backgroundColor: formData.backgroundColor,
@@ -458,22 +458,9 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
         // Modo creación: usar createNewsletter
         await dispatch(createNewsletter(newsletterData));
         
-        const successMessage = formData.scheduling === 'now' 
-          ? 'Newsletter creado y enviándose ahora...' 
-          : formData.scheduling === 'scheduled'
-          ? 'Newsletter programado exitosamente'
-          : 'Newsletter recurrente configurado';
-          
-        alert(successMessage);
+        alert('✅ Newsletter guardado como borrador. Ahora puedes:\n• Enviar email de prueba para revisión\n• Enviarlo inmediatamente\n• Programar envío');
         
-        // Esperar 2 segundos y refrescar la lista si es envío inmediato
-        if (formData.scheduling === 'now') {
-          setTimeout(() => {
-            onSuccess?.();
-          }, 2000);
-        } else {
-          onSuccess?.();
-        }
+        onSuccess?.();
       }
       
       if (isEditMode) {
@@ -536,7 +523,7 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
       <div className="bg-white rounded-lg w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-6 border-b flex items-center justify-between bg-customGreen text-white">
-          <h2 className="text-2xl font-bold">{isEditMode ? 'Editar Newsletter' : 'Crear Newsletter Profesional'}</h2>
+          <h2 className="text-2xl font-bold">{isEditMode ? 'Editar Newsletter' : '📝 Crear Newsletter (Borrador)'}</h2>
           <button onClick={onClose} className="text-white hover:text-gray-200">
             <FaTimes size={24} />
           </button>
@@ -944,19 +931,22 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
             <div className="space-y-6">
               {/* Configuración de envío ARRIBA */}
               <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h3 className="text-xl font-bold mb-4">Programación de Envío</h3>
+                <h3 className="text-xl font-bold mb-2">Opciones de Envío</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  💡 El newsletter se guardará como borrador. Luego podrás enviarlo manualmente o dejarlo programado.
+                </p>
                 
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">¿Cuándo enviar?</label>
+                    <label className="block text-sm font-medium mb-2">Tipo de envío</label>
                     <select
                       value={formData.scheduling}
                       onChange={(e) => setFormData(prev => ({ ...prev, scheduling: e.target.value }))}
                       className="w-full border rounded-lg px-4 py-2"
                     >
-                      <option value="now">Enviar Ahora</option>
-                      <option value="scheduled">Programar Fecha</option>
-                      <option value="recurring">Envío Recurrente</option>
+                      <option value="now">Sin Programar (Borrador)</option>
+                      <option value="scheduled">Programar Fecha Específica</option>
+                      <option value="recurring">Envío Recurrente Automático</option>
                     </select>
                   </div>
 
@@ -1149,7 +1139,7 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
                 onClick={handleSubmit}
                 className="px-6 py-2 bg-customGreen text-white rounded-lg hover:bg-green-700"
               >
-                {isEditMode ? 'Guardar Cambios' : 'Crear Newsletter'}
+                {isEditMode ? 'Guardar Cambios' : '💾 Guardar como Borrador'}
               </button>
             )}
           </div>

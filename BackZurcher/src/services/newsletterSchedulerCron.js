@@ -4,11 +4,12 @@ const { sendScheduledNewsletters, processRecurringNewsletters } = require('../ta
 /**
  * 📧 CRON JOB: Newsletter Scheduler
  * 
- * Ejecuta verificaciones diarias para:
+ * Ejecuta verificaciones dos veces al día para:
  * 1. Newsletters programados (scheduledAt)
  * 2. Newsletters recurrentes (daily/weekly/monthly)
  * 
- * Se ejecuta todos los días a las 00:00 (medianoche)
+ * Se ejecuta a las 8:00 AM y 8:00 PM
+ * Horarios optimizados para máxima tasa de apertura sin sobrecargar el servidor
  * 
  * Para DESHABILITAR: Agregar ENABLE_NEWSLETTER_SCHEDULER=false en .env
  */
@@ -20,11 +21,13 @@ const startNewsletterSchedulerCron = () => {
     return;
   }
 
-  console.log('✅ Newsletter Scheduler programado para las 00:00 (medianoche) - Verifica programados y recurrentes');
+  console.log('✅ Newsletter Scheduler programado para las 8 AM y 8 PM - Verifica programados y recurrentes');
   
-  // Ejecutar todos los días a las 00:00 (medianoche)
-  cron.schedule('0 0 * * *', async () => {
-    console.log('\n⏰ [CRON - NEWSLETTER] Verificando newsletters programados y recurrentes...');
+  // Ejecutar a las 8 AM y 8 PM (horarios óptimos para newsletters)
+  cron.schedule('0 8,20 * * *', async () => {
+    const now = new Date();
+    const hour = now.getHours();
+    console.log(`\n⏰ [CRON - NEWSLETTER ${hour}:00] Verificando newsletters programados y recurrentes...`);
     
     try {
       // 1. Procesar newsletters programados
