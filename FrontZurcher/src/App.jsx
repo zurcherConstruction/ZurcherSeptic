@@ -98,6 +98,7 @@ import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
 import SalesDashboard from './Components/Sales/SalesDashboard'; // 🆕 Dashboard de ventas
 import MarketingCampaigns from './Components/Sales/MarketingCampaigns'; // 🆕 Email marketing campaigns
 import NewsletterDashboard from './Components/Newsletter/NewsletterDashboard'; // 🆕 Newsletter system
+import SignatureDocumentsDashboard from './Components/SignatureDocuments/SignatureDocumentsDashboard'; // 🆕 Signature documents system
 import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Recordatorios
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
@@ -735,6 +736,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner", "recept", "finance", "finance-viewer", "follow-up", "worker", "maintenance"]}>
                     <ReminderPanel />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Signature Documents - Firma Electrónica */}
+              <Route
+                path="/signature-documents"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept"]}>
+                    <SignatureDocumentsDashboard />
                   </PrivateRoute>
                 }
               />

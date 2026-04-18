@@ -34,7 +34,8 @@ import {
   FaUserPlus, 
   FaEnvelope, 
   FaBook, 
-  FaNewspaper 
+  FaNewspaper,
+  FaFileSignature
 } from "react-icons/fa";
 
 const BarraLateral = () => { 
@@ -139,6 +140,7 @@ const BarraLateral = () => {
         { name: "Send Message", path: "/send-notifications", icon: FaBell },
         { name: "Staff", path: "/register", icon: FaUsers },
         { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, // 🆕 Base de Conocimiento
+        { name: "Signature Documents", path: "/signature-documents", icon: FaFileSignature }, // 🆕 Documentos para Firma
       ],
     },
     {
@@ -238,6 +240,7 @@ const BarraLateral = () => {
             
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
             { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, 
+            { name: "Signature Documents", path: "/signature-documents", icon: FaFileSignature }, // 🆕 Documentos para Firma
           ],
         },
       ];

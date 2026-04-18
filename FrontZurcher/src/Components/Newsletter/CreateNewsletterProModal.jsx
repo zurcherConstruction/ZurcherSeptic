@@ -153,7 +153,28 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
     // Convertir saltos de línea en <br> para respetar formato
     const formattedBodyText = bodyText ? bodyText.replace(/\n/g, '<br>') : '';
 
-    // Colores corporativos
+    // Función para determinar si un color es claro u oscuro
+    const isLightColor = (hexColor) => {
+      const hex = hexColor.replace('#', '');
+      const r = parseInt(hex.substr(0, 2), 16);
+      const g = parseInt(hex.substr(2, 2), 16);
+      const b = parseInt(hex.substr(4, 2), 16);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      return brightness > 155;
+    };
+
+    // Función para oscurecer un color (para el botón)
+    const darkenColor = (hexColor, percent = 20) => {
+      const hex = hexColor.replace('#', '');
+      const r = Math.max(0, parseInt(hex.substr(0, 2), 16) - (255 * percent / 100));
+      const g = Math.max(0, parseInt(hex.substr(2, 2), 16) - (255 * percent / 100));
+      const b = Math.max(0, parseInt(hex.substr(4, 2), 16) - (255 * percent / 100));
+      return '#' + Math.round(r).toString(16).padStart(2, '0') + 
+                   Math.round(g).toString(16).padStart(2, '0') + 
+                   Math.round(b).toString(16).padStart(2, '0');
+    };
+
+    // Colores corporativos predefinidos
     const colors = {
       '#0f766e': { bg: '#0f766e', text: '#ffffff', button: '#059669' },
       '#445868': { bg: '#445868', text: '#ffffff', button: '#6b7280' },
@@ -162,7 +183,19 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
       '#ffffff': { bg: '#ffffff', text: '#000000', button: '#0f766e' }
     };
 
-    const colorScheme = colors[backgroundColor] || colors['#0f766e'];
+    // Si el color está predefinido, usarlo; si no, generar dinámicamente
+    let colorScheme;
+    if (colors[backgroundColor]) {
+      colorScheme = colors[backgroundColor];
+    } else {
+      // Color personalizado: determinar texto y botón automáticamente
+      const isLight = isLightColor(backgroundColor);
+      colorScheme = {
+        bg: backgroundColor,
+        text: isLight ? '#000000' : '#ffffff',
+        button: isLight ? darkenColor(backgroundColor, 30) : darkenColor(backgroundColor, 15)
+      };
+    }
 
     let contentHTML = '';
 
@@ -301,9 +334,6 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
               padding: 12px 24px !important;
               font-size: 14px !important;
             }
-            img[alt="Zurcher Septic Logo"] {
-              height: 40px !important;
-            }
             img {
               max-width: 100% !important;
               height: auto !important;
@@ -324,13 +354,13 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
                 <!-- Footer -->
                 <tr>
                   <td class="mobile-padding" style="padding: 30px; background-color: #1f2937; text-align: center;">
-                    <img src="https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751206826/logo_zlxdhw.png" alt="Zurcher Septic Logo" style="height: 50px; margin-bottom: 16px;" />
+                    <img src="https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751206826/logo_zlxdhw.png" alt="Zurcher Septic Logo" width="70" height="auto" style="display: block; max-width: 70px; height: auto; margin: 0 auto 16px auto; border: 0;" />
                     <p style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #ffffff; font-family: Arial, sans-serif;">Zurcher Septic</p>
                     <p style="margin: 0 0 20px 0; font-size: 14px; color: #9ca3af; font-family: Arial, sans-serif;">
                       <a href="mailto:admin@zurcherseptic.com" style="color: #60a5fa; text-decoration: none;">admin@zurcherseptic.com</a>
                     </p>
-                    <p style="margin: 0 0 8px 0; font-size: 10px; color: #6b7280; font-family: Arial, sans-serif; opacity: 0.7;">If you no longer want to receive our updates, you can unsubscribe anytime.</p>
-                    <a href="http://localhost:3001/newsletter/public-unsubscribe/{{subscriberId}}" style="display: inline-block; padding: 4px 12px; background-color: transparent; color: #6b7280; text-decoration: underline; font-size: 9px; font-family: Arial, sans-serif; opacity: 0.6;">Unsubscribe</a>
+                    <p style="margin: 0 0 4px 0; font-size: 7px; color: #6b7280; font-family: Arial, sans-serif; opacity: 0.6;">If you no longer want to receive our updates, you can unsubscribe anytime.</p>
+                    <a href="http://localhost:3001/newsletter/public-unsubscribe/{{subscriberId}}" style="display: inline-block; padding: 2px 8px; background-color: transparent; color: #6b7280; text-decoration: underline; font-size: 7px; font-family: Arial, sans-serif; opacity: 0.5;">Unsubscribe</a>
                   </td>
                 </tr>
               </table>
@@ -632,13 +662,62 @@ const CreateNewsletterProModal = ({ isOpen, onClose, onSuccess, newsletterToEdit
             <div className="max-w-4xl mx-auto space-y-6">
               {/* Color de fondo */}
               <div>
-                <label className="block text-sm font-medium mb-3">Color de Fondo</label>
-                <div className="flex gap-4">
-                  <ColorPicker color="#0f766e" label="Verde Corporativo" />
-                  <ColorPicker color="#445868" label="Azul" />
-                  <ColorPicker color="#49465a" label="Oscuro" />
-                  <ColorPicker color="#f6d02c" label="Amarillo" />
-                  <ColorPicker color="#ffffff" label="Blanco" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  🎨 Color de Fondo
+                </label>
+                
+                {/* Presets de colores de fondo */}
+                <div className="flex gap-3 flex-wrap mb-3">
+                  {[
+                    { name: 'Verde Corporativo', color: '#0f766e' },
+                    { name: 'Azul', color: '#445868' },
+                    { name: 'Oscuro', color: '#49465a' },
+                    { name: 'Amarillo', color: '#f6d02c' },
+                    { name: 'Blanco', color: '#ffffff' }
+                  ].map((bgOption) => (
+                    <button
+                      key={bgOption.color}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, backgroundColor: bgOption.color }))}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                        formData.backgroundColor === bgOption.color
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div
+                        className="w-6 h-6 rounded-full border-2 border-gray-300 shadow"
+                        style={{ backgroundColor: bgOption.color }}
+                      />
+                      <span className="text-xs font-medium text-gray-700">{bgOption.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Color Picker Personalizado para fondo */}
+                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="color"
+                      value={formData.backgroundColor}
+                      onChange={(e) => setFormData(prev => ({ ...prev, backgroundColor: e.target.value }))}
+                      className="w-12 h-12 rounded cursor-pointer border-2 border-gray-300"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Color personalizado</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.backgroundColor}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (/^#[0-9A-Fa-f]{0,6}$/.test(value) || value === '#') {
+                        setFormData(prev => ({ ...prev, backgroundColor: value }));
+                      }
+                    }}
+                    placeholder="#0f766e"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm font-mono"
+                    maxLength={7}
+                  />
                 </div>
               </div>
 

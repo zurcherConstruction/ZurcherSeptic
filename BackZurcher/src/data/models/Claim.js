@@ -162,37 +162,32 @@ module.exports = (sequelize) => {
     paranoid: false
   });
 
-  // Generar número de reclamo único
+  // Generar número de reclamo único (OPTIMIZADO)
   Claim.generateClaimNumber = async function() {
     const year = new Date().getFullYear();
     const prefix = `CLM-${year}-`;
 
-    // Usar MAX en lugar de COUNT para evitar huecos por eliminaciones o concurrencia
-    const lastClaim = await Claim.findOne({
-      where: sequelize.where(
-        sequelize.fn('LEFT', sequelize.col('claimNumber'), prefix.length),
-        prefix
-      ),
-      order: [['claimNumber', 'DESC']],
-      attributes: ['claimNumber'],
-    });
+    // 🚀 OPTIMIZACIÓN: Usar raw query con LIKE para aprovechar índices
+    // Busca solo claims del año actual para reducir dataset
+    const result = await sequelize.query(
+      `SELECT "claimNumber" FROM "Claim" 
+       WHERE "claimNumber" LIKE :prefix 
+       ORDER BY "claimNumber" DESC 
+       LIMIT 1`,
+      {
+        replacements: { prefix: `${prefix}%` },
+        type: sequelize.QueryTypes.SELECT
+      }
+    );
 
     let nextSeq = 1;
-    if (lastClaim) {
-      const lastSeq = parseInt(lastClaim.claimNumber.replace(prefix, ''), 10);
+    if (result.length > 0) {
+      const lastSeq = parseInt(result[0].claimNumber.replace(prefix, ''), 10);
       if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
     }
 
-    // Retry hasta encontrar un número libre (protección contra race conditions)
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const candidate = `${prefix}${nextSeq.toString().padStart(3, '0')}`;
-      const exists = await Claim.findOne({ where: { claimNumber: candidate }, attributes: ['id'] });
-      if (!exists) return candidate;
-      nextSeq++;
-    }
-
-    // Fallback con timestamp si todos los intentos fallan
-    return `${prefix}${Date.now()}`;
+    // Generar el número (sin validación adicional - el unique constraint protege)
+    return `${prefix}${nextSeq.toString().padStart(3, '0')}`;
   };
 
   // Asociaciones
