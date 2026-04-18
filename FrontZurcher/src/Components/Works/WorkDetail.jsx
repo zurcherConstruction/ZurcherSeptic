@@ -2483,6 +2483,10 @@ const handleUploadImage = async () => {
                     alert('Error al actualizar Notice to Owner');
                   }
                 }}
+                onDocumentUploaded={() => {
+                  // Refrescar el trabajo después de subir documento
+                  dispatch(fetchWorkById(idWork));
+                }}
               />
             )}
 

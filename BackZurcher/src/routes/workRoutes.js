@@ -89,6 +89,12 @@ router.post('/:idWork/maintenance-service', verifyToken, allowRoles(['admin', 'o
 // 🆕 Subir Documento Extra
 router.post('/:idWork/extra-document', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.uploadExtraDocument);
 
+// 🆕 Subir Notice to Owner
+router.post('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.uploadNoticeToOwner);
+
+// 🆕 Subir Lien
+router.post('/:idWork/lien', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.uploadLien);
+
 router.post('/:idWork/validate-status-change',verifyToken, allowRoles(['admin', 'owner']), WorkController.validateStatusChangeOnly);
 router.post('/:idWork/change-status', verifyToken, allowRoles(['admin', 'owner',]), invalidateWorkCache, WorkController.changeWorkStatus);
 

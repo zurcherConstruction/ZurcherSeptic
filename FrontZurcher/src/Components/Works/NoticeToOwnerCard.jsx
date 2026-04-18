@@ -6,8 +6,9 @@ import {
   DocumentTextIcon,
   LinkIcon
 } from '@heroicons/react/24/outline';
+import api from '../../utils/axios';
 
-const NoticeToOwnerCard = ({ work, onUpdate, isOpen, onToggle }) => {
+const NoticeToOwnerCard = ({ work, onUpdate, isOpen, onToggle, onDocumentUploaded }) => {
   const [editing, setEditing] = useState(false);
   const [formData, setFormData] = useState({
     noticeToOwnerFiled: work.noticeToOwnerFiled || false,
@@ -16,6 +17,18 @@ const NoticeToOwnerCard = ({ work, onUpdate, isOpen, onToggle }) => {
     lienDocumentUrl: work.lienDocumentUrl || '',
     noticeToOwnerNotes: work.noticeToOwnerNotes || ''
   });
+
+  // Estados para modal de preview
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [previewTitle, setPreviewTitle] = useState('');
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  // Estados para file uploads
+  const [noticeToOwnerFile, setNoticeToOwnerFile] = useState(null);
+  const [uploadingNotice, setUploadingNotice] = useState(false);
+  const [lienFile, setLienFile] = useState(null);
+  const [uploadingLien, setUploadingLien] = useState(false);
 
   // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
   const formatDate = (dateString) => {
@@ -72,6 +85,77 @@ const NoticeToOwnerCard = ({ work, onUpdate, isOpen, onToggle }) => {
   };
 
   const daysInfo = calculateDaysRemaining();
+
+  // Handler para abrir preview de documentos
+  const handleViewDocument = (url, title) => {
+    if (!url) return;
+    
+    setLoadingPreview(true);
+    setPreviewTitle(title);
+    
+    // Si es una URL de Cloudinary o externa, usar directamente
+    setPreviewUrl(url);
+    setShowPreviewModal(true);
+    setLoadingPreview(false);
+  };
+
+  // Handler para subir Notice to Owner
+  const handleUploadNoticeToOwner = async () => {
+    setUploadingNotice(true);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('document', noticeToOwnerFile);
+      
+      const response = await api.post(
+        `/work/${work.idWork}/notice-to-owner`,
+        formDataUpload,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      if (response.data.success) {
+        alert('✅ Notice to Owner subido exitosamente');
+        setNoticeToOwnerFile(null);
+        // Resetear el input file
+        const inputElement = document.getElementById('notice-to-owner-file');
+        if (inputElement) inputElement.value = '';
+        if (onDocumentUploaded) onDocumentUploaded();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error al subir documento: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setUploadingNotice(false);
+    }
+  };
+
+  // Handler para subir Lien
+  const handleUploadLien = async () => {
+    setUploadingLien(true);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('document', lienFile);
+      
+      const response = await api.post(
+        `/work/${work.idWork}/lien`,
+        formDataUpload,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      if (response.data.success) {
+        alert('✅ Lien subido exitosamente');
+        setLienFile(null);
+        // Resetear el input file
+        const inputElement = document.getElementById('lien-file');
+        if (inputElement) inputElement.value = '';
+        if (onDocumentUploaded) onDocumentUploaded();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error al subir documento: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setUploadingLien(false);
+    }
+  };
 
   // Si no ha empezado instalación, no mostrar
   if (!work.installationStartDate) {
@@ -288,54 +372,64 @@ const NoticeToOwnerCard = ({ work, onUpdate, isOpen, onToggle }) => {
               )}
             </div>
 
-            {editing ? (
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.noticeToOwnerFiled}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      noticeToOwnerFiled: e.target.checked,
-                      noticeToOwnerFiledDate: e.target.checked ? new Date().toISOString().split('T')[0] : null
-                    })}
-                    className="w-4 h-4 rounded"
-                  />
-                  <span className="text-sm font-medium">Marcar como archivado</span>
-                </label>
-                
-                {formData.noticeToOwnerFiled && (
-                  <input
-                    type="url"
-                    value={formData.noticeToOwnerDocumentUrl}
-                    onChange={(e) => setFormData({...formData, noticeToOwnerDocumentUrl: e.target.value})}
-                    placeholder="Pega aquí el link del documento"
-                    className="w-full p-2 border rounded text-sm focus:ring-2 focus:ring-blue-400"
-                  />
-                )}
-              </div>
-            ) : (
-              <div className="text-sm">
-                {formData.noticeToOwnerFiled ? (
+            <div className="text-sm">
+              {work.noticeToOwnerDocumentUrl ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-green-700 font-semibold">
+                    <CheckCircleIcon className="h-5 w-5" />
+                    Documento Archivado
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={() => handleViewDocument(work.noticeToOwnerDocumentUrl, 'Notice to Owner')}
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      Ver Documento
+                    </button>
+                    <a 
+                      href={work.noticeToOwnerDocumentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      <LinkIcon className="h-4 w-4" />
+                      Abrir en nueva pestaña
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-red-700 font-semibold">⚠ Aún no fue archivado</div>
+                  
                   <div className="space-y-2">
-                    <div className="text-green-700 font-semibold">✅ Documento Archivado</div>
-                    {formData.noticeToOwnerDocumentUrl && (
-                      <a 
-                        href={formData.noticeToOwnerDocumentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium"
+                    <input
+                      id="notice-to-owner-file"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        setNoticeToOwnerFile(e.target.files[0]);
+                        setLienFile(null);
+                      }}
+                      className="text-sm w-full"
+                    />
+                    
+                    {noticeToOwnerFile && (
+                      <button
+                        onClick={handleUploadNoticeToOwner}
+                        disabled={uploadingNotice}
+                        className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
                       >
-                        <LinkIcon className="h-4 w-4" />
-                        Ver documento →
-                      </a>
+                        {uploadingNotice ? 'Subiendo...' : '📤 Subir Notice to Owner'}
+                      </button>
                     )}
                   </div>
-                ) : (
-                  <div className="text-red-700 font-semibold">⚠ Aún no fue archivado</div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Lien Section */}
@@ -349,54 +443,64 @@ const NoticeToOwnerCard = ({ work, onUpdate, isOpen, onToggle }) => {
           )}
         </div>
 
-        {editing ? (
-          <div className="space-y-2">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.lienFiled}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  lienFiled: e.target.checked,
-                  lienFiledDate: e.target.checked ? new Date().toISOString().split('T')[0] : null
-                })}
-                className="rounded"
-              />
-              <span className="text-sm">Lien archivado</span>
-            </label>
-            
-            {formData.lienFiled && (
-              <input
-                type="url"
-                value={formData.lienDocumentUrl}
-                onChange={(e) => setFormData({...formData, lienDocumentUrl: e.target.value})}
-                placeholder="URL del lien"
-                className="w-full p-2 border rounded text-sm"
-              />
-            )}
-          </div>
-        ) : (
-          <div className="text-sm">
-            {formData.lienFiled ? (
-              <div className="space-y-1">
-                <div className="text-green-700 font-medium">✓ Archivado</div>
-                {formData.lienDocumentUrl && (
-                  <a 
-                    href={formData.lienDocumentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-blue-600 hover:underline"
+        <div className="text-sm">
+          {work.lienDocumentUrl ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-green-700 font-medium">
+                <CheckCircleIcon className="h-5 w-5" />
+                Documento Archivado
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={() => handleViewDocument(work.lienDocumentUrl, 'Lien')}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  Ver Documento
+                </button>
+                <a 
+                  href={work.lienDocumentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm font-medium transition-colors"
+                >
+                  <LinkIcon className="h-4 w-4" />
+                  Abrir en nueva pestaña
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-yellow-700 font-semibold">⚠ Pendiente de archivar</div>
+              
+              <div className="space-y-2">
+                <input
+                  id="lien-file"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => {
+                    setLienFile(e.target.files[0]);
+                    setNoticeToOwnerFile(null);
+                  }}
+                  className="text-sm w-full"
+                />
+                
+                {lienFile && (
+                  <button
+                    onClick={handleUploadLien}
+                    disabled={uploadingLien}
+                    className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
                   >
-                    <LinkIcon className="h-4 w-4" />
-                    Ver lien
-                  </a>
+                    {uploadingLien ? 'Subiendo...' : '📤 Subir Lien'}
+                  </button>
                 )}
               </div>
-            ) : (
-              <div className="text-yellow-700">⚠ Pendiente de archivar</div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
           </div>
 
           {/* Notes */}
@@ -463,6 +567,36 @@ const NoticeToOwnerCard = ({ work, onUpdate, isOpen, onToggle }) => {
             )}
           </div>
         </>
+      )}
+
+      {/* Modal para preview de documentos */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-xl font-semibold text-gray-800">{previewTitle}</h3>
+              <button
+                onClick={() => {
+                  setShowPreviewModal(false);
+                  setPreviewUrl('');
+                  setPreviewTitle('');
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {previewUrl && (
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-full"
+                  title={previewTitle}
+                />
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
