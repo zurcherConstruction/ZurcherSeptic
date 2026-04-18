@@ -177,10 +177,28 @@ const SignatureDocumentsDashboard = () => {
           console.error('Error descargando PDF firmado:', downloadError);
           alert('⚠️ Documento firmado pero error al obtener PDF. Intenta descargar manualmente.');
           loadDocuments(); // Actualizar estado aunque falle la descarga
+          
+          // Intentar actualizar selectedDocument de todos modos
+          if (selectedDocument && selectedDocument.id === doc.id) {
+            try {
+              const updatedDoc = await dispatch(getSignatureDocument(doc.id));
+              setSelectedDocument(updatedDoc.document || updatedDoc);
+            } catch (e) {
+              console.error('Error actualizando documento en modal:', e);
+            }
+          }
         }
       } else if (result.isSigned) {
         alert('✅ Documento ya está firmado');
-        loadDocuments(); // Actualizar por si acaso
+        
+        // Actualizar datos frescos del backend
+        await loadDocuments();
+        
+        // Si el modal está abierto, actualizar con datos frescos
+        if (selectedDocument && selectedDocument.id === doc.id) {
+          const updatedDoc = await dispatch(getSignatureDocument(doc.id));
+          setSelectedDocument(updatedDoc.document || updatedDoc);
+        }
       } else {
         alert(`⏳ Documento pendiente de firma (Estado: ${result.status})`);
       }
@@ -250,9 +268,28 @@ const SignatureDocumentsDashboard = () => {
   /**
    * Ver detalles del documento
    */
-  const handleViewDetails = (doc) => {
-    setSelectedDocument(doc);
-    setShowDetailsModal(true);
+  const handleViewDetails = async (doc) => {
+    try {
+      // Obtener datos frescos del backend en lugar de usar los de la lista en memoria
+      const freshDoc = await dispatch(getSignatureDocument(doc.id));
+      const documentData = freshDoc.document || freshDoc;
+      
+      console.log('📄 [Signature Document] Datos del documento:', {
+        id: documentData.id,
+        status: documentData.status,
+        hasOriginalPdf: !!documentData.originalPdfUrl,
+        hasSignedPdf: !!documentData.signedPdfUrl,
+        signedPdfUrl: documentData.signedPdfUrl
+      });
+      
+      setSelectedDocument(documentData);
+      setShowDetailsModal(true);
+    } catch (error) {
+      console.error('Error cargando detalles:', error);
+      // Fallback: usar datos de la lista si falla la petición
+      setSelectedDocument(doc);
+      setShowDetailsModal(true);
+    }
   };
 
   /**
@@ -923,13 +960,11 @@ const SignatureDocumentsDashboard = () => {
                 {selectedDocument.status === 'pending' && (
                   <>
                     <button
-                      onClick={() => {
-                        handleCheckStatus(selectedDocument);
-                        setShowDetailsModal(false);
-                      }}
+                      onClick={() => handleCheckStatus(selectedDocument)}
                       className="flex-1 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2"
+                      disabled={checkingStatus[selectedDocument.id]}
                     >
-                      <FaSync />
+                      <FaSync className={checkingStatus[selectedDocument.id] ? 'animate-spin' : ''} />
                       Verificar Estado
                     </button>
                     <button
