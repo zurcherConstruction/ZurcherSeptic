@@ -31,6 +31,7 @@ import salesLeadReducer from '../Reducer/SalesLeadReducer'; // 🆕 Sales Leads 
 import marketingCampaignsReducer from '../Reducer/marketingCampaignsReducer'; // 🆕 Marketing Campaigns reducer
 import knowledgeBaseReducer from '../Reducer/knowledgeBaseReducer'; // 🆕 Knowledge Base reducer
 import newsletterReducer from '../Reducers/newsletterReducer'; // 🆕 Newsletter reducer
+import signatureDocumentReducer from '../Reducers/signatureDocumentReducer'; // 🆕 Signature Documents reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -63,6 +64,7 @@ const rootReducer = combineReducers({
   marketingCampaigns: marketingCampaignsReducer, // 🆕 Marketing Campaigns reducer
   knowledgeBase: knowledgeBaseReducer, // 🆕 Knowledge Base reducer
   newsletter: newsletterReducer, // 🆕 Newsletter reducer
+  signatureDocuments: signatureDocumentReducer, // 🆕 Signature Documents reducer
 });
 
 export const store = configureStore({
