@@ -418,6 +418,7 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         attributes: [
           'idWork', 'operatingPermitUrl', 'operatingPermitPublicId', 'operatingPermitSentAt',
           'maintenanceServiceUrl', 'maintenanceServicePublicId', 'maintenanceServiceSentAt',
+          'extraDocumentUrl', 'extraDocumentPublicId', 'extraDocumentSentAt',
           'noticeToOwnerDocumentUrl', 'lienDocumentUrl', 'createdAt'
         ],
         include: [{
@@ -500,6 +501,13 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
           ? `/client-portal/${token}/pdf/maintenance-service/${workId}`
           : null,
         sentAt: work.maintenanceServiceSentAt || null
+      },
+      extraDocument: {
+        available: !!(work.extraDocumentUrl || work.extraDocumentPublicId),
+        url: (work.extraDocumentUrl || work.extraDocumentPublicId)
+          ? `/client-portal/${token}/pdf/extra-document/${workId}`
+          : null,
+        sentAt: work.extraDocumentSentAt || null
       },
       finalInvoice: {
         available: !!finalInvoice,
@@ -1636,6 +1644,122 @@ router.get('/:token/pdf/maintenance-service/:workId', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error loading maintenance service PDF',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Servir Extra Document (imagen o PDF) con proxy de Cloudinary
+ * GET /api/client-portal/:token/pdf/extra-document/:workId
+ */
+router.get('/:token/pdf/extra-document/:workId', async (req, res) => {
+  try {
+    const { token, workId } = req.params;
+    console.log(`📎 Requesting extra document - Token: ${token.substring(0, 10)}..., WorkId: ${workId}`);
+
+    // Verificar token
+    const tokenValidation = await Budget.findOne({
+      where: { clientPortalToken: token },
+      attributes: ['applicantEmail']
+    });
+
+    if (!tokenValidation) {
+      console.log(`❌ Token inválido`);
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+
+    console.log(`✅ Token válido para cliente: ${tokenValidation.applicantEmail}`);
+
+    // Buscar Work con validación de cliente
+    const budgets = await Budget.findAll({
+      where: {
+        clientPortalToken: token,
+        applicantEmail: tokenValidation.applicantEmail
+      },
+      include: [{
+        model: Work,
+        where: { idWork: workId },
+        required: true,
+        attributes: ['extraDocumentUrl', 'extraDocumentPublicId']
+      }],
+      attributes: ['applicantEmail']
+    });
+
+    if (budgets.length === 0) {
+      console.log(`❌ Work ${workId} no encontrado para este cliente`);
+      return res.status(404).json({
+        success: false,
+        message: 'Work not found'
+      });
+    }
+
+    const work = budgets[0].Work;
+    let documentUrl = work.extraDocumentUrl;
+
+    // Si no hay URL pero hay publicId, construir URL de Cloudinary
+    if (!documentUrl && work.extraDocumentPublicId) {
+      console.log(`☁️  Construyendo URL de Cloudinary desde publicId: ${work.extraDocumentPublicId}`);
+      documentUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${work.extraDocumentPublicId}`;
+      console.log(`   URL construida: ${documentUrl}`);
+    }
+
+    if (!documentUrl) {
+      console.log(`⚠️  Work ${workId} no tiene Extra Document`);
+      return res.status(404).json({
+        success: false,
+        message: 'Extra Document not found'
+      });
+    }
+
+    console.log(`📎 Sirviendo Extra Document para Work #${workId}`);
+
+    // Si es URL de Cloudinary, descargar y servir (proxy para evitar CORS)
+    if (documentUrl.includes('cloudinary.com')) {
+      console.log(`☁️  Descargando Extra Document desde Cloudinary: ${documentUrl}`);
+      
+      const axios = require('axios');
+      const cloudinaryResponse = await axios.get(documentUrl, { 
+        responseType: 'arraybuffer' 
+      });
+
+      const origin = req.headers.origin || '*';
+      
+      // Determinar tipo de contenido basado en la extensión
+      let contentType = 'application/pdf';
+      if (documentUrl.match(/\.(jpg|jpeg)$/i)) contentType = 'image/jpeg';
+      else if (documentUrl.match(/\.png$/i)) contentType = 'image/png';
+      else if (documentUrl.match(/\.gif$/i)) contentType = 'image/gif';
+      else if (documentUrl.match(/\.webp$/i)) contentType = 'image/webp';
+      
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      
+      console.log(`✅ Serving Cloudinary Extra Document (${contentType}) with inline headers`);
+      return res.send(cloudinaryResponse.data);
+    }
+
+    // Si es archivo local (poco común para estos documentos)
+    return res.status(404).json({
+      success: false,
+      message: 'Extra Document not available'
+    });
+
+  } catch (error) {
+    console.error('❌ Error serving extra document:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error loading extra document',
       error: error.message
     });
   }

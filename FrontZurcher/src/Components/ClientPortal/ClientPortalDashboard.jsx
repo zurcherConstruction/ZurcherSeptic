@@ -212,9 +212,28 @@ const ClientPortalDashboard = () => {
           
         case 'permit':
           if (workDocuments.operationPermit.available && workDocuments.operationPermit.url) {
-            setSelectedPdfUrl(workDocuments.operationPermit.url);
-            setSelectedPdfTitle('Operation Permit');
-            setShowPdfModal(true);
+            console.log('🔍 Loading operation permit via blob endpoint from:', 
+              `${API_URL}${workDocuments.operationPermit.url}`);
+            
+            const response = await fetch(`${API_URL}${workDocuments.operationPermit.url}`, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/pdf',
+              },
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const blob = await response.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              console.log('🔗 Operation Permit Object URL created:', objectUrl);
+              setSelectedPdfUrl(objectUrl);
+              setSelectedPdfTitle('Operation Permit');
+              setShowPdfModal(true);
+            } else {
+              console.error('❌ Error response:', await response.text());
+              alert('Error loading operation permit PDF');
+            }
           } else {
             alert('Operation permit not available yet.');
           }
@@ -222,11 +241,59 @@ const ClientPortalDashboard = () => {
           
         case 'maintenance':
           if (workDocuments.maintenanceService.available && workDocuments.maintenanceService.url) {
-            setSelectedPdfUrl(workDocuments.maintenanceService.url);
-            setSelectedPdfTitle('Maintenance Service');
-            setShowPdfModal(true);
+            console.log('🔍 Loading maintenance service via blob endpoint from:', 
+              `${API_URL}${workDocuments.maintenanceService.url}`);
+            
+            const response = await fetch(`${API_URL}${workDocuments.maintenanceService.url}`, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/pdf',
+              },
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const blob = await response.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              console.log('🔗 Maintenance Service Object URL created:', objectUrl);
+              setSelectedPdfUrl(objectUrl);
+              setSelectedPdfTitle('Maintenance Service');
+              setShowPdfModal(true);
+            } else {
+              console.error('❌ Error response:', await response.text());
+              alert('Error loading maintenance service PDF');
+            }
           } else {
             alert('Maintenance service documentation not available yet.');
+          }
+          break;
+          
+        case 'extra':
+          if (workDocuments.extraDocument.available && workDocuments.extraDocument.url) {
+            console.log('🔍 Loading extra document via blob endpoint from:', 
+              `${API_URL}${workDocuments.extraDocument.url}`);
+            
+            const response = await fetch(`${API_URL}${workDocuments.extraDocument.url}`, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/pdf,image/*',
+              },
+              credentials: 'include'
+            });
+            
+            if (response.ok) {
+              const blob = await response.blob();
+              const objectUrl = URL.createObjectURL(blob);
+              console.log('🔗 Extra Document Object URL created:', objectUrl);
+              setSelectedPdfUrl(objectUrl);
+              setSelectedPdfTitle('Additional Document');
+              setShowPdfModal(true);
+            } else {
+              console.error('❌ Error response:', await response.text());
+              alert('Error loading extra document');
+            }
+          } else {
+            alert('Extra document not available.');
           }
           break;
           
@@ -1189,6 +1256,47 @@ const ClientPortalDashboard = () => {
                       )}
                     </button>
                   </div>
+
+                  {/* Extra Document (si está disponible) */}
+                  {workDocuments?.extraDocument?.available && (
+                    <div className="border border-slate-200 rounded-lg p-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <FaFileAlt className="text-teal-600 text-xl" />
+                        <h4 className="font-medium text-slate-800">Additional Document</h4>
+                      </div>
+                      <p className="text-sm text-slate-600 mb-1">
+                        Additional documentation or images
+                      </p>
+                      {workDocuments?.extraDocument?.sentAt && (
+                        <p className="text-xs text-slate-500 mb-3">
+                          📅 Uploaded: {formatDate(workDocuments.extraDocument.sentAt)}
+                        </p>
+                      )}
+                      {!workDocuments?.extraDocument?.sentAt && workDocuments?.extraDocument?.available && (
+                        <p className="text-xs text-slate-500 mb-3">
+                          📄 Available
+                        </p>
+                      )}
+                      <button 
+                        onClick={() => viewDocument('extra')}
+                        disabled={loadingPdf}
+                        className={`px-3 py-1 rounded text-sm transition-colors flex items-center gap-2 ${
+                          !loadingPdf
+                            ? 'bg-teal-500 hover:bg-teal-600 text-white' 
+                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        }`}
+                      >
+                        {loadingPdf ? (
+                          <>
+                            <FaSpinner className="animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          'View Document'
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
