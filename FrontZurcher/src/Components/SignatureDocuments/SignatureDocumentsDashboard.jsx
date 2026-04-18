@@ -21,6 +21,7 @@ import {
 } from 'react-icons/fa';
 import {
   getSignatureDocuments,
+  getSignatureDocument,
   createSignatureDocument,
   checkDocumentStatus,
   downloadSignedDocument,
@@ -156,10 +157,30 @@ const SignatureDocumentsDashboard = () => {
       const result = await dispatch(checkDocumentStatus(doc.id));
       
       if (result.isSigned && doc.status !== 'signed') {
-        alert(`✅ ¡Documento firmado! Firmado el ${new Date(result.signedAt).toLocaleString('es-AR')}`);
-        loadDocuments(); // Recargar para actualizar estado
+        alert(`✅ ¡Documento firmado! Firmado el ${new Date(result.signedAt).toLocaleString('es-AR')}\n\nDescargando PDF firmado...`);
+        
+        // Descargar automáticamente el PDF firmado (solo obtener URL, NO abrir ventana)
+        try {
+          await dispatch(downloadSignedDocument(doc.id, false)); // false = no abrir ventana
+          
+          // Actualizar lista de documentos
+          await loadDocuments();
+          
+          // Si el modal de detalles está abierto con este documento, actualizarlo
+          if (selectedDocument && selectedDocument.id === doc.id) {
+            const updatedDoc = await dispatch(getSignatureDocument(doc.id));
+            setSelectedDocument(updatedDoc.document || updatedDoc);
+          }
+          
+          alert('✅ Documento firmado listo. Puedes verlo con el botón "Ver Firmado"');
+        } catch (downloadError) {
+          console.error('Error descargando PDF firmado:', downloadError);
+          alert('⚠️ Documento firmado pero error al obtener PDF. Intenta descargar manualmente.');
+          loadDocuments(); // Actualizar estado aunque falle la descarga
+        }
       } else if (result.isSigned) {
         alert('✅ Documento ya está firmado');
+        loadDocuments(); // Actualizar por si acaso
       } else {
         alert(`⏳ Documento pendiente de firma (Estado: ${result.status})`);
       }
@@ -176,8 +197,18 @@ const SignatureDocumentsDashboard = () => {
    */
   const handleDownloadSigned = async (doc) => {
     try {
-      await dispatch(downloadSignedDocument(doc.id));
-      alert('✅ Descargando PDF firmado...');
+      const result = await dispatch(downloadSignedDocument(doc.id));
+      alert('✅ PDF firmado descargado y guardado');
+      
+      // Actualizar lista de documentos
+      await loadDocuments();
+      
+      // Si el modal de detalles está abierto con este documento, actualizarlo
+      if (selectedDocument && selectedDocument.id === doc.id) {
+        // Obtener el documento actualizado del backend
+        const updatedDoc = await dispatch(getSignatureDocument(doc.id));
+        setSelectedDocument(updatedDoc.document || updatedDoc);
+      }
     } catch (error) {
       console.error('Error descargando:', error);
       alert('❌ Error: ' + (error.response?.data?.message || error.message));
