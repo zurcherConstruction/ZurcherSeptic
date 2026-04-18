@@ -871,7 +871,7 @@ const ClientPortalDashboard = () => {
                     const isCompleted = work.status === 'maintenance' || work.status === 'finalApproved';
                     
                     return (
-                      <div key={work.idWork} className={`bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 lg:p-6 border border-slate-200 transition-all duration-300 ${isCompleted ? 'opacity-75' : 'hover:shadow-2xl hover:scale-[1.01]'}`}>
+                      <div key={work.idWork} className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 lg:p-6 border border-slate-200 transition-all duration-300 hover:shadow-2xl hover:scale-[1.01]">
                         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
                           <div className="flex items-start gap-3 lg:gap-4">
                             <div className={`w-12 h-12 lg:w-14 lg:h-14 ${statusInfo.color} rounded-xl shadow-lg flex items-center justify-center text-white flex-shrink-0`}>
@@ -926,22 +926,19 @@ const ClientPortalDashboard = () => {
                           <ProgressTracker currentStatus={work.status} />
                         </div>
 
-                        {/* View Details Button - Only enabled for active projects */}
+                        {/* View Details Button - Always enabled */}
                         <div className="mb-4">
-                          {isCompleted ? (
-                            <div className="w-full lg:w-auto bg-gradient-to-r from-gray-300 to-gray-400 text-gray-600 px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-semibold cursor-not-allowed">
-                              <FaCheckCircle className="text-base" />
-                              Project Completed
-                            </div>
-                          ) : (
-                            <button 
-                              onClick={() => selectWork(work)}
-                              className="w-full lg:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
-                            >
-                              <FaFileContract className="text-base" />
-                              View Project Details
-                            </button>
-                          )}
+                          <button 
+                            onClick={() => selectWork(work)}
+                            className={`w-full lg:w-auto ${
+                              isCompleted 
+                                ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700' 
+                                : 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700'
+                            } text-white px-6 py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105`}
+                          >
+                            <FaFileContract className="text-base" />
+                            {isCompleted ? 'View Completed Project' : 'View Project Details'}
+                          </button>
                         </div>
 
                         {/* Work Notes visible to client */}

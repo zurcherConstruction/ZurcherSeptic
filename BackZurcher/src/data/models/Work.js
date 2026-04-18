@@ -176,6 +176,21 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
       comment: 'Fecha y hora cuando se envió el Servicio de Mantenimiento al cliente'
+    },
+    extraDocumentUrl: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'URL del documento/imagen extra en Cloudinary'
+    },
+    extraDocumentPublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: 'Public ID de Cloudinary para el documento/imagen extra'
+    },
+    extraDocumentSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha y hora cuando se subió el documento/imagen extra'
     }
 
   }, {

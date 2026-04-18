@@ -374,8 +374,10 @@ const WorkDetail = () => {
   // 🆕 Estados para documentos finales
   const [operatingPermitFile, setOperatingPermitFile] = useState(null);
   const [maintenanceServiceFile, setMaintenanceServiceFile] = useState(null);
+  const [extraDocumentFile, setExtraDocumentFile] = useState(null);
   const [uploadingOperatingPermit, setUploadingOperatingPermit] = useState(false);
   const [uploadingMaintenanceService, setUploadingMaintenanceService] = useState(false);
+  const [uploadingExtraDocument, setUploadingExtraDocument] = useState(false);
   
   const {
     incomes,
@@ -1488,6 +1490,10 @@ const handleUploadImage = async () => {
               setMaintenanceServiceFile={setMaintenanceServiceFile}
               uploadingMaintenanceService={uploadingMaintenanceService}
               setUploadingMaintenanceService={setUploadingMaintenanceService}
+              extraDocumentFile={extraDocumentFile}
+              setExtraDocumentFile={setExtraDocumentFile}
+              uploadingExtraDocument={uploadingExtraDocument}
+              setUploadingExtraDocument={setUploadingExtraDocument}
               onDocumentUploaded={() => dispatch(fetchWorkById(idWork))}
             />
 
