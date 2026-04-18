@@ -138,8 +138,10 @@ export const checkDocumentStatus = (id) => async (dispatch) => {
 
 /**
  * Descargar documento firmado
+ * @param {string} id - ID del documento
+ * @param {boolean} openInNewTab - Abrir en nueva pestaña (default: true)
  */
-export const downloadSignedDocument = (id) => async (dispatch) => {
+export const downloadSignedDocument = (id, openInNewTab = true) => async (dispatch) => {
   try {
     dispatch({ type: DOWNLOAD_SIGNED_DOCUMENT_REQUEST });
 
@@ -150,8 +152,8 @@ export const downloadSignedDocument = (id) => async (dispatch) => {
       payload: { id, ...response.data }
     });
 
-    // Abrir PDF en nueva pestaña
-    if (response.data.signedPdfUrl) {
+    // Abrir PDF en nueva pestaña (solo si openInNewTab es true)
+    if (openInNewTab && response.data.signedPdfUrl) {
       window.open(response.data.signedPdfUrl, '_blank');
     }
 
