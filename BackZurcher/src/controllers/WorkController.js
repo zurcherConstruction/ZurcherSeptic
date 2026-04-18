@@ -1931,6 +1931,98 @@ const uploadMaintenanceService = async (req, res) => {
   }
 };
 
+// ============================================
+// 📎 SUBIR DOCUMENTO/IMAGEN EXTRA
+// ============================================
+const uploadExtraDocument = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    console.log(`📎 Subiendo Documento Extra para Work ${idWork}...`);
+
+    // Subir a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/extra-documents',
+          resource_type: 'auto',
+          public_id: `extra_document_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Documento Extra subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con URLs y fecha
+    work.extraDocumentUrl = cloudinaryResult.secure_url;
+    work.extraDocumentPublicId = cloudinaryResult.public_id;
+    work.extraDocumentSentAt = new Date();
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `📎 Documento Extra subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Documento Extra subido exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.extraDocumentSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al subir Documento Extra:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al subir Documento Extra',
+      details: error.message
+    });
+  }
+};
+
 // 🆕 Obtener información del portal de cliente para un work
 const getWorkPortalInfo = async (req, res) => {
   try {
@@ -1986,5 +2078,6 @@ module.exports = {
   updateNoticeToOwner,
   uploadOperatingPermit,        // 🆕 NUEVO
   uploadMaintenanceService,      // 🆕 NUEVO
+  uploadExtraDocument,           // 🆕 NUEVO - Documento Extra
   getWorkPortalInfo,            // 🆕 Portal de cliente
 };
