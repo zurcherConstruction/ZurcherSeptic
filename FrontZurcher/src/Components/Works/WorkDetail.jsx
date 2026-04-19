@@ -13,9 +13,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import FinalInvoice from "../Budget/FinalInvoice"
 import InspectionFlowManager from "./InspectionFlowManager";
 import FinalInspectionFlowManager from "./FinalInspectionFlowManager"
-import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el banner
-import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
-import ManualApprovalModal from './ManualApprovalModal'; // 🆕 Modal de aprobación manual
+import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; 
+import CreateChangeOrderModal from './CreateChangeOrderModal'; 
+import ManualApprovalModal from './ManualApprovalModal'; 
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
 import PdfModal from "../Budget/PdfModal"; 
