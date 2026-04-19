@@ -1,5 +1,13 @@
-# ZurcherApi
+# ZurcherApi - Sistema de Gestión
+
+> 🔒 **Repositorio Privado** - Migrado el 18/04/2026
+
 Seguimiento de Obra - Sistema de Gestión de Presupuestos y Trabajos
+
+Sistema completo que incluye:
+- **BackZurcher**: Backend API (Node.js + PostgreSQL + Railway)
+- **FrontZurcher**: Dashboard Web (React + Vite + Vercel)
+- **WorkTrackerApp**: App Móvil (React Native + Expo)
 
 ## 📚 Documentación de Deployment
 
