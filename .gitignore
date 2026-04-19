@@ -86,6 +86,9 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
+# Allow .env.example files (template files are safe to commit)
+!.env.example
+!**/.env.example
 
 # 🔐 DocuSign Private Keys (NUNCA subir al repositorio)
 docusign_private.key
