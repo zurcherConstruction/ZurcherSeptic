@@ -2023,6 +2023,190 @@ const uploadExtraDocument = async (req, res) => {
   }
 };
 
+// 🆕 Subir Notice to Owner a Cloudinary
+const uploadNoticeToOwner = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    console.log(`📋 Subiendo Notice to Owner para Work ${idWork}...`);
+
+    // Subir a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/notice-to-owner',
+          resource_type: 'auto',
+          public_id: `notice_to_owner_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Notice to Owner subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con URLs y fecha - marcar como archivado
+    work.noticeToOwnerDocumentUrl = cloudinaryResult.secure_url;
+    work.noticeToOwnerPublicId = cloudinaryResult.public_id;
+    work.noticeToOwnerSentAt = new Date();
+    work.noticeToOwnerFiled = true;
+    work.noticeToOwnerFiledDate = new Date().toISOString().split('T')[0];
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `📋 Notice to Owner subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notice to Owner subido exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.noticeToOwnerSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al subir Notice to Owner:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al subir Notice to Owner',
+      details: error.message
+    });
+  }
+};
+
+// 🆕 Subir Lien a Cloudinary
+const uploadLien = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    console.log(`🔗 Subiendo Lien para Work ${idWork}...`);
+
+    // Subir a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/lien',
+          resource_type: 'auto',
+          public_id: `lien_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Lien subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con URLs y fecha - marcar como archivado
+    work.lienDocumentUrl = cloudinaryResult.secure_url;
+    work.lienPublicId = cloudinaryResult.public_id;
+    work.lienSentAt = new Date();
+    work.lienFiled = true;
+    work.lienFiledDate = new Date().toISOString().split('T')[0];
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `🔗 Lien subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lien subido exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.lienSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al subir Lien:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al subir Lien',
+      details: error.message
+    });
+  }
+};
+
 // 🆕 Obtener información del portal de cliente para un work
 const getWorkPortalInfo = async (req, res) => {
   try {
@@ -2079,5 +2263,7 @@ module.exports = {
   uploadOperatingPermit,        // 🆕 NUEVO
   uploadMaintenanceService,      // 🆕 NUEVO
   uploadExtraDocument,           // 🆕 NUEVO - Documento Extra
+  uploadNoticeToOwner,           // 🆕 NUEVO - Notice to Owner
+  uploadLien,                    // 🆕 NUEVO - Lien
   getWorkPortalInfo,            // 🆕 Portal de cliente
 };

@@ -114,9 +114,22 @@ module.exports = (sequelize) => {
       comment: 'Fecha cuando se archivó el Notice to Owner'
     },
     noticeToOwnerDocumentUrl: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(500),
       allowNull: true,
-      comment: 'URL del documento Notice to Owner'
+      field: 'notice_to_owner_document_url',
+      comment: 'URL del documento Notice to Owner en Cloudinary'
+    },
+    noticeToOwnerPublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      field: 'notice_to_owner_public_id',
+      comment: 'Public ID de Cloudinary para el Notice to Owner'
+    },
+    noticeToOwnerSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'notice_to_owner_sent_at',
+      comment: 'Fecha y hora cuando se subió el Notice to Owner'
     },
     lienRequired: {
       type: DataTypes.BOOLEAN,
@@ -136,9 +149,22 @@ module.exports = (sequelize) => {
       comment: 'Fecha cuando se archivó el Lien'
     },
     lienDocumentUrl: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(500),
       allowNull: true,
-      comment: 'URL del documento Lien'
+      field: 'lien_document_url',
+      comment: 'URL del documento Lien en Cloudinary'
+    },
+    lienPublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      field: 'lien_public_id',
+      comment: 'Public ID de Cloudinary para el Lien'
+    },
+    lienSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'lien_sent_at',
+      comment: 'Fecha y hora cuando se subió el Lien'
     },
     noticeToOwnerNotes: {
       type: DataTypes.TEXT,

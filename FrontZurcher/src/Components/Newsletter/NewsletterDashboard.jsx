@@ -209,12 +209,16 @@ const NewsletterDashboard = () => {
   const handleOpenScheduleModal = (newsletter) => {
     setNewsletterToSchedule(newsletter);
     setShowScheduleModal(true);
-    // Pre-cargar fecha si ya tiene
+    // Pre-cargar fecha si ya tiene - convertir UTC a hora local del navegador
     if (newsletter.scheduledAt) {
       const date = new Date(newsletter.scheduledAt);
-      const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16);
+      // Formatear para input datetime-local (hora local del navegador)
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const localDate = `${year}-${month}-${day}T${hours}:${minutes}`;
       setScheduledDate(localDate);
     } else {
       setScheduledDate('');
@@ -243,8 +247,10 @@ const NewsletterDashboard = () => {
       
       const { updateNewsletter } = await import('../../Redux/Actions/newsletterActions');
       
+      // Convertir hora local del navegador a UTC para guardar
+      const localDate = new Date(scheduledDate);
       await dispatch(updateNewsletter(newsletterToSchedule.id, {
-        scheduledAt: selectedDate.toISOString(),
+        scheduledAt: localDate.toISOString(),
         status: 'scheduled'
       }));
       
@@ -689,13 +695,19 @@ const NewsletterDashboard = () => {
                                         </div>
                                       ) : newsletter.scheduledAt ? (
                                         <span className="text-xs">
-                                          {new Date(newsletter.scheduledAt).toLocaleString('es-AR', {
-                                            day: '2-digit',
-                                            month: '2-digit',
-                                            year: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                          })}
+                                          {(() => {
+                                            const date = new Date(newsletter.scheduledAt);
+                                            // Mostrar en hora de Florida (America/New_York)
+                                            return date.toLocaleString('en-US', {
+                                              day: '2-digit',
+                                              month: '2-digit',
+                                              year: 'numeric',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              timeZone: 'America/New_York',
+                                              hour12: true
+                                            });
+                                          })()}
                                         </span>
                                       ) : (
                                         <span className="text-gray-400 text-xs">-</span>
@@ -969,19 +981,41 @@ const NewsletterDashboard = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-2 text-gray-700">
-                      Fecha y hora de envío *
+                      Fecha *
                     </label>
                     <input
-                      type="datetime-local"
+                      type="date"
                       required
-                      value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
+                      value={scheduledDate.slice(0, 10)}
+                      onChange={(e) => {
+                        const time = scheduledDate.slice(11, 16) || '09:00';
+                        setScheduledDate(`${e.target.value}T${time}`);
+                      }}
                       className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       disabled={scheduling}
-                      min={new Date().toISOString().slice(0, 16)}
+                      min={new Date().toISOString().slice(0, 10)}
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2 text-gray-700">
+                      Hora (Orlando, FL) *
+                    </label>
+                    <select
+                      required
+                      value={scheduledDate.slice(11, 16)}
+                      onChange={(e) => {
+                        const date = scheduledDate.slice(0, 10) || new Date().toISOString().slice(0, 10);
+                        setScheduledDate(`${date}T${e.target.value}`);
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={scheduling}
+                    >
+                      <option value="">Seleccionar hora</option>
+                      <option value="09:00">9:00 AM</option>
+                      <option value="12:00">12:00 PM (Mediodía)</option>
+                    </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      El sistema verifica a las 8 AM y 8 PM, y envía los newsletters programados
+                      El sistema verifica a las 9 AM y 12 PM (mediodía), y envía los newsletters programados
                     </p>
                   </div>
                 </div>

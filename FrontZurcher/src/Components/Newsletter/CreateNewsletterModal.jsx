@@ -207,9 +207,15 @@ const CreateNewsletterModal = ({ onClose, onCreated }) => {
         textContent: currentTemplate ? currentTemplate.textContent : customContent.message,
         templateId: formData.templateId,
         recipientCount: recipients.length,
-        // Programación
+        // Programación - Convertir hora de Florida a UTC
         scheduledAt: formData.sendType === 'scheduled' 
-          ? new Date(`${formData.scheduledDate} ${formData.scheduledTime}`).toISOString()
+          ? (() => {
+              // Crear fecha en hora local de Florida
+              const dateStr = `${formData.scheduledDate}T${formData.scheduledTime}:00`;
+              const localDate = new Date(dateStr);
+              // Convertir a UTC (JavaScript ya maneja esto automáticamente)
+              return localDate.toISOString();
+            })()
           : null,
         // Metadata para recurrencia y filtros
         metadata: {
@@ -573,13 +579,16 @@ const CreateNewsletterModal = ({ onClose, onCreated }) => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm mb-1">Hora</label>
-                        <input
-                          type="time"
+                        <label className="block text-sm mb-1">Hora (Orlando, FL)</label>
+                        <select
                           value={formData.scheduledTime}
                           onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
                           className="w-full border rounded px-3 py-2"
-                        />
+                        >
+                          <option value="">Seleccionar hora</option>
+                          <option value="09:00">9:00 AM</option>
+                          <option value="12:00">12:00 PM (Mediodía)</option>
+                        </select>
                       </div>
                     </div>
                   )}
