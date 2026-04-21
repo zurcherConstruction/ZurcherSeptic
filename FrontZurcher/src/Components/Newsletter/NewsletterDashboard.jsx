@@ -23,6 +23,7 @@ import {
   deleteNewsletter,
   sendNewsletter, //  Importar para envío inmediato
   resendNewsletter,
+  retryFailedRecipients, // 🔄 Reintentar solo fallidos
   sendTestNewsletter, //  Importar nueva acción
   getNewsletterImages,
   uploadNewsletterImage,
@@ -186,6 +187,21 @@ const NewsletterDashboard = () => {
         }, 2000);
       } catch (error) {
         alert('Error al reenviar newsletter: ' + (error.response?.data?.message || error.message));
+      }
+    }
+  };
+
+  // 🔄 Reintentar solo destinatarios fallidos
+  const handleRetryFailed = async (id, name, failedCount) => {
+    if (window.confirm(`¿Reintentar envío a los ${failedCount} destinatarios fallidos de "${name}"?\n\nLos que ya recibieron el email NO recibirán duplicados.`)) {
+      try {
+        await dispatch(retryFailedRecipients(id));
+        alert(`Reintentando envío a ${failedCount} destinatarios fallidos...`);
+        setTimeout(() => {
+          dispatch(getAllNewsletters());
+        }, 2000);
+      } catch (error) {
+        alert('Error al reintentar: ' + (error.response?.data?.message || error.message));
       }
     }
   };
@@ -649,6 +665,7 @@ const NewsletterDashboard = () => {
                                 <th className="px-4 py-3 text-left text-sm font-semibold">Estado</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold">Destinatarios</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold">Enviados</th>
+                                <th className="px-4 py-3 text-left text-sm font-semibold">Fallidos</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold">Abiertos</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold">Programado</th>
                                 <th className="px-4 py-3 text-left text-sm font-semibold">Acciones</th>
@@ -657,6 +674,7 @@ const NewsletterDashboard = () => {
                             <tbody>
                               {newsletters.data.map((newsletter) => {
                                 const isRecurring = newsletter.metadata && newsletter.metadata.recurring;
+                                const failedCount = (newsletter.metadata?.failedCount) || (newsletter.recipientCount - (newsletter.sentCount || 0)) || 0;
                                 return (
                                   <tr key={newsletter.id} className="border-b hover:bg-gray-50">
                                     <td className="px-4 py-3 text-sm">
@@ -673,6 +691,11 @@ const NewsletterDashboard = () => {
                                     <td className="px-4 py-3 text-sm">{getStatusBadge(newsletter.status)}</td>
                                     <td className="px-4 py-3 text-sm">{newsletter.recipientCount || 0}</td>
                                     <td className="px-4 py-3 text-sm">{newsletter.sentCount || 0}</td>
+                                    <td className="px-4 py-3 text-sm">
+                                      <span className={failedCount > 0 ? 'text-red-600 font-semibold' : ''}>
+                                        {failedCount}
+                                      </span>
+                                    </td>
                                     <td className="px-4 py-3 text-sm">
                                       {newsletter.openedCount || 0} 
                                       {newsletter.recipientCount > 0 && (
@@ -757,14 +780,25 @@ const NewsletterDashboard = () => {
                                           </button>
                                         )}
                                         
-                                        {/* Botón Reenviar - Si ya fue enviado o si falló */}
+                                        {/* Botón Reintentar Solo Fallidos - Si hay fallidos */}
+                                        {failedCount > 0 && ['sent', 'failed'].includes(newsletter.status) && (
+                                          <button
+                                            onClick={() => handleRetryFailed(newsletter.id, newsletter.name, failedCount)}
+                                            className="text-yellow-600 hover:text-yellow-800"
+                                            title={`Reintentar solo ${failedCount} fallidos`}
+                                          >
+                                            <FaRedo />
+                                          </button>
+                                        )}
+                                        
+                                        {/* Botón Reenviar a TODOS - Si ya fue enviado o si falló */}
                                         {['sent', 'failed'].includes(newsletter.status) && (
                                           <button
                                             onClick={() => handleResendNewsletter(newsletter.id, newsletter.name)}
-                                            className={newsletter.status === 'failed' ? 'text-red-600 hover:text-red-800' : 'text-orange-600 hover:text-orange-800'}
-                                            title={newsletter.status === 'failed' ? 'Reintentar envío' : 'Reenviar'}
+                                            className="text-orange-600 hover:text-orange-800"
+                                            title="Reenviar a TODOS"
                                           >
-                                            <FaRedo />
+                                            <FaPaperPlane />
                                           </button>
                                         )}
                                         

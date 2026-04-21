@@ -362,6 +362,29 @@ export const resendNewsletter = (id) => async (dispatch) => {
   }
 };
 
+// 🔄 Reintentar solo envíos fallidos (no duplica exitosos)
+export const retryFailedRecipients = (id) => async (dispatch) => {
+  try {
+    dispatch({ type: 'RETRY_FAILED_REQUEST' });
+    
+    const { data } = await axios.post(
+      `${API_URL}/newsletter/newsletters/${id}/retry-failed`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      }
+    );
+    
+    dispatch({ type: 'RETRY_FAILED_SUCCESS', payload: data });
+    return data;
+  } catch (error) {
+    dispatch({ type: 'RETRY_FAILED_FAILURE', payload: error.response?.data?.message || error.message });
+    throw error;
+  }
+};
+
 export const deleteNewsletter = (id) => async (dispatch) => {
   try {
     dispatch({ type: 'DELETE_NEWSLETTER_REQUEST' });

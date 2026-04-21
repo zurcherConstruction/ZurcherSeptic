@@ -135,6 +135,9 @@ const processNewsletterSending = async (newsletter) => {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: process.env.SMTP_PORT || 587,
     secure: process.env.SMTP_SECURE === 'true',
+    pool: true, // ✅ REUTILIZAR conexión en lugar de crear nueva cada vez
+    maxConnections: 1, // ✅ Una sola conexión para evitar múltiples logins
+    maxMessages: Infinity, // ✅ Sin límite de mensajes por conexión
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD
@@ -164,8 +167,8 @@ const processNewsletterSending = async (newsletter) => {
   let failedCount = 0;
 
   // 🚀 OPTIMIZACIÓN: Procesar en lotes con concurrencia controlada
-  const BATCH_SIZE = 10; // Enviar 10 emails en paralelo
-  const DELAY_BETWEEN_BATCHES = 1000; // 1 segundo entre lotes
+  const BATCH_SIZE = 3; // ✅ Reducido de 10 a 3 para evitar rate limit
+  const DELAY_BETWEEN_BATCHES = 2000; // ✅ Aumentado a 2 segundos
   
   console.log(`📧 [Newsletter Scheduler] Procesando ${recipients.length} destinatarios en lotes de ${BATCH_SIZE}`);
 
@@ -258,6 +261,9 @@ const processNewsletterSending = async (newsletter) => {
       lastSentAt: new Date().toISOString()
     }
   });
+
+  // 🔒 Cerrar el pool de conexiones SMTP
+  transporter.close();
 
   return { sentCount, failedCount, totalRecipients: recipients.length };
 };
