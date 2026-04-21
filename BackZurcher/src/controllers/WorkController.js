@@ -2246,6 +2246,339 @@ const getWorkPortalInfo = async (req, res) => {
   }
 };
 
+// ============================================
+// 🔄 REEMPLAZAR PERMISO DE OPERACIÓN
+// ============================================
+const replaceOperatingPermit = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    // Validar que existe un documento previo
+    if (!work.operatingPermitUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'No existe un Permiso de Operación previo para reemplazar'
+      });
+    }
+
+    console.log(`🔄 Reemplazando Permiso de Operación para Work ${idWork}...`);
+
+    // Eliminar archivo antiguo de Cloudinary si existe public_id
+    if (work.operatingPermitPublicId) {
+      try {
+        await cloudinary.uploader.destroy(work.operatingPermitPublicId);
+        console.log(`🗑️ Archivo anterior eliminado de Cloudinary: ${work.operatingPermitPublicId}`);
+      } catch (deleteError) {
+        console.warn('⚠️ No se pudo eliminar el archivo anterior de Cloudinary:', deleteError.message);
+        // Continuar aunque falle la eliminación
+      }
+    }
+
+    // Subir nuevo archivo a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/operating-permits',
+          resource_type: 'auto',
+          public_id: `operating_permit_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Nuevo Permiso de Operación subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con nuevas URLs y fecha
+    work.operatingPermitUrl = cloudinaryResult.secure_url;
+    work.operatingPermitPublicId = cloudinaryResult.public_id;
+    work.operatingPermitSentAt = new Date();
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `🔄 Permiso de Operación reemplazado - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Permiso de Operación reemplazado exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.operatingPermitSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al reemplazar Permiso de Operación:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al reemplazar Permiso de Operación',
+      details: error.message
+    });
+  }
+};
+
+// ============================================
+// 🔄 REEMPLAZAR SERVICIO DE MANTENIMIENTO
+// ============================================
+const replaceMaintenanceService = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    // Validar que existe un documento previo
+    if (!work.maintenanceServiceUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'No existe un Servicio de Mantenimiento previo para reemplazar'
+      });
+    }
+
+    console.log(`🔄 Reemplazando Servicio de Mantenimiento para Work ${idWork}...`);
+
+    // Eliminar archivo antiguo de Cloudinary si existe public_id
+    if (work.maintenanceServicePublicId) {
+      try {
+        await cloudinary.uploader.destroy(work.maintenanceServicePublicId);
+        console.log(`🗑️ Archivo anterior eliminado de Cloudinary: ${work.maintenanceServicePublicId}`);
+      } catch (deleteError) {
+        console.warn('⚠️ No se pudo eliminar el archivo anterior de Cloudinary:', deleteError.message);
+        // Continuar aunque falle la eliminación
+      }
+    }
+
+    // Subir nuevo archivo a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/maintenance-services',
+          resource_type: 'auto',
+          public_id: `maintenance_service_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Nuevo Servicio de Mantenimiento subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con nuevas URLs y fecha
+    work.maintenanceServiceUrl = cloudinaryResult.secure_url;
+    work.maintenanceServicePublicId = cloudinaryResult.public_id;
+    work.maintenanceServiceSentAt = new Date();
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `🔄 Servicio de Mantenimiento reemplazado - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Servicio de Mantenimiento reemplazado exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.maintenanceServiceSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al reemplazar Servicio de Mantenimiento:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al reemplazar Servicio de Mantenimiento',
+      details: error.message
+    });
+  }
+};
+
+// ============================================
+// 🔄 REEMPLAZAR DOCUMENTO EXTRA
+// ============================================
+const replaceExtraDocument = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    // Validar que existe un documento previo
+    if (!work.extraDocumentUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'No existe un Documento Extra previo para reemplazar'
+      });
+    }
+
+    console.log(`🔄 Reemplazando Documento Extra para Work ${idWork}...`);
+
+    // Eliminar archivo antiguo de Cloudinary si existe public_id
+    if (work.extraDocumentPublicId) {
+      try {
+        await cloudinary.uploader.destroy(work.extraDocumentPublicId);
+        console.log(`🗑️ Archivo anterior eliminado de Cloudinary: ${work.extraDocumentPublicId}`);
+      } catch (deleteError) {
+        console.warn('⚠️ No se pudo eliminar el archivo anterior de Cloudinary:', deleteError.message);
+        // Continuar aunque falle la eliminación
+      }
+    }
+
+    // Subir nuevo archivo a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/extra-documents',
+          resource_type: 'auto',
+          public_id: `extra_document_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Nuevo Documento Extra subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con nuevas URLs y fecha
+    work.extraDocumentUrl = cloudinaryResult.secure_url;
+    work.extraDocumentPublicId = cloudinaryResult.public_id;
+    work.extraDocumentSentAt = new Date();
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `🔄 Documento Extra reemplazado - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Documento Extra reemplazado exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.extraDocumentSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al reemplazar Documento Extra:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al reemplazar Documento Extra',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createWork,
   getWorks,
@@ -2268,5 +2601,8 @@ module.exports = {
   uploadExtraDocument,           // 🆕 NUEVO - Documento Extra
   uploadNoticeToOwner,           // 🆕 NUEVO - Notice to Owner
   uploadLien,                    // 🆕 NUEVO - Lien
+  replaceOperatingPermit,        // 🔄 REEMPLAZAR - Permiso de Operación
+  replaceMaintenanceService,     // 🔄 REEMPLAZAR - Servicio de Mantenimiento
+  replaceExtraDocument,          // 🔄 REEMPLAZAR - Documento Extra
   getWorkPortalInfo,            // 🆕 Portal de cliente
 };
