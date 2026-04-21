@@ -172,6 +172,9 @@ const AttachReceipt = () => {
   const [paymentHistory, setPaymentHistory] = useState([]);
   // 🆕 Estado para el modal de FixedExpensePaymentHistory
   const [showFixedExpensePaymentModal, setShowFixedExpensePaymentModal] = useState(false);
+  // 🛡️ Estado para prevenir doble envío (doble-clic)
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSubmitTime, setLastSubmitTime] = useState(0);
 
   useEffect(() => {
     dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener TODOS los works sin límite
@@ -389,23 +392,44 @@ const AttachReceipt = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // 🛡️ PROTECCIÓN ANTI-DOBLE-CLIC
+    if (isSubmitting) {
+      console.warn('⚠️ Envío ya en progreso. Ignorando doble-clic.');
+      toast.warning('Por favor, espera. El pago se está procesando...');
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastSubmitTime < 2000) {
+      console.warn('⚠️ Doble-clic detectado (< 2 segundos). Ignorando envío duplicado.');
+      toast.warning('¡Espera! Detectamos un doble-clic. Por favor, espera unos segundos.');
+      return;
+    }
+
+    // Marcar como enviando
+    setIsSubmitting(true);
+    setLastSubmitTime(now);
+
     // Determinar si el tipo seleccionado permite transacciones generales
     const canBeGeneral = generalExpenseTypes.includes(type) || generalIncomeTypes.includes(type);
 
     // Validaciones básicas - permitir si hay SimpleWork seleccionado
     if (!canBeGeneral && !isGeneralTransaction && !selectedWork && !selectedSimpleWork) {
       toast.error("Por favor, selecciona una obra, un SimpleWork, o marca como transacción general.");
+      setIsSubmitting(false);
       return;
     }
 
     if (!type) {
       toast.error("Por favor, selecciona el tipo de comprobante.");
+      setIsSubmitting(false);
       return;
     }
 
     // 🆕 Validación de método de pago - OBLIGATORIO
     if (!paymentMethod) {
       toast.error("⚠️ Por favor, selecciona un método de pago. Este campo es obligatorio para el control financiero.");
+      setIsSubmitting(false);
       return;
     }
 
@@ -413,6 +437,7 @@ const AttachReceipt = () => {
     console.log('🔍 Verificando archivo adjunto:', { hasFile: !!file, fileName: file?.name, fileSize: file?.size });
     if (!file) {
       toast.error("Por favor, adjunta un archivo de comprobante.");
+      setIsSubmitting(false);
       return;
     }
 
@@ -872,6 +897,14 @@ const AttachReceipt = () => {
           errorMessage = "No tienes permisos para realizar esta operación.";
         } else if (status === 404) {
           errorMessage = data.message || "Recurso no encontrado.";
+        } else if (status === 409) {
+          // 🛡️ Error de pago duplicado (doble-clic)
+          errorMessage = data.message || "Este pago ya fue registrado recientemente. Por favor, verifica el historial de pagos antes de intentar nuevamente.";
+          // Mostrar detalles adicionales si hay información de duplicados
+          if (data.details || data.existingPayments) {
+            console.warn('⚠️ Detalles del pago duplicado:', data.details || data.existingPayments);
+            errorMessage += " Verifica el historial de pagos para confirmar.";
+          }
         } else if (status === 500) {
           errorMessage = "Error del servidor. Por favor, contacta al administrador.";
         } else {
@@ -895,6 +928,11 @@ const AttachReceipt = () => {
       if (err.stack) {
         console.error('Stack trace:', err.stack);
       }
+    } finally {
+      // 🛡️ Resetear estado de envío después de un pequeño delay para prevenir clics rápidos
+      setTimeout(() => {
+        setIsSubmitting(false);
+      }, 1500);
     }
   };
 
@@ -2193,13 +2231,13 @@ const AttachReceipt = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || (type === "Factura Pago Final Budget" && ['paid', 'cancelled'].includes(finalInvoiceDetails?.status))}
+              disabled={loading || isSubmitting || (type === "Factura Pago Final Budget" && ['paid', 'cancelled'].includes(finalInvoiceDetails?.status))}
               className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
-              {loading ? (
+              {(loading || isSubmitting) ? (
                 <div className="flex items-center justify-center space-x-2">
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  <span>Procesando...</span>
+                  <span>{isSubmitting ? 'Enviando pago...' : 'Procesando...'}</span>
                 </div>
               ) : (
                 <div className="flex items-center justify-center space-x-2">

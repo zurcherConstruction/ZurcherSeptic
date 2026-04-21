@@ -32,11 +32,10 @@ function validateNoDuplicatePeriod(paymentHistory, paymentDate, frequency, perio
     );
 
     if (samePeriodPayments.length > 0) {
-      // 🆕 PERMITIR múltiples pagos del mismo período (pagos parciales)
-      // Esto es válido: permite registrar múltiples pagos que sumen el total
       console.log(`   ℹ️ Ya existen ${samePeriodPayments.length} pago(s) para este período`);
-      console.log(`   ℹ️ Se permitirá pago adicional (pagos parciales del mismo período)`);
-      return { isValid: true, message: '' };
+      // ✅ PERMITIR múltiples pagos del mismo período (pagos parciales)
+      // pero SIN que sean pagos exactamente duplicados
+      return { isValid: true, message: '', existingPayments: samePeriodPayments };
     }
 
     console.log(`   ✅ No hay pagos de este período exacto`);

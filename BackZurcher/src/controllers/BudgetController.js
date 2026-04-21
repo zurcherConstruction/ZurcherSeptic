@@ -700,7 +700,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
           idBudget: budget.idBudget,
           documentId: updateData.signatureDocumentId,
           service: serviceName
-        }, null, req.io);
+        }, null, req.io, { userId: req.user?.id });
         console.log('📧 Notificaciones internas enviadas');
       } catch (notificationError) {
         console.log('⚠️ Error enviando notificaciones internas:', notificationError.message);
@@ -2933,7 +2933,7 @@ async optionalDocs(req, res) {
           budgetInitialPercentage: budget.initialPaymentPercentage
         };
         console.log("Datos para notificación:", notificationDataForIncome);
-        await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
+        await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io, { userId: req.user?.id });
         console.log("Notificación 'incomeCreated' enviada.");
 
       }
@@ -4853,7 +4853,7 @@ async optionalDocs(req, res) {
         applicantEmail: budget.Permit.applicantEmail,
         notificationEmails: notificationEmails,
         isResend: isResend // 🆕 Indicar si es un reenvío
-      });
+      }, null, req.io, { userId: req.user?.id });
 
       // 🆕 Construir mensaje de respuesta detallado
       let responseMessage = isResend 

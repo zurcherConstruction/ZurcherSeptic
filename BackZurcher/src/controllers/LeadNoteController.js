@@ -104,7 +104,7 @@ const LeadNoteController = {
             notePreview: message.substring(0, 200),
             noteType: 'lead_note',
             leadId
-          });
+          }, null, null, { userId: staffId }); // ✅ Pasar userId para filtro de auto-notificación
         }).catch(emailError => {
           console.error('❌ [LeadNote] Error enviando emails de mención:', emailError);
         });

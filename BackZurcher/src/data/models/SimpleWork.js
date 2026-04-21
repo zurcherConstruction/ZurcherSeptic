@@ -183,7 +183,7 @@ module.exports = (sequelize) => {
       comment: 'Método de pago utilizado (Chase Bank, AMEX, Efectivo, etc.)',
       validate: {
         isIn: {
-          args: [['Proyecto Septic BOFA', 'Chase Bank', 'AMEX', 'Chase Credit Card', 'Transferencia Bancaria', 'Efectivo']],
+          args: [['Proyecto Septic BOFA', 'Chase Bank', 'AMEX', 'Chase Credit Card', 'Efectivo']],
           msg: 'Método de pago debe ser uno de los métodos válidos'
         },
         customPaymentMethodValidator(value) {
@@ -192,7 +192,7 @@ module.exports = (sequelize) => {
             return;
           }
           // Si tiene valor, debe estar en la lista permitida
-          const allowedMethods = ['Proyecto Septic BOFA', 'Chase Bank', 'AMEX', 'Chase Credit Card', 'Transferencia Bancaria', 'Efectivo'];
+          const allowedMethods = ['Proyecto Septic BOFA', 'Chase Bank', 'AMEX', 'Chase Credit Card', 'Efectivo'];
           if (!allowedMethods.includes(value)) {
             throw new Error('Método de pago debe ser uno de los métodos válidos');
           }

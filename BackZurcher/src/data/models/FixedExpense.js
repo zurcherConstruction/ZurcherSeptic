@@ -72,7 +72,6 @@ module.exports = (sequelize) => {
         'Chase Credit Card',
         // Otros métodos
         'Cheque',
-        'Transferencia Bancaria',
         'Efectivo',
         'Zelle',
         'Tarjeta Débito',

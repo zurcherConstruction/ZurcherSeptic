@@ -15,7 +15,6 @@ const PAYMENT_METHODS = {
   
   // Otros Métodos
   CHEQUE: 'Cheque',
-  TRANSFERENCIA: 'Transferencia Bancaria',
   EFECTIVO: 'Efectivo',
   ZELLE: 'Zelle',
   TARJETA_DEBITO: 'Tarjeta Débito',
@@ -30,7 +29,6 @@ const PAYMENT_METHODS_ARRAY = [
   { value: PAYMENT_METHODS.AMEX, label: 'AMEX', type: 'credit_card' },
   { value: PAYMENT_METHODS.CHASE_CREDIT, label: 'Chase Credit Card', type: 'credit_card' },
   { value: PAYMENT_METHODS.CHEQUE, label: 'Cheque', type: 'other' },
-  { value: PAYMENT_METHODS.TRANSFERENCIA, label: 'Transferencia Bancaria', type: 'transfer' },
   { value: PAYMENT_METHODS.EFECTIVO, label: 'Efectivo', type: 'cash' },
   { value: PAYMENT_METHODS.ZELLE, label: 'Zelle', type: 'digital' },
   { value: PAYMENT_METHODS.TARJETA_DEBITO, label: 'Tarjeta Débito', type: 'debit_card' },

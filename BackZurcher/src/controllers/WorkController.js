@@ -629,15 +629,18 @@ const updateWork = async (req, res) => {
       ]
     });
 
+    // Capturar userId para contexto de notificaciones
+    const notificationContext = { userId: req.user?.id };
+
     //  Notificaciones asíncronas sin bloquear (fire and forget)
     if (statusChanged) {
-      sendNotifications(workInstance.status, workWithStaff, req.app.get('io')).catch(err => {
+      sendNotifications(workInstance.status, workWithStaff, req.app.get('io'), notificationContext).catch(err => {
         console.error(`Error sending notifications for work ${idWork} status ${workInstance.status}:`, err);
       });
     }
     // Notificar si cambia asignación aunque el estado no cambie
     if (assignmentChanged) {
-      sendNotifications('assigned', workWithStaff, req.app.get('io')).catch(err => {
+      sendNotifications('assigned', workWithStaff, req.app.get('io'), notificationContext).catch(err => {
         console.error(`Error sending assignment notifications for work ${idWork}:`, err);
       });
     }

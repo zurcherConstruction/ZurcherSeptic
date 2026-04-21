@@ -32,7 +32,14 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
           continue;
         }
         
-        // 🚫 FILTRO: No enviar al correo del sistema (SMTP_USER) si el rol 'admin' no está en la lista de roles
+        // 🚫 FILTRO 1: No notificar al usuario que realiza la acción
+        // Evita que recibas emails de tus propias acciones
+        if (context?.userId && staff.id && context.userId === staff.id) {
+          console.log(`🚫 Bloqueando auto-notificación a ${staff.email} (usuario ${staff.id} realizó la acción)`);
+          continue;
+        }
+        
+        // 🚫 FILTRO 2: No enviar al correo del sistema (SMTP_USER) si el rol 'admin' no está en la lista de roles
         // Esto previene que el admin reciba TODAS las notificaciones del sistema
         const systemEmail = process.env.SMTP_USER?.toLowerCase().trim();
         if (systemEmail && staff.email.toLowerCase().trim() === systemEmail) {
