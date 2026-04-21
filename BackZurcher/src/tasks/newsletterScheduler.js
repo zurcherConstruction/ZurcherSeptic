@@ -250,14 +250,25 @@ const processNewsletterSending = async (newsletter) => {
     }
   }
 
+  // Contar contadores finales (incluyendo 'opened' como enviados exitosos)
+  const allRecipients = await NewsletterRecipient.findAll({
+    where: { newsletterId: newsletter.id },
+    attributes: ['status']
+  });
+  
+  const finalSentCount = allRecipients.filter(r => r.status === 'sent' || r.status === 'opened').length;
+  const finalFailedCount = allRecipients.filter(r => r.status === 'failed').length;
+  const finalOpenedCount = allRecipients.filter(r => r.status === 'opened').length;
+
   // Actualizar newsletter con resultados
   await newsletter.update({
-    status: sentCount > 0 ? 'sent' : 'failed',
+    status: finalSentCount > 0 ? 'sent' : 'failed',
     recipientCount: recipients.length,
-    sentCount,
+    sentCount: finalSentCount,
+    failedCount: finalFailedCount,
+    openedCount: finalOpenedCount,
     metadata: {
       ...newsletter.metadata,
-      failedCount,
       lastSentAt: new Date().toISOString()
     }
   });

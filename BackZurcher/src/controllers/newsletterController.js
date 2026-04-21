@@ -1192,15 +1192,26 @@ async function processNewsletterSending(newsletterId) {
       attributes: ['status']
     });
 
-    const totalSent = allRecipients.filter(r => r.status === 'sent').length;
+    const totalSent = allRecipients.filter(r => r.status === 'sent' || r.status === 'opened').length;
     const totalFailed = allRecipients.filter(r => r.status === 'failed').length;
     const totalPending = allRecipients.filter(r => r.status === 'pending').length;
+    const totalOpened = allRecipients.filter(r => r.status === 'opened').length;
 
     if (totalPending === 0) {
-      // Todos procesados
+      // Todos procesados - actualizar contadores y status
       await newsletter.update({
         status: totalFailed === allRecipients.length ? 'failed' : 'sent',
-        sentAt: new Date()
+        sentAt: new Date(),
+        sentCount: totalSent,
+        failedCount: totalFailed,
+        openedCount: totalOpened
+      });
+    } else {
+      // Aún hay pendientes - solo actualizar contadores
+      await newsletter.update({
+        sentCount: totalSent,
+        failedCount: totalFailed,
+        openedCount: totalOpened
       });
     }
 
@@ -1409,6 +1420,12 @@ const trackOpen = async (req, res) => {
         openedAt: new Date(),
         status: 'opened'
       });
+      
+      // Actualizar contador del newsletter
+      const newsletter = await Newsletter.findByPk(recipient.newsletterId);
+      if (newsletter) {
+        await newsletter.increment('openedCount');
+      }
       
       console.log(`📧 [Newsletter] Email abierto - Recipient: ${recipientId}`);
     }

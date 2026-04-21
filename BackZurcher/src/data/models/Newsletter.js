@@ -77,6 +77,16 @@ module.exports = (sequelize) => {
         defaultValue: 0,
         comment: 'Total de desuscripciones',
       },
+      sentCount: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'Total de emails enviados exitosamente',
+      },
+      failedCount: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'Total de emails fallidos',
+      },
       metadata: {
         type: DataTypes.JSONB,
         defaultValue: {},
