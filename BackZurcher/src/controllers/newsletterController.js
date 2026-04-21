@@ -1109,45 +1109,77 @@ async function processNewsletterSending(newsletterId) {
     let sentCount = 0;
     let failedCount = 0;
 
-    for (const recipient of recipients) {
-      try {
-        // Personalizar HTML con el ID del suscriptor para el botón de unsubscribe
-        let personalizedHtml = newsletter.htmlContent.replace(/\{\{subscriberId\}\}/g, recipient.subscriber.id);
-        
-        // 🆕 Agregar pixel de tracking invisible para registrar aperturas
-        const backendUrl = process.env.API_URL || 'http://localhost:3001';
-        const trackingPixel = `<img src="${backendUrl}/newsletter/track-open/${recipient.id}" width="1" height="1" style="display:none;border:0;" alt="" />`;
-        
-        // Insertar el pixel justo antes del cierre del body
-        if (personalizedHtml.includes('</body>')) {
-          personalizedHtml = personalizedHtml.replace('</body>', `${trackingPixel}</body>`);
-          console.log(`🎯 [Newsletter] Pixel insertado para ${recipient.subscriber.email} (ID: ${recipient.id})`);
-        } else {
-          personalizedHtml += trackingPixel;
-          console.log(`⚠️ [Newsletter] HTML sin </body>, pixel agregado al final para ${recipient.subscriber.email}`);
+    // 🚀 OPTIMIZACIÓN: Procesar en lotes con concurrencia controlada
+    const BATCH_SIZE = 10; // Enviar 10 emails en paralelo
+    const DELAY_BETWEEN_BATCHES = 1000; // 1 segundo entre lotes
+    
+    console.log(`📧 [Newsletter] Procesando ${recipients.length} destinatarios en lotes de ${BATCH_SIZE}`);
+
+    for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+      const batch = recipients.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(recipients.length / BATCH_SIZE);
+      
+      console.log(`📦 [Newsletter] Procesando lote ${batchNumber}/${totalBatches} (${batch.length} emails)`);
+
+      // Procesar este lote en paralelo
+      const batchPromises = batch.map(async (recipient) => {
+        try {
+          // Personalizar HTML con el ID del suscriptor para el botón de unsubscribe
+          let personalizedHtml = newsletter.htmlContent.replace(/\{\{subscriberId\}\}/g, recipient.subscriber.id);
+          
+          // 🆕 Agregar pixel de tracking invisible para registrar aperturas
+          const backendUrl = process.env.API_URL || 'http://localhost:3001';
+          const trackingPixel = `<img src="${backendUrl}/newsletter/track-open/${recipient.id}" width="1" height="1" style="display:none;border:0;" alt="" />`;
+          
+          // Insertar el pixel justo antes del cierre del body
+          if (personalizedHtml.includes('</body>')) {
+            personalizedHtml = personalizedHtml.replace('</body>', `${trackingPixel}</body>`);
+          } else {
+            personalizedHtml += trackingPixel;
+          }
+          
+          await transporter.sendMail({
+            from: `"Zurcher Septic" <${process.env.SMTP_USER}>`,
+            to: recipient.subscriber.email,
+            subject: newsletter.subject,
+            html: personalizedHtml,
+            text: newsletter.textContent
+          });
+
+          await recipient.update({
+            status: 'sent',
+            sentAt: new Date()
+          });
+
+          return { success: true, email: recipient.subscriber.email };
+        } catch (error) {
+          console.error(`❌ Error enviando a ${recipient.subscriber.email}:`, error.message);
+          await recipient.update({
+            status: 'failed',
+            metadata: { error: error.message }
+          });
+          return { success: false, email: recipient.subscriber.email };
         }
-        
-        await transporter.sendMail({
-          from: `"Zurcher Septic" <${process.env.SMTP_USER}>`,
-          to: recipient.subscriber.email,
-          subject: newsletter.subject,
-          html: personalizedHtml,
-          text: newsletter.textContent
-        });
+      });
 
-        await recipient.update({
-          status: 'sent',
-          sentAt: new Date()
-        });
+      // Esperar a que termine todo el lote
+      const results = await Promise.allSettled(batchPromises);
+      
+      // Contar resultados
+      results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value.success) {
+          sentCount++;
+        } else {
+          failedCount++;
+        }
+      });
 
-        sentCount++;
-      } catch (error) {
-        console.error(`Error enviando a ${recipient.subscriber.email}:`, error);
-        await recipient.update({
-          status: 'failed',
-          metadata: { error: error.message }
-        });
-        failedCount++;
+      console.log(`✅ Lote ${batchNumber}/${totalBatches} completado - Enviados: ${sentCount}, Fallidos: ${failedCount}`);
+
+      // Pausa entre lotes para no saturar el servidor SMTP
+      if (i + BATCH_SIZE < recipients.length) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
       }
     }
 
