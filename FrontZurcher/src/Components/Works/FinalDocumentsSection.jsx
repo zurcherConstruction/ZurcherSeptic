@@ -28,6 +28,20 @@ const FinalDocumentsSection = ({
   const [ppiUrl, setPpiUrl] = useState('');
   const [loadingPPI, setLoadingPPI] = useState(false);
 
+  // �️ Estados para modal de documentos
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [documentUrl, setDocumentUrl] = useState('');
+  const [documentTitle, setDocumentTitle] = useState('');
+  const [documentType, setDocumentType] = useState('pdf'); // 'pdf' o 'image'
+  const [loadingDocument, setLoadingDocument] = useState(false);
+
+  // �🔄 Estados para reemplazo de documentos
+  const [isReplacingOperatingPermit, setIsReplacingOperatingPermit] = useState(false);
+  const [isReplacingMaintenanceService, setIsReplacingMaintenanceService] = useState(false);
+  const [isReplacingExtraDocument, setIsReplacingExtraDocument] = useState(false);
+  const [showReplaceConfirmModal, setShowReplaceConfirmModal] = useState(false);
+  const [documentToReplace, setDocumentToReplace] = useState(null); // 'operating-permit', 'maintenance-service', 'extra-document'
+
   // 🆕 Handler para ver PPI firmado en modal
   const handleViewPPISigned = async () => {
     if (!work?.Permit?.idPermit) return;
@@ -46,6 +60,38 @@ const FinalDocumentsSection = ({
       alert('No se pudo cargar el PPI firmado.');
     } finally {
       setLoadingPPI(false);
+    }
+  };
+
+  // 🖼️ Handler para ver documentos (Operating Permit, Maintenance Service, Extra Document) en modal
+  const handleViewDocument = async (url, title) => {
+    if (!url) return;
+    
+    setLoadingDocument(true);
+    try {
+      // Fetch directo de Cloudinary
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      
+      // Detectar tipo por MIME type o extensión
+      const isImage = blob.type.startsWith('image/') || 
+                      url.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+      
+      setDocumentUrl(objectUrl);
+      setDocumentTitle(title);
+      setDocumentType(isImage ? 'image' : 'pdf');
+      setShowDocumentModal(true);
+    } catch (error) {
+      console.error('Error al cargar documento:', error);
+      alert('No se pudo cargar el documento. Intenta nuevamente.');
+    } finally {
+      setLoadingDocument(false);
     }
   };
 
@@ -130,6 +176,147 @@ const FinalDocumentsSection = ({
       alert('❌ Error al subir documento: ' + (error.response?.data?.message || error.message));
     } finally {
       setUploadingExtraDocument(false);
+    }
+  };
+
+  // ============================================
+  // 🔄 FUNCIONES PARA REEMPLAZAR DOCUMENTOS
+  // ============================================
+  
+  const handleReplaceOperatingPermit = async () => {
+    setUploadingOperatingPermit(true);
+    try {
+      const formData = new FormData();
+      formData.append('document', operatingPermitFile);
+      
+      const response = await api.patch(
+        `/work/${idWork}/operating-permit`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      if (response.data.success) {
+        alert('✅ Permiso de Operación reemplazado exitosamente');
+        setOperatingPermitFile(null);
+        setIsReplacingOperatingPermit(false);
+        // Resetear el input file
+        const inputElement = document.getElementById('replace-operating-permit-file');
+        if (inputElement) inputElement.value = '';
+        if (onDocumentUploaded) onDocumentUploaded();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error al reemplazar documento: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setUploadingOperatingPermit(false);
+    }
+  };
+
+  const handleReplaceMaintenanceService = async () => {
+    setUploadingMaintenanceService(true);
+    try {
+      const formData = new FormData();
+      formData.append('document', maintenanceServiceFile);
+      
+      const response = await api.patch(
+        `/work/${idWork}/maintenance-service`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      if (response.data.success) {
+        alert('✅ Servicio de Mantenimiento reemplazado exitosamente');
+        setMaintenanceServiceFile(null);
+        setIsReplacingMaintenanceService(false);
+        // Resetear el input file
+        const inputElement = document.getElementById('replace-maintenance-service-file');
+        if (inputElement) inputElement.value = '';
+        if (onDocumentUploaded) onDocumentUploaded();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error al reemplazar documento: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setUploadingMaintenanceService(false);
+    }
+  };
+
+  const handleReplaceExtraDocument = async () => {
+    setUploadingExtraDocument(true);
+    try {
+      const formData = new FormData();
+      formData.append('document', extraDocumentFile);
+      
+      const response = await api.patch(
+        `/work/${idWork}/extra-document`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      if (response.data.success) {
+        alert('✅ Documento Extra reemplazado exitosamente');
+        setExtraDocumentFile(null);
+        setIsReplacingExtraDocument(false);
+        // Resetear el input file
+        const inputElement = document.getElementById('replace-extra-document-file');
+        if (inputElement) inputElement.value = '';
+        if (onDocumentUploaded) onDocumentUploaded();
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('❌ Error al reemplazar documento: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setUploadingExtraDocument(false);
+    }
+  };
+
+  const confirmReplaceDocument = (documentType) => {
+    setDocumentToReplace(documentType);
+    setShowReplaceConfirmModal(true);
+  };
+
+  const executeReplace = () => {
+    setShowReplaceConfirmModal(false);
+    
+    switch (documentToReplace) {
+      case 'operating-permit':
+        handleReplaceOperatingPermit();
+        break;
+      case 'maintenance-service':
+        handleReplaceMaintenanceService();
+        break;
+      case 'extra-document':
+        handleReplaceExtraDocument();
+        break;
+      default:
+        break;
+    }
+    
+    setDocumentToReplace(null);
+  };
+
+  const cancelReplace = (documentType) => {
+    switch (documentType) {
+      case 'operating-permit':
+        setIsReplacingOperatingPermit(false);
+        setOperatingPermitFile(null);
+        const opInput = document.getElementById('replace-operating-permit-file');
+        if (opInput) opInput.value = '';
+        break;
+      case 'maintenance-service':
+        setIsReplacingMaintenanceService(false);
+        setMaintenanceServiceFile(null);
+        const msInput = document.getElementById('replace-maintenance-service-file');
+        if (msInput) msInput.value = '';
+        break;
+      case 'extra-document':
+        setIsReplacingExtraDocument(false);
+        setExtraDocumentFile(null);
+        const edInput = document.getElementById('replace-extra-document-file');
+        if (edInput) edInput.value = '';
+        break;
+      default:
+        break;
     }
   };
 
@@ -225,18 +412,66 @@ const FinalDocumentsSection = ({
                   <span>Subido el: {formatDateSafe(work.operatingPermitSentAt)}</span>
                 </div>
                 
-                <a
-                  href={work.operatingPermitUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  Ver Documento
-                </a>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleViewDocument(work.operatingPermitUrl, 'Permiso de Operación')}
+                    disabled={loadingDocument}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    {loadingDocument ? 'Cargando...' : 'Ver Documento'}
+                  </button>
+
+                  {!isViewOnly && !isReplacingOperatingPermit && (
+                    <button
+                      onClick={() => setIsReplacingOperatingPermit(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Reemplazar
+                    </button>
+                  )}
+                </div>
+
+                {!isViewOnly && isReplacingOperatingPermit && (
+                  <div className="mt-4 p-4 bg-orange-50 border-2 border-orange-300 rounded-lg space-y-3">
+                    <p className="text-sm font-semibold text-orange-800">🔄 Modo Reemplazo - Selecciona el nuevo archivo</p>
+                    <input
+                      id="replace-operating-permit-file"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        setOperatingPermitFile(e.target.files[0]);
+                        setMaintenanceServiceFile(null);
+                      }}
+                      className="text-sm"
+                    />
+                    
+                    {operatingPermitFile && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => confirmReplaceDocument('operating-permit')}
+                          disabled={uploadingOperatingPermit}
+                          className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          {uploadingOperatingPermit ? 'Reemplazando...' : '✅ Confirmar Reemplazo'}
+                        </button>
+                        <button
+                          onClick={() => cancelReplace('operating-permit')}
+                          disabled={uploadingOperatingPermit}
+                          className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          ❌ Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -288,18 +523,66 @@ const FinalDocumentsSection = ({
                   <span>Subido el: {formatDateSafe(work.maintenanceServiceSentAt)}</span>
                 </div>
                 
-                <a
-                  href={work.maintenanceServiceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  Ver Documento
-                </a>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleViewDocument(work.maintenanceServiceUrl, 'Servicio de Mantenimiento')}
+                    disabled={loadingDocument}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    {loadingDocument ? 'Cargando...' : 'Ver Documento'}
+                  </button>
+
+                  {!isViewOnly && !isReplacingMaintenanceService && (
+                    <button
+                      onClick={() => setIsReplacingMaintenanceService(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Reemplazar
+                    </button>
+                  )}
+                </div>
+
+                {!isViewOnly && isReplacingMaintenanceService && (
+                  <div className="mt-4 p-4 bg-orange-50 border-2 border-orange-300 rounded-lg space-y-3">
+                    <p className="text-sm font-semibold text-orange-800">🔄 Modo Reemplazo - Selecciona el nuevo archivo</p>
+                    <input
+                      id="replace-maintenance-service-file"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        setMaintenanceServiceFile(e.target.files[0]);
+                        setOperatingPermitFile(null);
+                      }}
+                      className="text-sm"
+                    />
+                    
+                    {maintenanceServiceFile && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => confirmReplaceDocument('maintenance-service')}
+                          disabled={uploadingMaintenanceService}
+                          className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          {uploadingMaintenanceService ? 'Reemplazando...' : '✅ Confirmar Reemplazo'}
+                        </button>
+                        <button
+                          onClick={() => cancelReplace('maintenance-service')}
+                          disabled={uploadingMaintenanceService}
+                          className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          ❌ Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -351,40 +634,66 @@ const FinalDocumentsSection = ({
                   <span>Subido el: {formatDateSafe(work.extraDocumentSentAt)}</span>
                 </div>
                 
-                {work.extraDocumentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                  <div className="space-y-2">
-                    <img 
-                      src={work.extraDocumentUrl} 
-                      alt="Documento Extra" 
-                      className="max-w-full h-auto rounded border shadow-sm"
-                      style={{ maxHeight: '400px', objectFit: 'contain' }}
-                    />
-                    <a
-                      href={work.extraDocumentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      Ver en tamaño completo
-                    </a>
-                  </div>
-                ) : (
-                  <a
-                    href={work.extraDocumentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors"
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleViewDocument(work.extraDocumentUrl, 'Documento Extra')}
+                    disabled={loadingDocument}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
-                    Ver Documento
-                  </a>
+                    {loadingDocument ? 'Cargando...' : 'Ver Documento'}
+                  </button>
+
+                  {!isViewOnly && !isReplacingExtraDocument && (
+                    <button
+                      onClick={() => setIsReplacingExtraDocument(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Reemplazar
+                    </button>
+                  )}
+                </div>
+
+                {!isViewOnly && isReplacingExtraDocument && (
+                  <div className="mt-4 p-4 bg-orange-50 border-2 border-orange-300 rounded-lg space-y-3">
+                    <p className="text-sm font-semibold text-orange-800">🔄 Modo Reemplazo - Selecciona el nuevo archivo</p>
+                    <input
+                      id="replace-extra-document-file"
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        setExtraDocumentFile(e.target.files[0]);
+                        setOperatingPermitFile(null);
+                        setMaintenanceServiceFile(null);
+                      }}
+                      className="text-sm"
+                    />
+                    
+                    {extraDocumentFile && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => confirmReplaceDocument('extra-document')}
+                          disabled={uploadingExtraDocument}
+                          className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          {uploadingExtraDocument ? 'Reemplazando...' : '✅ Confirmar Reemplazo'}
+                        </button>
+                        <button
+                          onClick={() => cancelReplace('extra-document')}
+                          disabled={uploadingExtraDocument}
+                          className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                        >
+                          ❌ Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
@@ -494,6 +803,93 @@ const FinalDocumentsSection = ({
                   src={ppiUrl}
                   className="w-full h-full"
                   title="PPI Firmado"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔄 Modal de confirmación para reemplazar documento */}
+      {showReplaceConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-start mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-12 w-12 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  ⚠️ Confirmar Reemplazo de Documento
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  ¿Estás seguro de que quieres reemplazar este documento? 
+                  <br />
+                  <span className="font-semibold text-orange-700">El documento anterior será eliminado permanentemente.</span>
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowReplaceConfirmModal(false);
+                  setDocumentToReplace(null);
+                }}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded text-sm font-medium transition-colors"
+              >
+                ❌ Cancelar
+              </button>
+              <button
+                onClick={executeReplace}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm font-medium transition-colors"
+              >
+                ✅ Sí, Reemplazar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🖼️ Modal para ver documentos (Operating Permit, Maintenance Service, Extra Document) */}
+      {showDocumentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-xl font-semibold text-gray-800">{documentTitle}</h3>
+              <button
+                onClick={() => {
+                  setShowDocumentModal(false);
+                  if (documentUrl) {
+                    window.URL.revokeObjectURL(documentUrl);
+                    setDocumentUrl('');
+                  }
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto bg-gray-100 flex items-center justify-center p-4">
+              {documentType === 'image' ? (
+                <img 
+                  src={documentUrl} 
+                  alt={documentTitle}
+                  className="max-w-full max-h-full object-contain rounded shadow-lg"
+                  style={{ 
+                    maxHeight: 'calc(100% - 2rem)',
+                    width: 'auto',
+                    height: 'auto'
+                  }}
+                />
+              ) : (
+                <iframe
+                  src={documentUrl}
+                  className="w-full h-full rounded"
+                  title={documentTitle}
+                  style={{ minHeight: '100%' }}
                 />
               )}
             </div>

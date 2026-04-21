@@ -1510,8 +1510,26 @@ router.get('/:token/pdf/operating-permit/:workId', async (req, res) => {
         responseType: 'arraybuffer' 
       });
 
+      // Detectar tipo de contenido por extensión o Content-Type de Cloudinary
+      let contentType = cloudinaryResponse.headers['content-type'] || 'application/pdf';
+      
+      // Si Cloudinary no envía el tipo correcto, detectar por URL
+      if (contentType === 'application/octet-stream' || !contentType) {
+        if (pdfUrl.match(/\.(jpg|jpeg)$/i)) {
+          contentType = 'image/jpeg';
+        } else if (pdfUrl.match(/\.png$/i)) {
+          contentType = 'image/png';
+        } else if (pdfUrl.match(/\.gif$/i)) {
+          contentType = 'image/gif';
+        } else if (pdfUrl.match(/\.webp$/i)) {
+          contentType = 'image/webp';
+        } else {
+          contentType = 'application/pdf';
+        }
+      }
+
       const origin = req.headers.origin || '*';
-      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', 'inline');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
@@ -1521,7 +1539,7 @@ router.get('/:token/pdf/operating-permit/:workId', async (req, res) => {
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
       
-      console.log('✅ Serving Cloudinary Operating Permit with inline headers');
+      console.log(`✅ Serving Cloudinary Operating Permit (${contentType}) with inline headers`);
       return res.send(cloudinaryResponse.data);
     }
 
@@ -1618,8 +1636,26 @@ router.get('/:token/pdf/maintenance-service/:workId', async (req, res) => {
         responseType: 'arraybuffer' 
       });
 
+      // Detectar tipo de contenido por extensión o Content-Type de Cloudinary
+      let contentType = cloudinaryResponse.headers['content-type'] || 'application/pdf';
+      
+      // Si Cloudinary no envía el tipo correcto, detectar por URL
+      if (contentType === 'application/octet-stream' || !contentType) {
+        if (pdfUrl.match(/\.(jpg|jpeg)$/i)) {
+          contentType = 'image/jpeg';
+        } else if (pdfUrl.match(/\.png$/i)) {
+          contentType = 'image/png';
+        } else if (pdfUrl.match(/\.gif$/i)) {
+          contentType = 'image/gif';
+        } else if (pdfUrl.match(/\.webp$/i)) {
+          contentType = 'image/webp';
+        } else {
+          contentType = 'application/pdf';
+        }
+      }
+
       const origin = req.headers.origin || '*';
-      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', 'inline');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
@@ -1629,7 +1665,7 @@ router.get('/:token/pdf/maintenance-service/:workId', async (req, res) => {
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
       
-      console.log('✅ Serving Cloudinary Maintenance Service with inline headers');
+      console.log(`✅ Serving Cloudinary Maintenance Service (${contentType}) with inline headers`);
       return res.send(cloudinaryResponse.data);
     }
 
@@ -1728,12 +1764,23 @@ router.get('/:token/pdf/extra-document/:workId', async (req, res) => {
 
       const origin = req.headers.origin || '*';
       
-      // Determinar tipo de contenido basado en la extensión
-      let contentType = 'application/pdf';
-      if (documentUrl.match(/\.(jpg|jpeg)$/i)) contentType = 'image/jpeg';
-      else if (documentUrl.match(/\.png$/i)) contentType = 'image/png';
-      else if (documentUrl.match(/\.gif$/i)) contentType = 'image/gif';
-      else if (documentUrl.match(/\.webp$/i)) contentType = 'image/webp';
+      // Detectar tipo de contenido por extensión o Content-Type de Cloudinary
+      let contentType = cloudinaryResponse.headers['content-type'] || 'application/pdf';
+      
+      // Si Cloudinary no envía el tipo correcto, detectar por URL
+      if (contentType === 'application/octet-stream' || !contentType) {
+        if (documentUrl.match(/\.(jpg|jpeg)$/i)) {
+          contentType = 'image/jpeg';
+        } else if (documentUrl.match(/\.png$/i)) {
+          contentType = 'image/png';
+        } else if (documentUrl.match(/\.gif$/i)) {
+          contentType = 'image/gif';
+        } else if (documentUrl.match(/\.webp$/i)) {
+          contentType = 'image/webp';
+        } else {
+          contentType = 'application/pdf';
+        }
+      }
       
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', 'inline');

@@ -30,6 +30,7 @@ const ClientPortalDashboard = () => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState('');
   const [selectedPdfTitle, setSelectedPdfTitle] = useState('');
+  const [selectedContentType, setSelectedContentType] = useState('pdf'); // 'pdf' o 'image'
   const [selectedImage, setSelectedImage] = useState(null);
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
@@ -200,6 +201,7 @@ const ClientPortalDashboard = () => {
               console.log('🔗 Budget Object URL created:', objectUrl);
               setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('Signed Budget');
+              setSelectedContentType(blob.type.startsWith('image/') ? 'image' : 'pdf');
               setShowPdfModal(true);
             } else {
               console.error('❌ Error response:', await response.text());
@@ -229,6 +231,7 @@ const ClientPortalDashboard = () => {
               console.log('🔗 Operation Permit Object URL created:', objectUrl);
               setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('Operation Permit');
+              setSelectedContentType(blob.type.startsWith('image/') ? 'image' : 'pdf');
               setShowPdfModal(true);
             } else {
               console.error('❌ Error response:', await response.text());
@@ -258,6 +261,7 @@ const ClientPortalDashboard = () => {
               console.log('🔗 Maintenance Service Object URL created:', objectUrl);
               setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('Maintenance Service');
+              setSelectedContentType(blob.type.startsWith('image/') ? 'image' : 'pdf');
               setShowPdfModal(true);
             } else {
               console.error('❌ Error response:', await response.text());
@@ -285,8 +289,10 @@ const ClientPortalDashboard = () => {
               const blob = await response.blob();
               const objectUrl = URL.createObjectURL(blob);
               console.log('🔗 Extra Document Object URL created:', objectUrl);
+              console.log('📎 Extra Document MIME type:', blob.type);
               setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('Additional Document');
+              setSelectedContentType(blob.type.startsWith('image/') ? 'image' : 'pdf');
               setShowPdfModal(true);
             } else {
               console.error('❌ Error response:', await response.text());
@@ -322,6 +328,7 @@ const ClientPortalDashboard = () => {
                 console.log('🔗 Object URL created:', objectUrl);
                 setSelectedPdfUrl(objectUrl);
                 setSelectedPdfTitle(`Final Invoice #${workDocuments.finalInvoice.invoiceNumber}`);
+                setSelectedContentType(blob.type.startsWith('image/') ? 'image' : 'pdf');
                 setShowPdfModal(true);
               } else {
                 console.error('❌ Error response:', await response.text());
@@ -419,6 +426,7 @@ const ClientPortalDashboard = () => {
               const objectUrl = URL.createObjectURL(blob);
               setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('PPI Document - Signed');
+              setSelectedContentType(blob.type.startsWith('image/') ? 'image' : 'pdf');
               setShowPdfModal(true);
             } else {
               console.error('❌ Error response:', await blobResponse.text());
@@ -1257,46 +1265,53 @@ const ClientPortalDashboard = () => {
                     </button>
                   </div>
 
-                  {/* Extra Document (si está disponible) */}
-                  {workDocuments?.extraDocument?.available && (
-                    <div className="border border-slate-200 rounded-lg p-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <FaFileAlt className="text-teal-600 text-xl" />
-                        <h4 className="font-medium text-slate-800">Additional Document</h4>
+                  {/* Extra Document */}
+                  <div className="border border-slate-200 rounded-xl p-4 lg:p-5 bg-gradient-to-br from-white to-teal-50 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center">
+                        <FaFileAlt className="text-white text-lg" />
                       </div>
-                      <p className="text-sm text-slate-600 mb-1">
-                        Additional documentation or images
-                      </p>
-                      {workDocuments?.extraDocument?.sentAt && (
-                        <p className="text-xs text-slate-500 mb-3">
-                          📅 Uploaded: {formatDate(workDocuments.extraDocument.sentAt)}
-                        </p>
-                      )}
-                      {!workDocuments?.extraDocument?.sentAt && workDocuments?.extraDocument?.available && (
-                        <p className="text-xs text-slate-500 mb-3">
-                          📄 Available
-                        </p>
-                      )}
-                      <button 
-                        onClick={() => viewDocument('extra')}
-                        disabled={loadingPdf}
-                        className={`px-3 py-1 rounded text-sm transition-colors flex items-center gap-2 ${
-                          !loadingPdf
-                            ? 'bg-teal-500 hover:bg-teal-600 text-white' 
-                            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {loadingPdf ? (
-                          <>
-                            <FaSpinner className="animate-spin" />
-                            Loading...
-                          </>
-                        ) : (
-                          'View Document'
-                        )}
-                      </button>
+                      <h4 className="font-semibold text-slate-800 text-base">Additional Document</h4>
                     </div>
-                  )}
+                    <p className="text-sm text-slate-600 mb-1">
+                      Additional documentation or images (optional)
+                    </p>
+                    {workDocuments?.extraDocument?.sentAt && (
+                      <p className="text-xs text-slate-500 mb-3">
+                        📅 Uploaded: {formatDate(workDocuments.extraDocument.sentAt)}
+                      </p>
+                    )}
+                    {!workDocuments?.extraDocument?.sentAt && workDocuments?.extraDocument?.available && (
+                      <p className="text-xs text-slate-500 mb-3">
+                        📄 Available
+                      </p>
+                    )}
+                    {!workDocuments?.extraDocument?.available && (
+                      <p className="text-xs text-slate-400 mb-3">
+                        ⏳ Not yet uploaded
+                      </p>
+                    )}
+                    <button 
+                      onClick={() => viewDocument('extra')}
+                      disabled={!workDocuments?.extraDocument?.available || loadingPdf}
+                      className={`px-3 py-1 rounded text-sm transition-colors flex items-center gap-2 ${
+                        workDocuments?.extraDocument?.available && !loadingPdf
+                          ? 'bg-teal-500 hover:bg-teal-600 text-white' 
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      {loadingPdf ? (
+                        <>
+                          <FaSpinner className="animate-spin" />
+                          Loading...
+                        </>
+                      ) : workDocuments?.extraDocument?.available ? (
+                        'View Document'
+                      ) : (
+                        'Not Available'
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1550,9 +1565,11 @@ const ClientPortalDashboard = () => {
           setShowPdfModal(false);
           setSelectedPdfUrl('');
           setSelectedPdfTitle('');
+          setSelectedContentType('pdf');
         }}
         pdfUrl={selectedPdfUrl}
         title={selectedPdfTitle}
+        contentType={selectedContentType}
       />
 
       {/* Image Modal */}

@@ -95,6 +95,15 @@ router.post('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner
 // 🆕 Subir Lien
 router.post('/:idWork/lien', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.uploadLien);
 
+// 🔄 Reemplazar Permiso de Operación
+router.patch('/:idWork/operating-permit', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.replaceOperatingPermit);
+
+// 🔄 Reemplazar Servicio de Mantenimiento
+router.patch('/:idWork/maintenance-service', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.replaceMaintenanceService);
+
+// 🔄 Reemplazar Documento Extra
+router.patch('/:idWork/extra-document', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.replaceExtraDocument);
+
 router.post('/:idWork/validate-status-change',verifyToken, allowRoles(['admin', 'owner']), WorkController.validateStatusChangeOnly);
 router.post('/:idWork/change-status', verifyToken, allowRoles(['admin', 'owner',]), invalidateWorkCache, WorkController.changeWorkStatus);
 
