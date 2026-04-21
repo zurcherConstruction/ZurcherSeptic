@@ -142,6 +142,14 @@ const addPartialPayment = async (req, res) => {
       return res.status(404).json({ message: 'Gasto fijo no encontrado' });
     }
 
+    // 🔴 CRÍTICO: Declarar montos ANTES de usarlos en validaciones
+    const totalAmount = parseFloat(fixedExpense.totalAmount);
+    const paidAmount = parseFloat(fixedExpense.paidAmount || 0);
+    const remainingAmount = totalAmount - paidAmount;
+    const paymentAmount = parseFloat(amount);
+
+    console.log('💰 Montos:', { totalAmount, paidAmount, remainingAmount, paymentAmount });
+
     // 🆕 IMPORTANTE: Calcular período automáticamente si no viene en los datos
     // Esto permite múltiples pagos parciales del mismo período
     let calculatedPeriodStart = periodStart;
@@ -238,7 +246,60 @@ const addPartialPayment = async (req, res) => {
     if (!periodValidation.isValid) {
       console.warn('⚠️ Intento de duplicar pago:', periodValidation.message);
       return res.status(400).json({
+        message: periodValidation.message,
         conflictingPayment: periodValidation.conflictingPayment
+      });
+    }
+
+    // 🚨 VALIDACIÓN ANTI-DOBLE-CLIC: Detectar pagos EXACTAMENTE duplicados
+    // Buscar en TODOS los pagos existentes (no solo del período)
+    // 🔴 CRÍTICO: Normalizar paymentDate con fallback a fecha actual
+    const normalizedPaymentDate = normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]);
+    
+    const exactDuplicate = existingPayments.find(payment => {
+      const amountMatch = Math.abs(parseFloat(payment.amount) - paymentAmount) < 0.01;
+      const methodMatch = payment.paymentMethod === paymentMethod;
+      const dateMatch = payment.paymentDate === normalizedPaymentDate;
+      
+      // 🔴 CRÍTICO: También verificar que sea del mismo período
+      const periodMatch = payment.periodStart === calculatedPeriodStart && 
+                         payment.periodEnd === calculatedPeriodEnd;
+      
+      return amountMatch && methodMatch && dateMatch && periodMatch;
+    });
+
+    if (exactDuplicate) {
+      // 🚨 Verificar si el pago es muy reciente (< 2 minutos)
+      // Esto detecta doble clic
+      const duplicateTime = new Date(exactDuplicate.createdAt);
+      const now = new Date();
+      const timeDiff = (now - duplicateTime) / 1000; // segundos
+      
+      console.warn('🚨 PAGO DUPLICADO EXACTO DETECTADO:', {
+        existingPayment: exactDuplicate.idPayment,
+        amount: exactDuplicate.amount,
+        method: exactDuplicate.paymentMethod,
+        date: exactDuplicate.paymentDate,
+        createdAt: exactDuplicate.createdAt,
+        timeDiffSeconds: timeDiff.toFixed(1),
+        isDoubleClick: timeDiff < 120
+      });
+      
+      const errorMessage = timeDiff < 120
+        ? `⚠️ DOBLE CLIC DETECTADO: Ya registraste este pago hace ${timeDiff.toFixed(0)} segundos. No hagas clic múltiples veces en el botón de pago.`
+        : `Ya existe un pago idéntico registrado el ${exactDuplicate.paymentDate} por $${exactDuplicate.amount} con ${exactDuplicate.paymentMethod}. Si necesitas registrar un pago adicional, usa un monto o método de pago diferente.`;
+      
+      return res.status(409).json({
+        message: errorMessage,
+        duplicatePayment: {
+          id: exactDuplicate.idPayment,
+          amount: exactDuplicate.amount,
+          method: exactDuplicate.paymentMethod,
+          date: exactDuplicate.paymentDate,
+          createdAt: exactDuplicate.createdAt,
+          timeDiffSeconds: timeDiff
+        },
+        isDoubleClick: timeDiff < 120
       });
     }
 
@@ -253,13 +314,6 @@ const addPartialPayment = async (req, res) => {
         return res.status(400).json({ message: periodValidationResult.message });
       }
     }
-
-    const totalAmount = parseFloat(fixedExpense.totalAmount);
-    const paidAmount = parseFloat(fixedExpense.paidAmount || 0);
-    const remainingAmount = totalAmount - paidAmount;
-    const paymentAmount = parseFloat(amount);
-
-    console.log('💰 Montos:', { totalAmount, paidAmount, remainingAmount, paymentAmount });
 
     // Validar que no se pague más del total SOLO si estamos creando el expense desde el backend
     // Si viene del frontend (skipExpenseCreation=true), el frontend ya validó y actualizó el balance
@@ -373,8 +427,7 @@ const addPartialPayment = async (req, res) => {
     });
 
     // 2️⃣ Registrar el pago parcial
-    // 🔴 CRÍTICO: Normalizar paymentDate para evitar pérdida de un día por timezone
-    const normalizedPaymentDate = normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]);
+    // 🔴 CRÍTICO: Ya normalizamos paymentDate arriba (línea 243) con fallback a fecha actual
     
     const payment = await FixedExpensePayment.create({
       fixedExpenseId,

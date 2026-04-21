@@ -172,7 +172,7 @@ const createExpense = async (req, res) => {
 
       // ✅ SOLO ENVIAR NOTIFICACIÓN PARA MATERIALES INICIALES
       if (typeExpense === 'Materiales Iniciales') {
-        await sendNotifications('expenseCreated', notificationData);
+        await sendNotifications('expenseCreated', notificationData, null, null, { userId: req.user?.id });
         console.log(`✅ Notificación de Materiales Iniciales enviada: $${amount}`);
       }
     } catch (notificationError) {

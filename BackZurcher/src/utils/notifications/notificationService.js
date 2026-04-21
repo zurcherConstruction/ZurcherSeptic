@@ -112,11 +112,11 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial. Por favor, revisa los detalles y toma las medidas necesarias.`,
   },
   initial_correction_ready: {
-    roles: ['admin', 'owner'],
+    roles: ['owner'],
     message: (work, context) => `El trabajador ha marcado las correcciones como realizadas para la inspección inicial rechazada en ${work.propertyAddress}. Por favor, solicita la reinspección. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   final_correction_ready: {
-    roles: ['admin', 'owner'],
+    roles: ['owner'],
     message: (work, context) => `El trabajador ha marcado las correcciones como realizadas para la inspección final rechazada en ${work.propertyAddress}. Por favor, solicita la reinspección final. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
    reinspection_initial_requested: { // Added new status
@@ -124,7 +124,7 @@ const stateNotificationMap = {
     message: (work, context) => `Se ha solicitado una reinspección inicial para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   completed: {
-    roles: ['owner', 'admin'],
+    roles: ['owner'],
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido completado. Por favor, revisa el estado final.`,
   },
   coverPending: {
@@ -225,7 +225,7 @@ const stateNotificationMap = {
   },
   
   incomeCreated: {
-    roles: ['owner', 'finance', 'admin'],
+    roles: ['owner', 'finance'],
     // 'income' ahora tiene las propiedades extra añadidas
     message: (income) => {
       const paymentReceived = parseFloat(income.amount || 0);
@@ -279,7 +279,7 @@ const stateNotificationMap = {
   },
   
   incomeRegistered: {
-    roles: ['admin', 'owner', 'finance'],
+    roles: ['owner', 'finance'],
     message: (income) => {
       const amount = parseFloat(income.amount || 0);
       const incomeType = income.typeIncome || 'Ingreso';

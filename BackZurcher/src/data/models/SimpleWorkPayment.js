@@ -30,7 +30,6 @@ module.exports = (sequelize) => {
         'AMEX',
         'Chase Credit Card',
         // Otros métodos
-        'Transferencia Bancaria',
         'Efectivo'
       ),
       allowNull: false

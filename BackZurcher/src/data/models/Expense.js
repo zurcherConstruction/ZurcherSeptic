@@ -62,7 +62,6 @@ module.exports = (sequelize) => {
         'AMEX',
         'Chase Credit Card',
         'Cheque',
-        'Transferencia Bancaria',
         'Efectivo',
         'Zelle',
         'Tarjeta Débito',

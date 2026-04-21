@@ -11,7 +11,7 @@ export const PAYMENT_METHODS = [
   { value: 'Chase Credit Card', label: 'Chase Credit Card', category: 'card' },
   
   // � Otros Métodos
-  { value: 'Transferencia Bancaria', label: 'Transferencia Bancaria', category: 'other' },
+
   { value: 'Efectivo', label: 'Efectivo', category: 'other' },
 ];
 
@@ -120,7 +120,6 @@ export const getPaymentMethodIcon = (value) => {
       return '💳';
     case 'other':
       if (value === 'Efectivo') return '💵';
-      if (value === 'Transferencia Bancaria') return '🔄';
       return '💰';
     default:
       return '💰';

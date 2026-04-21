@@ -108,7 +108,7 @@ const BudgetNoteController = {
             notePreview: message.substring(0, 200),
             noteType: 'budget_note',
             budgetId
-          });
+          }, null, null, { userId: staffId }); // ✅ Pasar userId para filtro de auto-notificación
         } catch (emailError) {
           console.error('Error enviando emails de mención:', emailError);
           // No fallar la creación de la nota si falla el email
