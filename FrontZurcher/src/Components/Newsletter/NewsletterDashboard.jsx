@@ -674,7 +674,7 @@ const NewsletterDashboard = () => {
                             <tbody>
                               {newsletters.data.map((newsletter) => {
                                 const isRecurring = newsletter.metadata && newsletter.metadata.recurring;
-                                const failedCount = (newsletter.metadata?.failedCount) || (newsletter.recipientCount - (newsletter.sentCount || 0)) || 0;
+                                const failedCount = newsletter.failedCount || 0;
                                 return (
                                   <tr key={newsletter.id} className="border-b hover:bg-gray-50">
                                     <td className="px-4 py-3 text-sm">
