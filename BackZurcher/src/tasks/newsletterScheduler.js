@@ -132,12 +132,12 @@ const processRecurringNewsletters = async () => {
  */
 const processNewsletterSending = async (newsletter) => {
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-    port: process.env.EMAIL_PORT || 587,
-    secure: false,
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: process.env.SMTP_PORT || 587,
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD
     }
   });
 
@@ -163,52 +163,87 @@ const processNewsletterSending = async (newsletter) => {
   let sentCount = 0;
   let failedCount = 0;
 
-  for (const subscriber of recipients) {
-    try {
-      // Reemplazar variables
-      let html = newsletter.htmlContent || '';
-      let text = newsletter.textContent || '';
-      
-      html = html.replace(/{{firstName}}/g, subscriber.firstName || '');
-      html = html.replace(/{{lastName}}/g, subscriber.lastName || '');
-      html = html.replace(/{{email}}/g, subscriber.email || '');
-      
-      text = text.replace(/{{firstName}}/g, subscriber.firstName || '');
-      text = text.replace(/{{lastName}}/g, subscriber.lastName || '');
-      text = text.replace(/{{email}}/g, subscriber.email || '');
+  // 🚀 OPTIMIZACIÓN: Procesar en lotes con concurrencia controlada
+  const BATCH_SIZE = 10; // Enviar 10 emails en paralelo
+  const DELAY_BETWEEN_BATCHES = 1000; // 1 segundo entre lotes
+  
+  console.log(`📧 [Newsletter Scheduler] Procesando ${recipients.length} destinatarios en lotes de ${BATCH_SIZE}`);
 
-      // Agregar link de desuscripción
-      const unsubscribeLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/newsletter/unsubscribe/${subscriber.id}`;
-      html += `<br/><br/><small><a href="${unsubscribeLink}">Desuscribirse</a></small>`;
-      text += `\n\nDesuscribirse: ${unsubscribeLink}`;
+  for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BATCH_SIZE);
+    const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+    const totalBatches = Math.ceil(recipients.length / BATCH_SIZE);
+    
+    console.log(`📦 [Newsletter Scheduler] Procesando lote ${batchNumber}/${totalBatches} (${batch.length} emails)`);
 
-      await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: subscriber.email,
-        subject: newsletter.subject,
-        html,
-        text
-      });
+    // Procesar este lote en paralelo
+    const batchPromises = batch.map(async (subscriber) => {
+      try {
+        // Reemplazar variables
+        let html = newsletter.htmlContent || '';
+        let text = newsletter.textContent || '';
+        
+        html = html.replace(/{{firstName}}/g, subscriber.firstName || '');
+        html = html.replace(/{{lastName}}/g, subscriber.lastName || '');
+        html = html.replace(/{{email}}/g, subscriber.email || '');
+        
+        text = text.replace(/{{firstName}}/g, subscriber.firstName || '');
+        text = text.replace(/{{lastName}}/g, subscriber.lastName || '');
+        text = text.replace(/{{email}}/g, subscriber.email || '');
 
-      // Registrar envío
-      await NewsletterRecipient.create({
-        newsletterId: newsletter.id,
-        subscriberId: subscriber.id,
-        sentAt: new Date(),
-        status: 'sent'
-      });
+        // Agregar link de desuscripción
+        const unsubscribeLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/newsletter/unsubscribe/${subscriber.id}`;
+        html += `<br/><br/><small><a href="${unsubscribeLink}">Desuscribirse</a></small>`;
+        text += `\n\nDesuscribirse: ${unsubscribeLink}`;
 
-      sentCount++;
-    } catch (error) {
-      console.error(`Error enviando a ${subscriber.email}:`, error.message);
-      failedCount++;
-      
-      // Registrar fallo
-      await NewsletterRecipient.create({
-        newsletterId: newsletter.id,
-        subscriberId: subscriber.id,
-        status: 'failed'
-      });
+        await transporter.sendMail({
+          from: `"Zurcher Septic" <${process.env.SMTP_USER}>`,
+          to: subscriber.email,
+          subject: newsletter.subject,
+          html,
+          text
+        });
+
+        // Registrar envío
+        await NewsletterRecipient.create({
+          newsletterId: newsletter.id,
+          subscriberId: subscriber.id,
+          sentAt: new Date(),
+          status: 'sent'
+        });
+
+        return { success: true, email: subscriber.email };
+      } catch (error) {
+        console.error(`❌ Error enviando a ${subscriber.email}:`, error.message);
+        
+        // Registrar fallo
+        await NewsletterRecipient.create({
+          newsletterId: newsletter.id,
+          subscriberId: subscriber.id,
+          status: 'failed'
+        });
+
+        return { success: false, email: subscriber.email };
+      }
+    });
+
+    // Esperar a que termine todo el lote
+    const results = await Promise.allSettled(batchPromises);
+    
+    // Contar resultados
+    results.forEach(result => {
+      if (result.status === 'fulfilled' && result.value.success) {
+        sentCount++;
+      } else {
+        failedCount++;
+      }
+    });
+
+    console.log(`✅ Lote ${batchNumber}/${totalBatches} completado - Enviados: ${sentCount}, Fallidos: ${failedCount}`);
+
+    // Pausa entre lotes para no saturar el servidor SMTP
+    if (i + BATCH_SIZE < recipients.length) {
+      await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
     }
   }
 

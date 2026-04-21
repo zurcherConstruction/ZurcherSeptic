@@ -8,6 +8,15 @@ let expo = new Expo();
 
 const sendNotifications = async (status, work, budget, io, context = {}) => {
   try {
+    // 🔧 AUTO-DETECTAR ORDEN DE PARÁMETROS
+    // Si el tercer parámetro tiene el método 'to', es el objeto io, no budget
+    if (budget && typeof budget === 'object' && typeof budget.to === 'function') {
+      // Orden nuevo: sendNotifications(status, work, io, context)
+      context = io || {};
+      io = budget;
+      budget = null;
+    }
+    
     // Obtener el ID de la entidad para deduplicación
     // 🆕 Incluir idExpense para evitar conflictos cuando se crean múltiples expenses
     const entityId = work?.idExpense || work?.idWork || budget?.idBudget || work?.id || budget?.id || 'unknown';

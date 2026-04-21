@@ -757,12 +757,12 @@ const NewsletterDashboard = () => {
                                           </button>
                                         )}
                                         
-                                        {/* Botón Reenviar - Solo si ya fue enviado */}
-                                        {newsletter.status === 'sent' && (
+                                        {/* Botón Reenviar - Si ya fue enviado o si falló */}
+                                        {['sent', 'failed'].includes(newsletter.status) && (
                                           <button
                                             onClick={() => handleResendNewsletter(newsletter.id, newsletter.name)}
-                                            className="text-orange-600 hover:text-orange-800"
-                                            title="Reenviar"
+                                            className={newsletter.status === 'failed' ? 'text-red-600 hover:text-red-800' : 'text-orange-600 hover:text-orange-800'}
+                                            title={newsletter.status === 'failed' ? 'Reintentar envío' : 'Reenviar'}
                                           >
                                             <FaRedo />
                                           </button>
