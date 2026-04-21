@@ -56,6 +56,7 @@ router.put('/newsletters/:id', verifyToken, newsletterController.updateNewslette
 router.post('/newsletters/:id/send', verifyToken, newsletterController.sendNewsletter);
 router.post('/newsletters/:id/send-test', verifyToken, newsletterController.sendTestNewsletter); // 🆕 Envío de prueba
 router.post('/newsletters/:id/resend', verifyToken, newsletterController.resendNewsletter);
+router.post('/newsletters/:id/retry-failed', verifyToken, newsletterController.retryFailedRecipients); // 🔄 Reintentar fallidos
 router.delete('/newsletters/:id', verifyToken, newsletterController.deleteNewsletter);
 
 // ==================== RUTAS PROTEGIDAS (IMAGES) ====================

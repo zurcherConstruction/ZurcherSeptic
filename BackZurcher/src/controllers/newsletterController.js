@@ -1095,11 +1095,14 @@ async function processNewsletterSending(newsletterId) {
       // SIN LIMIT - procesar todos los suscriptores
     });
 
-    // Configurar transporter SMTP (misma configuración que Email Marketing)
+    // 🔧 Configurar transporter SMTP con POOL para reutilizar conexión
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT,
-      secure: process.env.SMTP_SECURE === 'true', // true para puerto 465, false para otros
+      secure: process.env.SMTP_SECURE === 'true',
+      pool: true, // ✅ REUTILIZAR conexión en lugar de crear nueva cada vez
+      maxConnections: 1, // ✅ Una sola conexión para evitar múltiples logins
+      maxMessages: Infinity, // ✅ Sin límite de mensajes por conexión
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD
@@ -1110,8 +1113,8 @@ async function processNewsletterSending(newsletterId) {
     let failedCount = 0;
 
     // 🚀 OPTIMIZACIÓN: Procesar en lotes con concurrencia controlada
-    const BATCH_SIZE = 10; // Enviar 10 emails en paralelo
-    const DELAY_BETWEEN_BATCHES = 1000; // 1 segundo entre lotes
+    const BATCH_SIZE = 3; // ✅ Reducido de 10 a 3 para evitar rate limit
+    const DELAY_BETWEEN_BATCHES = 2000; // ✅ Aumentado a 2 segundos
     
     console.log(`📧 [Newsletter] Procesando ${recipients.length} destinatarios en lotes de ${BATCH_SIZE}`);
 
@@ -1202,6 +1205,9 @@ async function processNewsletterSending(newsletterId) {
     }
 
     console.log(`Newsletter ${newsletterId}: Enviados ${sentCount}, Fallidos ${failedCount}`);
+    
+    // 🔒 Cerrar el pool de conexiones SMTP
+    transporter.close();
   } catch (error) {
     console.error('Error en processNewsletterSending:', error);
   }
@@ -1436,6 +1442,79 @@ const trackOpen = async (req, res) => {
   }
 };
 
+// 🔄 Reintentar solo los envíos fallidos (no duplica exitosos)
+const retryFailedRecipients = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const newsletter = await Newsletter.findByPk(id);
+    if (!newsletter) {
+      return res.status(404).json({
+        success: false,
+        message: 'Newsletter no encontrado'
+      });
+    }
+
+    // Contar cuántos fallidos hay
+    const failedCount = await NewsletterRecipient.count({
+      where: {
+        newsletterId: newsletter.id,
+        status: 'failed'
+      }
+    });
+
+    if (failedCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No hay destinatarios fallidos para reintentar'
+      });
+    }
+
+    console.log(`🔄 [Newsletter] Reintentando ${failedCount} envíos fallidos de "${newsletter.name}"...`);
+
+    // Cambiar los fallidos a 'pending' para que se reintenten
+    await NewsletterRecipient.update(
+      { status: 'pending' },
+      {
+        where: {
+          newsletterId: newsletter.id,
+          status: 'failed'
+        }
+      }
+    );
+
+    // Actualizar newsletter a "sending"
+    await newsletter.update({ status: 'sending' });
+
+    // Proceso de envío en background
+    setImmediate(async () => {
+      try {
+        await processNewsletterSending(newsletter.id);
+        console.log(`✅ [Newsletter] Reintento completado para "${newsletter.name}"`);
+      } catch (error) {
+        console.error(`❌ [Newsletter] Error en reintento ${newsletter.id}:`, error.message);
+        await newsletter.update({ status: 'failed' });
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Reintentando envío a ${failedCount} destinatarios fallidos`,
+      data: {
+        newsletterId: newsletter.id,
+        failedCount
+      }
+    });
+  } catch (error) {
+    console.error('Error en retryFailedRecipients:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al reintentar envíos fallidos',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   // Subscribers
   getAllSubscribers,
@@ -1461,6 +1540,7 @@ module.exports = {
   sendNewsletter,
   sendTestNewsletter, // 🆕 Envío de prueba
   resendNewsletter,
+  retryFailedRecipients, // 🔄 Reintentar solo fallidos
   deleteNewsletter,
   getNewsletterStats,
   
