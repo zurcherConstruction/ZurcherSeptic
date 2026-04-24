@@ -4,9 +4,10 @@ import {
   FaFileAlt, FaFilePdf, FaFileImage, FaFileExcel, FaFileWord,
   FaStar, FaRegStar, FaPlus, FaEdit, FaTrash, FaDownload, FaEye 
 } from 'react-icons/fa';
-import { fetchDocuments, deleteDocument, toggleDocumentFavorite } from '../../Redux/Actions/knowledgeBaseActions';
+import { fetchDocuments, deleteDocument, toggleDocumentFavorite, fetchCategories } from '../../Redux/Actions/knowledgeBaseActions';
 import DocumentModal from './DocumentModal';
 import FilePreviewModal from './FilePreviewModal';
+import DocumentDetailsModal from './DocumentDetailsModal';
 
 const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
   const dispatch = useDispatch();
@@ -16,6 +17,8 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [documentForDetails, setDocumentForDetails] = useState(null);
 
   const loadDocumentsData = useCallback(() => {
     const params = {};
@@ -51,6 +54,8 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
     setSelectedDocument(null);
     setIsEditing(false);
     loadDocumentsData();
+    // Recargar categorías para actualizar contadores
+    dispatch(fetchCategories());
   };
 
   const getFileIcon = (file) => {
@@ -99,6 +104,30 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+  };
+
+  const handleDownloadFile = async (file) => {
+    try {
+      const response = await fetch(file.url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.originalFilename || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error descargando archivo:', error);
+      // Fallback: abrir en nueva pestaña
+      window.open(file.url, '_blank');
+    }
+  };
+
+  const handleShowDetails = (document) => {
+    setDocumentForDetails(document);
+    setShowDetailsModal(true);
   };
 
   return (
@@ -212,14 +241,13 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
                           >
                             <FaEye size={12} />
                           </button>
-                          <a
-                            href={file.url}
-                            download={file.originalFilename}
+                          <button
+                            onClick={() => handleDownloadFile(file)}
                             className="text-green-600 hover:text-green-700 transition-colors p-1"
                             title="Descargar"
                           >
                             <FaDownload size={12} />
-                          </a>
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -236,6 +264,13 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
                     title={document.isFavorite ? 'Quitar de favoritos' : 'Marcar como favorito'}
                   >
                     {document.isFavorite ? <FaStar className="text-sm sm:text-base" /> : <FaRegStar className="text-sm sm:text-base" />}
+                  </button>
+                  <button
+                    onClick={() => handleShowDetails(document)}
+                    className="text-indigo-600 hover:text-indigo-700 transition-colors p-1"
+                    title="Ver detalles completos"
+                  >
+                    <FaEye className="text-sm sm:text-base" />
                   </button>
                 </div>
                 <div className="flex items-center space-x-1 sm:space-x-2">
@@ -302,6 +337,22 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
         <FilePreviewModal
           file={previewFile}
           onClose={() => setPreviewFile(null)}
+        />
+      )}
+
+      {/* Details Modal */}
+      {showDetailsModal && documentForDetails && (
+        <DocumentDetailsModal
+          document={documentForDetails}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setDocumentForDetails(null);
+          }}
+          onPreview={(file) => {
+            setPreviewFile(file);
+            setShowDetailsModal(false);
+          }}
+          onDownload={(file) => handleDownloadFile(file)}
         />
       )}
     </div>

@@ -14,7 +14,6 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
     title: '',
     description: '',
     fileType: 'PDF',
-    notes: '',
     tags: []
   });
   const [uploadedFiles, setUploadedFiles] = useState([]); // Archivos ya subidos a Cloudinary
@@ -30,7 +29,6 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
         title: document.title || '',
         description: document.description || '',
         fileType: document.fileType || 'PDF',
-        notes: document.notes || '',
         tags: document.tags || []
       });
       
@@ -45,8 +43,23 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
           setUploadedFiles([{ url: document.fileUrl }]);
         }
       }
+    } else {
+      // RESET: Limpiar formulario cuando NO hay documento (crear nuevo)
+      setFormData({
+        categoryId: defaultCategoryId || '',
+        title: '',
+        description: '',
+        fileType: 'PDF',
+        tags: []
+      });
+      setUploadedFiles([]);
+      setSelectedFiles([]);
+      setTagInput('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
-  }, [document]);
+  }, [document, defaultCategoryId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -467,21 +480,6 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Notas */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Notas Adicionales
-              </label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                placeholder="Notas adicionales sobre el documento..."
-                rows="3"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              />
             </div>
 
             {/* Buttons */}

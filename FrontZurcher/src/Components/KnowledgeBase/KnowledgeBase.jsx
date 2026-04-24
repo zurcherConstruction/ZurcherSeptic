@@ -13,14 +13,13 @@ const KnowledgeBase = () => {
   const [activeTab, setActiveTab] = useState('contacts'); // contacts, procedures, documents
   const [searchQuery, setSearchQuery] = useState('');
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
 
   useEffect(() => {
-    if (!categoriesLoaded) {
+    // Solo hacer fetch si no hay categorías en Redux
+    if (categories.length === 0) {
       dispatch(fetchCategories());
-      setCategoriesLoaded(true);
     }
-  }, []); // Array vacío - solo en mount
+  }, [dispatch]); // Solo al montar, pero verifica Redux
 
   const getCategoryIcon = (icon) => {
     return icon || '📚';
