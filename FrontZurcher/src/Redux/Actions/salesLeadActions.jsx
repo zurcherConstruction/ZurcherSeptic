@@ -263,6 +263,24 @@ export const fetchWeeklyActivityReport = createAsyncThunk(
   }
 );
 
+// 📊 Obtener reporte mensual de actividad por staff
+export const fetchMonthlyActivityReport = createAsyncThunk(
+  'salesLeads/fetchMonthlyActivityReport',
+  async ({ startDate, endDate, staffId } = {}, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (staffId) params.append('staffId', staffId);
+
+      const response = await api.get(`/sales-leads/reports/monthly-activity?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { error: 'Error al obtener reporte mensual' });
+    }
+  }
+);
+
 // 🔔 Obtener leads con múltiples intentos sin respuesta
 export const fetchNoAnswerLeads = createAsyncThunk(
   'salesLeads/fetchNoAnswerLeads',

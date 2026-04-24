@@ -1073,6 +1073,192 @@ const SalesLeadController = {
     }
   },
 
+  // 📊 Reporte mensual de actividad por staff
+  async getMonthlyActivityReport(req, res) {
+    try {
+      const { startDate, endDate, staffId } = req.query;
+
+      // Calcular rango del mes (por defecto el actual)
+      const now = new Date();
+      
+      // Calcular mes actual (día 1 00:00 → último día 23:59) si no se especifican fechas
+      const monthStart = startDate 
+        ? new Date(startDate) 
+        : new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+      const monthEnd = endDate 
+        ? new Date(endDate) 
+        : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      // Filtro base de notas
+      const whereNotes = {
+        createdAt: {
+          [Op.between]: [monthStart, monthEnd]
+        }
+      };
+
+      // Si se especifica un staff, filtrar por él
+      if (staffId) {
+        whereNotes.staffId = staffId;
+      }
+
+      // Obtener todas las notas del período con información del staff
+      const notes = await LeadNote.findAll({
+        where: whereNotes,
+        include: [
+          {
+            model: Staff,
+            as: 'author',
+            attributes: ['id', 'name', 'email']
+          },
+          {
+            model: SalesLead,
+            as: 'lead',
+            attributes: ['id', 'applicantName', 'status']
+          }
+        ],
+        order: [['createdAt', 'DESC']]
+      });
+
+      // Agrupar por staff
+      const staffActivity = {};
+
+      notes.forEach(note => {
+        const staffKey = note.staffId;
+        const staffName = note.author?.name || 'Usuario desconocido';
+
+        if (!staffActivity[staffKey]) {
+          staffActivity[staffKey] = {
+            staffId: staffKey,
+            staffName: staffName,
+            totalNotes: 0,
+            callsSuccessful: 0,
+            callsNoAnswer: 0,
+            emails: 0,
+            meetings: 0,
+            followUps: 0,
+            otherActivities: 0,
+            contactRate: 0,
+            weeklyBreakdown: {},
+            notesByType: {}
+          };
+        }
+
+        const activity = staffActivity[staffKey];
+        activity.totalNotes++;
+
+        // Contar por tipo
+        const noteType = note.noteType || 'other';
+        activity.notesByType[noteType] = (activity.notesByType[noteType] || 0) + 1;
+
+        // Contadores específicos para métricas
+        switch (noteType) {
+          case 'call_successful':
+            activity.callsSuccessful++;
+            break;
+          case 'no_answer':
+            activity.callsNoAnswer++;
+            break;
+          case 'email':
+            activity.emails++;
+            break;
+          case 'meeting':
+            activity.meetings++;
+            break;
+          case 'follow_up':
+            activity.followUps++;
+            break;
+          default:
+            activity.otherActivities++;
+        }
+
+        // Desglose por semana (calcular número de semana del mes)
+        const noteDate = new Date(note.createdAt);
+        const weekNumber = Math.ceil(noteDate.getDate() / 7);
+        const weekKey = `Semana ${weekNumber}`;
+        
+        if (!activity.weeklyBreakdown[weekKey]) {
+          activity.weeklyBreakdown[weekKey] = 0;
+        }
+        activity.weeklyBreakdown[weekKey]++;
+      });
+
+      // Calcular tasa de contacto
+      Object.values(staffActivity).forEach(activity => {
+        const totalCalls = activity.callsSuccessful + activity.callsNoAnswer;
+        if (totalCalls > 0) {
+          activity.contactRate = ((activity.callsSuccessful / totalCalls) * 100).toFixed(1);
+        }
+      });
+
+      // Convertir a array y ordenar por total de notas
+      const reportData = Object.values(staffActivity).sort((a, b) => b.totalNotes - a.totalNotes);
+
+      // 📊 Métricas de leads del mes
+      const newLeadsCount = await SalesLead.count({
+        where: {
+          createdAt: {
+            [Op.between]: [monthStart, monthEnd]
+          }
+        }
+      });
+
+      const contactedLeadsCount = await SalesLead.count({
+        where: {
+          lastActivityDate: {
+            [Op.between]: [monthStart, monthEnd]
+          },
+          status: {
+            [Op.notIn]: ['new', 'archived']
+          }
+        }
+      });
+
+      const noContactCount = await SalesLead.count({
+        where: {
+          createdAt: {
+            [Op.between]: [monthStart, monthEnd]
+          },
+          status: 'new',
+          lastActivityDate: null
+        }
+      });
+
+      // Resumen general
+      const summary = {
+        // Métricas de actividad
+        totalNotes: notes.length,
+        totalStaff: reportData.length,
+        avgNotesPerStaff: reportData.length > 0 
+          ? (notes.length / reportData.length).toFixed(1) 
+          : 0,
+        
+        // Métricas de leads
+        newLeads: newLeadsCount,
+        contactedLeads: contactedLeadsCount,
+        noContactLeads: noContactCount,
+        
+        // Período
+        periodStart: monthStart.toISOString().split('T')[0],
+        periodEnd: monthEnd.toISOString().split('T')[0],
+        monthName: monthStart.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+      };
+
+      res.json({
+        success: true,
+        summary,
+        staffActivity: reportData
+      });
+
+    } catch (error) {
+      console.error('Error al generar reporte mensual:', error);
+      res.status(500).json({ 
+        error: 'Error al generar reporte mensual',
+        details: error.message 
+      });
+    }
+  },
+
   // 🔔 Obtener leads con múltiples intentos sin respuesta (alerta)
   async getNoAnswerLeads(req, res) {
     try {

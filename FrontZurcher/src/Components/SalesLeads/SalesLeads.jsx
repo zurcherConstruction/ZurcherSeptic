@@ -30,6 +30,7 @@ import LeadNotesModal from './LeadNotesModal';
 import EditLeadModal from './EditLeadModal';
 import SendProposalModal from './SendProposalModal';
 import WeeklyActivityReport from './WeeklyActivityReport';
+import MonthlyActivityReport from './MonthlyActivityReport';
 import api from '../../utils/axios';
 
 // 🔔 Componente de badge de alertas para leads
@@ -151,6 +152,8 @@ const SalesLeads = () => {
 
   // � Estado para modal de reporte semanal
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
+
+  const [showMonthlyReport, setShowMonthlyReport] = useState(false);
 
   // �🚫 Estado para modal de limpieza sin contacto
   const [noContactLeads, setNoContactLeads] = useState([]);
@@ -532,6 +535,15 @@ const SalesLeads = () => {
             >
               <ChartBarIcon className="h-5 w-5" />
               <span className="hidden md:inline">Reporte Semanal</span>
+            </button>
+            {/* 📊 Botón reporte mensual */}
+            <button
+              onClick={() => setShowMonthlyReport(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 text-sm font-medium transition-colors"
+              title="Ver reporte mensual de actividad"
+            >
+              <ChartBarIcon className="h-5 w-5" />
+              <span className="hidden md:inline">Reporte Mensual</span>
             </button>
             {/* 🧹 Botón limpiar sin contacto (solo admin/owner) */}
             {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && activityMetrics?.noContactCount > 0 && (
@@ -1323,6 +1335,13 @@ const SalesLeads = () => {
       {showWeeklyReport && (
         <WeeklyActivityReport
           onClose={() => setShowWeeklyReport(false)}
+        />
+      )}
+
+      {/* 📊 Modal Reporte Mensual */}
+      {showMonthlyReport && (
+        <MonthlyActivityReport
+          onClose={() => setShowMonthlyReport(false)}
         />
       )}
 
