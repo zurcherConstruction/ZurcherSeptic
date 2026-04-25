@@ -50,6 +50,7 @@ module.exports = (sequelize) => {
         'meeting',          // 🤝 Reunión/visita
         'email',            // ✉️ Email enviado/recibido
         'phone_call',       // 📞 Llamada telefónica
+        'no_answer',        // ❌ Cliente no contestó
         'problem',          // ⚠️ Problema/objeción
         'progress',         // ✅ Avance positivo
         'status_change',    // 📋 Cambio de estado

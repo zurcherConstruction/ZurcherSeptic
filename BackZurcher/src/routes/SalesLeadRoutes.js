@@ -12,7 +12,11 @@ router.get('/dashboard/stats', verifyToken, allowRoles(authorizedRoles), SalesLe
 
 // � Métricas de actividad (nuevos + contactados por período)
 router.get('/activity/metrics', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getActivityMetrics);
-
+// 📊 Reporte semanal de actividad por staff
+router.get('/reports/weekly-activity', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getWeeklyActivityReport);// 📊 Reporte mensual de actividad por staff
+router.get('/reports/monthly-activity', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getMonthlyActivityReport);
+// 🔔 Alertas: Leads con múltiples intentos sin respuesta
+router.get('/alerts/no-answer', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getNoAnswerLeads);
 // 🚫 Leads sin teléfono ni email
 router.get('/no-contact', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.getNoContactLeads);
 router.delete('/no-contact/bulk', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.deleteNoContactLeads);

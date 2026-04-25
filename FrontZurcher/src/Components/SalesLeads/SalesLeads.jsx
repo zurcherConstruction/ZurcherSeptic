@@ -23,11 +23,14 @@ import {
   DocumentTextIcon,
   BellIcon,
   PencilSquareIcon,
-  TrashIcon
+  TrashIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 import LeadNotesModal from './LeadNotesModal';
 import EditLeadModal from './EditLeadModal';
 import SendProposalModal from './SendProposalModal';
+import WeeklyActivityReport from './WeeklyActivityReport';
+import MonthlyActivityReport from './MonthlyActivityReport';
 import api from '../../utils/axios';
 
 // 🔔 Componente de badge de alertas para leads
@@ -81,6 +84,7 @@ const LeadAlertBadge = ({ leadId, alertData, className = "h-5 w-5" }) => {
 const STATUS_LABELS = {
   new: 'Nuevo',
   contacted: 'Contactado',
+  no_answer: 'No Contesta',
   interested: 'Interesado',
   quoted: 'Cotizado',
   negotiating: 'Negociando',
@@ -92,6 +96,7 @@ const STATUS_LABELS = {
 const STATUS_COLORS = {
   new: 'bg-blue-100 text-blue-800',
   contacted: 'bg-cyan-100 text-cyan-800',
+  no_answer: 'bg-yellow-100 text-yellow-800 ring-1 ring-yellow-400',
   interested: 'bg-green-100 text-green-800',
   quoted: 'bg-purple-100 text-purple-800 ring-2 ring-purple-400 font-bold',
   negotiating: 'bg-orange-100 text-orange-800',
@@ -145,11 +150,22 @@ const SalesLeads = () => {
   const [activityMetrics, setActivityMetrics] = useState(null);
   const [metricsExpanded, setMetricsExpanded] = useState(false);
 
-  // 🚫 Estado para modal de limpieza sin contacto
+  // � Estado para modal de reporte semanal
+  const [showWeeklyReport, setShowWeeklyReport] = useState(false);
+
+  const [showMonthlyReport, setShowMonthlyReport] = useState(false);
+
+  // �🚫 Estado para modal de limpieza sin contacto
   const [noContactLeads, setNoContactLeads] = useState([]);
   const [showNoContactModal, setShowNoContactModal] = useState(false);
   const [loadingNoContact, setLoadingNoContact] = useState(false);
   const [selectedNoContactIds, setSelectedNoContactIds] = useState(new Set());
+
+  // 📵 Estado para leads con múltiples intentos sin respuesta
+  const [noAnswerLeads, setNoAnswerLeads] = useState([]);
+  const [showNoAnswerModal, setShowNoAnswerModal] = useState(false);
+  const [loadingNoAnswer, setLoadingNoAnswer] = useState(false);
+  const [noAnswerLeadIds, setNoAnswerLeadIds] = useState(new Set());
 
   // Sincronizar propuestas enviadas desde la DB (persiste entre sesiones y dispositivos)
   useEffect(() => {
@@ -265,11 +281,23 @@ const SalesLeads = () => {
     }
   };
 
+  // 📵 Cargar IDs de leads con múltiples intentos sin respuesta (para badges)
+  const loadNoAnswerLeadIds = async () => {
+    try {
+      const response = await api.get('/sales-leads/alerts/no-answer?minAttempts=3');
+      const ids = new Set((response.data.leads || []).map(l => l.id));
+      setNoAnswerLeadIds(ids);
+    } catch (error) {
+      console.error('Error al cargar IDs de leads sin respuesta:', error);
+    }
+  };
+
   // Cargar alertas al montar y cada 5 minutos
   useEffect(() => {
     if (canAccess) {
       loadLeadAlerts();
       loadActivityMetrics();
+      loadNoAnswerLeadIds();
       
       const interval = setInterval(() => {
         loadLeadAlerts();
@@ -302,6 +330,22 @@ const SalesLeads = () => {
       setShowNoContactModal(false);
     } finally {
       setLoadingNoContact(false);
+    }
+  };
+
+  // 📵 Cargar leads con múltiples intentos sin respuesta
+  const handleOpenNoAnswerModal = async () => {
+    setLoadingNoAnswer(true);
+    setShowNoAnswerModal(true);
+    try {
+      const response = await api.get('/sales-leads/alerts/no-answer?minAttempts=3');
+      setNoAnswerLeads(response.data.leads || []);
+      setNoAnswerLeadIds(new Set((response.data.leads || []).map(l => l.id)));
+    } catch (error) {
+      alert('Error al cargar leads sin respuesta: ' + error.message);
+      setShowNoAnswerModal(false);
+    } finally {
+      setLoadingNoAnswer(false);
     }
   };
 
@@ -483,6 +527,24 @@ const SalesLeads = () => {
               <PlusIcon className="h-5 w-5" />
               New Lead
             </button>
+            {/* 📊 Botón reporte semanal */}
+            <button
+              onClick={() => setShowWeeklyReport(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-300 hover:bg-indigo-100 text-sm font-medium transition-colors"
+              title="Ver reporte semanal de actividad"
+            >
+              <ChartBarIcon className="h-5 w-5" />
+              <span className="hidden md:inline">Reporte Semanal</span>
+            </button>
+            {/* 📊 Botón reporte mensual */}
+            <button
+              onClick={() => setShowMonthlyReport(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 text-sm font-medium transition-colors"
+              title="Ver reporte mensual de actividad"
+            >
+              <ChartBarIcon className="h-5 w-5" />
+              <span className="hidden md:inline">Reporte Mensual</span>
+            </button>
             {/* 🧹 Botón limpiar sin contacto (solo admin/owner) */}
             {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && activityMetrics?.noContactCount > 0 && (
               <button
@@ -493,6 +555,19 @@ const SalesLeads = () => {
                 🚫 Sin contacto
                 <span className="px-1.5 py-0.5 bg-red-600 text-white text-xs rounded-full font-bold">
                   {activityMetrics.noContactCount}
+                </span>
+              </button>
+            )}
+            {/* 📵 Botón leads sin respuesta */}
+            {noAnswerLeadIds.size > 0 && (
+              <button
+                onClick={handleOpenNoAnswerModal}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-300 hover:bg-yellow-100 text-sm font-medium"
+                title="Leads con múltiples intentos sin respuesta"
+              >
+                📵 No contestan
+                <span className="px-1.5 py-0.5 bg-yellow-600 text-white text-xs rounded-full font-bold">
+                  {noAnswerLeadIds.size}
                 </span>
               </button>
             )}
@@ -865,6 +940,11 @@ const SalesLeads = () => {
                         COTIZADO
                       </span>
                     )}
+                    {noAnswerLeadIds.has(lead.id) && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500 text-white flex items-center gap-1">
+                        📵 No responde
+                      </span>
+                    )}
                     <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
                       lead.priority === 'urgent' ? 'bg-red-100 text-red-800' :
                       lead.priority === 'high' ? 'bg-orange-100 text-orange-800' :
@@ -1007,6 +1087,11 @@ const SalesLeads = () => {
                           <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-500 text-white flex items-center gap-1 animate-pulse">
                             <DocumentTextIcon className="h-3 w-3" />
                             COTIZADO
+                          </span>
+                        )}
+                        {noAnswerLeadIds.has(lead.id) && (
+                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-500 text-white flex items-center gap-1">
+                            📵 No responde
                           </span>
                         )}
                       </div>
@@ -1246,7 +1331,21 @@ const SalesLeads = () => {
         />
       )}
 
-      {/* 🚫 Modal Leads Sin Contacto */}
+      {/* � Modal Reporte Semanal */}
+      {showWeeklyReport && (
+        <WeeklyActivityReport
+          onClose={() => setShowWeeklyReport(false)}
+        />
+      )}
+
+      {/* 📊 Modal Reporte Mensual */}
+      {showMonthlyReport && (
+        <MonthlyActivityReport
+          onClose={() => setShowMonthlyReport(false)}
+        />
+      )}
+
+      {/* �🚫 Modal Leads Sin Contacto */}
       {showNoContactModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
@@ -1352,6 +1451,120 @@ const SalesLeads = () => {
                     className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
                   >
                     🗑️ Eliminar {selectedNoContactIds.size} leads
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 📵 Modal Leads Sin Respuesta */}
+      {showNoAnswerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b bg-yellow-50">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  📵 Leads con Múltiples Intentos Sin Respuesta
+                </h2>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Estos leads tienen 3 o más notas de "no contestó". Requieren atención o estrategia diferente.
+                </p>
+              </div>
+              <button onClick={() => setShowNoAnswerModal(false)} className="text-gray-400 hover:text-gray-600">
+                <XCircleIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingNoAnswer ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-600"></div>
+                  <span className="ml-3 text-gray-600">Buscando leads...</span>
+                </div>
+              ) : noAnswerLeads.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <span className="text-4xl">✅</span>
+                  <p className="mt-2 font-medium">No hay leads con múltiples intentos sin respuesta</p>
+                  <p className="text-sm text-gray-400 mt-1">Todos los leads están siendo contactados exitosamente</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {noAnswerLeads.map(lead => (
+                    <div
+                      key={lead.id}
+                      className="p-4 rounded-lg border border-yellow-200 bg-yellow-50 hover:bg-yellow-100 transition-colors cursor-pointer"
+                      onClick={() => {
+                        setShowNoAnswerModal(false);
+                        handleShowNotes(lead);
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-gray-900">{lead.applicantName || 'Sin nombre'}</p>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500 text-white">
+                              {lead.noAnswerCount || 3} intentos
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            {lead.propertyAddress && (
+                              <p className="flex items-center gap-1">
+                                <MapPinIcon className="h-3 w-3" />
+                                {lead.propertyAddress}
+                              </p>
+                            )}
+                            {lead.applicantPhone && (
+                              <p className="flex items-center gap-1">
+                                <PhoneIcon className="h-3 w-3" />
+                                {lead.applicantPhone}
+                              </p>
+                            )}
+                            {lead.applicantEmail && (
+                              <p className="flex items-center gap-1 truncate">
+                                <EnvelopeIcon className="h-3 w-3" />
+                                {lead.applicantEmail}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${STATUS_COLORS[lead.status]}`}>
+                            {STATUS_LABELS[lead.status]}
+                          </span>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Último intento: {lead.lastNoAnswerDate 
+                              ? new Date(lead.lastNoAnswerDate).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+                              : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-yellow-200">
+                        <p className="text-xs text-gray-600">
+                          💡 <strong>Sugerencia:</strong> Considera cambiar el horario de llamada, enviar un email, o actualizar el estado del lead.
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!loadingNoAnswer && noAnswerLeads.length > 0 && (
+              <div className="border-t p-4 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">
+                    {noAnswerLeads.length} leads requieren seguimiento especial
+                  </span>
+                  <button
+                    onClick={() => setShowNoAnswerModal(false)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 font-medium"
+                  >
+                    Cerrar
                   </button>
                 </div>
               </div>

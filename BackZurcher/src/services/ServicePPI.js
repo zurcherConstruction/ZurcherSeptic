@@ -96,60 +96,57 @@ class ServicePPI {
     }
 
     try {
-      // Patrón: "Street Address City, State ZipCode"
-      // Ejemplo: "2607 49th St Lehigh Acres, FL 33971"
-      
-      // Dividir por coma primero (separa ciudad de estado/zip)
+      // Dividir por coma
       const parts = fullAddress.split(',');
-      
-      if (parts.length >= 2) {
-        // Parte 1: Street Address + City (antes de la coma)
+
+      // CASO 1: "Street, City, State ZIP" (2+ comas)
+      // Ejemplo: "123 Main St, Sebring, FL 33870"
+      if (parts.length >= 3) {
+        const streetAddress = parts[0].trim();
+        const city = parts[1].trim();
+        const stateZipPart = parts[parts.length - 1].trim();
+        const stateZipMatch = stateZipPart.match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)/);
+        const state = stateZipMatch ? stateZipMatch[1] : '';
+        const zipCode = stateZipMatch ? stateZipMatch[2] : '';
+        return { streetAddress, city, state, zipCode };
+      }
+
+      // CASO 2: "Street City, State ZIP" (1 coma)
+      // Ejemplo: "2607 49th St Lehigh Acres, FL 33971"
+      if (parts.length === 2) {
         const beforeComma = parts[0].trim();
-        
-        // Parte 2: State + Zip (después de la coma)
         const afterComma = parts[1].trim();
-        
-        // Extraer State y Zip de la segunda parte
-        // Regex mejorado: puede tener o no espacios, y captura cualquier formato de zip
+
         const stateZipMatch = afterComma.match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)/);
         const state = stateZipMatch ? stateZipMatch[1] : '';
         const zipCode = stateZipMatch ? stateZipMatch[2] : '';
-        
-        // Debug logs removidos para producción
-        
-        // Para separar Street Address de City, buscamos la última palabra compuesta
-        // que probablemente sea la ciudad (ej: "Lehigh Acres")
-        // Asumimos que la ciudad son las últimas 1-3 palabras antes de la coma
+
         const words = beforeComma.split(' ');
-        
-        // Si hay al menos 4 palabras, las últimas 2 probablemente sean la ciudad
+
         let streetAddress = beforeComma;
         let city = '';
-        
+
         if (words.length >= 4) {
-          // Intentar extraer ciudad (últimas 2 palabras típicamente)
+          // Las últimas 2 palabras son la ciudad (ej: "Lehigh Acres", "Cape Coral")
           city = words.slice(-2).join(' ');
           streetAddress = words.slice(0, -2).join(' ');
+        } else if (words.length === 3) {
+          // 3 palabras: la última es la ciudad (ej: "123 Main Sebring")
+          city = words[words.length - 1];
+          streetAddress = words.slice(0, -1).join(' ');
         }
-        
-        // Dirección parseada (logs removidos para producción)
-        
-        return {
-          streetAddress,
-          city,
-          state,
-          zipCode
-        };
+
+        return { streetAddress, city, state, zipCode };
       }
-      
-      // Si no se puede parsear, retornar la dirección completa en streetAddress
+
+      // CASO 3: Sin comas — no se puede parsear
       return {
         streetAddress: fullAddress,
         city: '',
         state: '',
         zipCode: ''
       };
-      
+
     } catch (error) {
       console.error('❌ Error parseando dirección:', error);
       return {

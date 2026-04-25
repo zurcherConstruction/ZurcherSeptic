@@ -242,3 +242,54 @@ export const completeReminder = createAsyncThunk(
     }
   }
 );
+
+// ========== REPORTES Y ANÁLISIS ==========
+
+// 📊 Obtener reporte semanal de actividad por staff
+export const fetchWeeklyActivityReport = createAsyncThunk(
+  'salesLeads/fetchWeeklyActivityReport',
+  async ({ startDate, endDate, staffId } = {}, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (staffId) params.append('staffId', staffId);
+
+      const response = await api.get(`/sales-leads/reports/weekly-activity?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { error: 'Error al obtener reporte semanal' });
+    }
+  }
+);
+
+// 📊 Obtener reporte mensual de actividad por staff
+export const fetchMonthlyActivityReport = createAsyncThunk(
+  'salesLeads/fetchMonthlyActivityReport',
+  async ({ startDate, endDate, staffId } = {}, { rejectWithValue }) => {
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (staffId) params.append('staffId', staffId);
+
+      const response = await api.get(`/sales-leads/reports/monthly-activity?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { error: 'Error al obtener reporte mensual' });
+    }
+  }
+);
+
+// 🔔 Obtener leads con múltiples intentos sin respuesta
+export const fetchNoAnswerLeads = createAsyncThunk(
+  'salesLeads/fetchNoAnswerLeads',
+  async (minAttempts = 3, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/sales-leads/alerts/no-answer?minAttempts=${minAttempts}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { error: 'Error al obtener leads sin respuesta' });
+    }
+  }
+);

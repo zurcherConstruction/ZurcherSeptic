@@ -22,7 +22,18 @@ const knowledgeBaseSlice = createSlice({
     },
     fetchCategoriesSuccess: (state, action) => {
       state.loading = false;
-      state.categories = action.payload;
+      // Eliminar duplicados por ID
+      const uniqueCategories = [];
+      const seenIds = new Set();
+      
+      for (const cat of action.payload) {
+        if (!seenIds.has(cat.id)) {
+          seenIds.add(cat.id);
+          uniqueCategories.push(cat);
+        }
+      }
+      
+      state.categories = uniqueCategories;
       state.error = null;
     },
     fetchCategoriesFailure: (state, action) => {

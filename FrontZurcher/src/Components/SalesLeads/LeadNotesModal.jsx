@@ -25,6 +25,7 @@ const noteTypes = {
   meeting: { label: 'Reunión/Visita', icon: '🤝', color: 'green' },
   email: { label: 'Email', icon: '✉️', color: 'indigo' },
   phone_call: { label: 'Llamada', icon: '📞', color: 'blue' },
+  no_answer: { label: 'No Contestó', icon: '❌', color: 'yellow' },
   problem: { label: 'Problema', icon: '⚠️', color: 'red' },
   progress: { label: 'Avance', icon: '✅', color: 'emerald' },
   status_change: { label: 'Cambio de Estado', icon: '📋', color: 'orange' },

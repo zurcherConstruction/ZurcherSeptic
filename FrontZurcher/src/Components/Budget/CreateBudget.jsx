@@ -355,55 +355,127 @@ const CreateBudget = () => {
         }
 
         // 6. 🆕 SAND AUTOMÁTICO POR CIUDAD - Agregar según la ciudad del Permit
-        const permitCity = selectedPermit.city || "";
+        // Primero intentar usar selectedPermit.city guardado en la BD
+        // Si está vacío, extraer la ciudad del propertyAddress (fallback para permits sin city)
+        const SAND_CITIES = ['SEBRING', 'DELTONA', 'LEHIGH ACRES', 'NORTH PORT', 'PORT CHARLOTTE', 'CAPE CORAL'];
+
+        let permitCity = (selectedPermit.city || "").trim();
+
+        if (!permitCity && selectedPermit.propertyAddress) {
+          const addressUpper = selectedPermit.propertyAddress.toUpperCase();
+          // Buscar ciudades conocidas ordenadas por longitud (primero las más largas para evitar falsos positivos)
+          const foundCity = SAND_CITIES
+            .slice()
+            .sort((a, b) => b.length - a.length)
+            .find(city => addressUpper.includes(city));
+          if (foundCity) {
+            permitCity = foundCity;
+            console.log(`🏙️  Ciudad extraída del propertyAddress: "${permitCity}"`);
+          }
+        }
+
+        console.log(`🏙️  Ciudad del Permit: "${permitCity}"`);
+        
         if (permitCity.trim() !== "") {
-          // Buscar items de SAND que coincidan con la ciudad
-          const sandItems = normalizedBudgetItemsCatalog.filter(item => 
-            item.category === "SAND" && 
-            (
-              // Buscar ciudad en supplierLocation (campo principal para ubicación)
-              (item.supplierLocation && item.supplierLocation.toUpperCase().includes(permitCity.toUpperCase())) ||
-              // Buscar ciudad en supplierName (proveedor)
-              (item.supplierName && item.supplierName.toUpperCase().includes(permitCity.toUpperCase())) ||
-              // Buscar ciudad en description como respaldo
-              (item.description && item.description.toUpperCase().includes(permitCity.toUpperCase()))
-            )
-          );
+          // Normalizar ciudad del permit
+          const permitCityNormalized = permitCity.toUpperCase().trim();
+          
+          // Buscar items de SAND con matching inteligente
+          const sandItems = normalizedBudgetItemsCatalog.filter(item => {
+            if (item.category !== "SAND") return false;
+            
+            const supplierNormalized = (item.supplierName || '').toUpperCase().trim();
+            
+            // 1. MATCHING EXACTO (prioridad máxima)
+            if (supplierNormalized === permitCityNormalized) {
+              console.log(`   ✅ Match EXACTO: "${item.supplierName}" === "${permitCity}"`);
+              return true;
+            }
+            
+            // 2. MATCHING SI EL SUPPLIER ESTÁ CONTENIDO EN EL CITY DEL PERMIT
+            //    Ejemplo: city="SEBRING FL" contiene supplier="SEBRING"
+            if (permitCityNormalized.includes(supplierNormalized) && supplierNormalized.length >= 4) {
+              console.log(`   ✅ Match PARCIAL (city contiene supplier): "${permitCity}" contiene "${item.supplierName}"`);
+              return true;
+            }
+            
+            // 3. MATCHING SI EL CITY DEL PERMIT ESTÁ CONTENIDO EN EL SUPPLIER
+            //    Ejemplo: supplier="CAPE CORAL" contiene city="CAPE"
+            //    PERO solo si el city tiene al menos 4 caracteres para evitar matches incorrectos
+            if (supplierNormalized.includes(permitCityNormalized) && permitCityNormalized.length >= 4) {
+              console.log(`   ⚠️  Match PARCIAL (supplier contiene city): "${item.supplierName}" contiene "${permitCity}"`);
+              return true;
+            }
+            
+            return false;
+          });
+          
+          console.log(`🔍 Items SAND encontrados para "${permitCity}" (matching EXACTO):`, sandItems.length);
+          sandItems.forEach(item => {
+            console.log(`   - ID ${item.id}: ${item.capacity} - $${item.unitPrice} (${item.supplierName || 'N/A'})`);
+          });
 
           if (sandItems.length > 0) {
-            // Priorizar "LOADS SAND ALL INCLUDED" sobre otros tipos
+            // Priorizar item correcto según lógica mejorada
             let selectedSandItem = null;
             
-            // 1. Buscar primero "LOADS SAND ALL INCLUDED" o "7 ALL INCLUDED"
-            selectedSandItem = sandItems.find(item => 
-              (item.capacity && item.capacity.toUpperCase().includes("7 ALL INCLUDED")) ||
-              (item.description && item.description.toUpperCase().includes("LOADS SAND ALL INCLUDED")) ||
-              (item.name && item.name.toUpperCase().includes("LOADS SAND ALL INCLUDED")) ||
-              (item.description && item.description.toUpperCase().includes("ALL INCLUDED"))
+            // Filtrar items válidos (precio > 0 y que NO contengan "NOT INCLUDED")
+            const validItems = sandItems.filter(item => {
+              const price = parseFloat(item.unitPrice);
+              const capacityUpper = (item.capacity || '').toUpperCase();
+              const descUpper = (item.description || '').toUpperCase();
+              
+              // Excluir items con precio 0 o negativos
+              if (price <= 0) return false;
+              
+              // Excluir items que explícitamente digan "NOT INCLUDED"
+              if (capacityUpper.includes("NOT INCLUDED") || descUpper.includes("NOT INCLUDED")) return false;
+              
+              return true;
+            });
+            
+            console.log(`   🔍 Items válidos (precio > 0, sin NOT INCLUDED):`, validItems.length);
+            validItems.forEach(item => {
+              console.log(`      - ID ${item.id}: ${item.capacity} - $${item.unitPrice}`);
+            });
+            
+            if (validItems.length === 0) {
+              console.warn(`   ⚠️  No hay items válidos para "${permitCity}"`);
+            }
+            
+            // 1. Buscar "7 ALL INCLUDED" en capacity (prioridad máxima)
+            selectedSandItem = validItems.find(item => 
+              item.capacity && item.capacity.toUpperCase().includes("7 ALL INCLUDED")
             );
             
-            // 2. Si no encuentra "ALL INCLUDED", buscar "SAND INCLUDED" (evitar "NOT INCLUDED")
-            if (!selectedSandItem) {
-              selectedSandItem = sandItems.find(item => 
-                (item.description && item.description.toUpperCase().includes("SAND INCLUDED") && 
-                 !item.description.toUpperCase().includes("NOT INCLUDED")) ||
-                (item.name && item.name.toUpperCase().includes("SAND INCLUDED") && 
-                 !item.name.toUpperCase().includes("NOT INCLUDED"))
-              );
+            if (selectedSandItem) {
+              console.log(`   ✅ SELECCIONADO "7 ALL INCLUDED": ID ${selectedSandItem.id} - $${selectedSandItem.unitPrice}`);
             }
             
-            // 3. Como último recurso, tomar cualquiera que NO sea "NOT INCLUDED"
-            if (!selectedSandItem) {
-              selectedSandItem = sandItems.find(item => 
-                !(item.description && item.description.toUpperCase().includes("NOT INCLUDED")) &&
-                !(item.name && item.name.toUpperCase().includes("NOT INCLUDED"))
+            // 2. Si no encuentra, tomar el de MAYOR PRECIO de los válidos
+            if (!selectedSandItem && validItems.length > 0) {
+              selectedSandItem = validItems.reduce((max, item) => 
+                parseFloat(item.unitPrice) > parseFloat(max.unitPrice) ? item : max
               );
+              console.log(`   ⚠️  SELECCIONADO por MAYOR PRECIO: ID ${selectedSandItem.id} - ${selectedSandItem.capacity} - $${selectedSandItem.unitPrice}`);
             }
             
-            // 4. Si aún no encuentra nada, tomar el primero (fallback)
+            // 3. Como último recurso, tomar cualquier item disponible (fallback)
             if (!selectedSandItem) {
-              selectedSandItem = sandItems[0];
+              const sorted = sandItems
+                .filter(item => parseFloat(item.unitPrice) > 0)
+                .sort((a, b) => parseFloat(b.unitPrice) - parseFloat(a.unitPrice));
+              
+              if (sorted.length > 0) {
+                selectedSandItem = sorted[0];
+                console.warn(`⚠️  FALLBACK: No se encontró "7 ALL INCLUDED" ni "4", tomando item de MAYOR PRECIO: ID ${selectedSandItem.id} - $${selectedSandItem.unitPrice}`);
+              } else {
+                selectedSandItem = sandItems[0];
+                console.warn(`⚠️  FALLBACK FINAL: Tomando primer item disponible: ID ${selectedSandItem.id} - $${selectedSandItem.unitPrice}`);
+              }
             }
+            
+            console.log(`🎯 Item SAND seleccionado FINAL: ID ${selectedSandItem.id} - ${selectedSandItem.capacity} - $${selectedSandItem.unitPrice} (${selectedSandItem.supplierName || 'N/A'})`);
             
             autoItems.push({
               category: "SAND",
@@ -411,8 +483,8 @@ const CreateBudget = () => {
               description: selectedSandItem.description,
               capacity: selectedSandItem.capacity,
               supplierName: selectedSandItem.supplierName,
-              // Este será encontrado automáticamente por su ID específico
-              _directMatch: selectedSandItem // Referencia directa para búsqueda fácil
+              // Referencia directa para matching exacto
+              _directMatch: selectedSandItem
             });
           } else {
             console.warn(`⚠️ No se encontró item SAND para la ciudad: "${permitCity}"`);
@@ -426,6 +498,7 @@ const CreateBudget = () => {
           // Para SAND: usar referencia directa si está disponible
           if (itemDef.category === "SAND" && itemDef._directMatch) {
             found = itemDef._directMatch;
+            console.log(`✅ SAND: Usando referencia directa - ID ${found.id}, Precio: $${found.unitPrice}`);
           }
           // Para ACCESORIOS: buscar solo por categoría y nombre (descripción puede variar)
           else if (itemDef.category === "ACCESORIOS") {
@@ -687,6 +760,8 @@ const handleGeneralInputChange = (e) => {
       if (match && itemDetails.marca !== undefined) match = (catalogItem.marca || '') === (itemDetails.marca?.toUpperCase() || '');
       if (match && itemDetails.capacity !== undefined) match = (catalogItem.capacity || '') === (itemDetails.capacity?.toUpperCase() || '');
       if (match && itemDetails.description !== undefined) match = (catalogItem.description || '') === (itemDetails.description?.toUpperCase() || '');
+      // Para SAND: filtrar también por supplierName para obtener el precio correcto por zona
+      if (match && itemDetails.supplierName) match = (catalogItem.supplierName || '').toUpperCase() === itemDetails.supplierName.toUpperCase();
       return match;
     });
 
@@ -806,6 +881,21 @@ const customCategoryOrder = [
   // El resto aparecerá después
   // Nota: ACCESORIOS, INSPECTION y FEE DE INSPECCION se auto-agregan y no se muestran aquí
 ];
+  // Calcular la ciudad del permit (usada para pre-seleccionar supplier en SAND)
+  const permitCityForSand = useMemo(() => {
+    if (!selectedPermit) return "";
+    const fromDB = (selectedPermit.city || "").trim();
+    if (fromDB) return fromDB.toUpperCase();
+    // Fallback: buscar en propertyAddress
+    if (selectedPermit.propertyAddress) {
+      const SAND_CITIES = ['SEBRING', 'DELTONA', 'LEHIGH ACRES', 'NORTH PORT', 'PORT CHARLOTTE', 'CAPE CORAL'];
+      const addressUpper = selectedPermit.propertyAddress.toUpperCase();
+      const found = SAND_CITIES.slice().sort((a, b) => b.length - a.length).find(city => addressUpper.includes(city));
+      return found || "";
+    }
+    return "";
+  }, [selectedPermit]);
+
   const availableCategories = useMemo(() => {
     const categories = [...new Set(normalizedBudgetItemsCatalog.map(item => item.category))];
     // Filtrar categorías que se auto-agregan o no se deben mostrar
@@ -1646,8 +1736,7 @@ const customCategoryOrder = [
             onToggle={() => toggleDynamicSection(category)}
             onAddItem={addItemFromDynamicSection}
             generateTempId={generateTempId}
-            // Pass standardInputClasses for consistent styling within DynamicCategorySection if it uses inputs
-            // standardInputClasses={standardInputClasses} 
+            permitCity={permitCityForSand}
           />
         ))}
 

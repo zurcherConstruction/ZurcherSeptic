@@ -51,6 +51,7 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM(
         'new',           // 🆕 Nuevo lead sin contactar
         'contacted',     // 📞 Ya contactado
+        'no_answer',     // 📵 No contesta (múltiples intentos)
         'interested',    // 👍 Cliente interesado
         'quoted',        // 💵 Cotización enviada
         'negotiating',   // 🤝 En negociación
