@@ -40,12 +40,12 @@ const budgetItemController = {
       const newItem = await BudgetItem.create({
         name,
         description,
-        category,
+        category: category ? category.toUpperCase() : category,
         marca,
         capacity,
         unitPrice,
         unit,
-        supplierName,
+        supplierName: supplierName ? supplierName.toUpperCase() : null,
         supplierLocation,
         imageUrl,
         isActive: true
@@ -186,12 +186,12 @@ async updateBudgetItem(req, res) {
     const updatedItem = await item.update({
       name: name || item.name,
       description: description || item.description,
-      category: category || item.category,
+      category: category ? category.toUpperCase() : item.category,
       marca: marca || item.marca,
       capacity: capacity || item.capacity,
       unitPrice: unitPrice !== undefined ? unitPrice : item.unitPrice,
       unit: unit || item.unit,
-      supplierName: supplierName || item.supplierName,
+      supplierName: supplierName ? supplierName.toUpperCase() : item.supplierName,
       supplierLocation: supplierLocation || item.supplierLocation,
       imageUrl
     });
@@ -474,13 +474,13 @@ async updateBudgetItem(req, res) {
           }
 
           const itemData = {
-            category: category?.toString().trim(),
+            category: category?.toString().trim().toUpperCase(),
             name: name?.toString().trim(),
             marca: marca?.toString().trim() || null,
             description: description?.toString().trim() || null,
             capacity: capacity?.toString().trim() || null,
             unitPrice: parseFloat(unitPrice) || 0,
-            supplierName: supplierName?.toString().trim() || null,
+            supplierName: supplierName?.toString().trim().toUpperCase() || null,
             supplierLocation: supplierLocation?.toString().trim() || null,
             isActive: ['SI', 'YES', 'TRUE', '1'].includes(isActive?.toString().toUpperCase()),
             imageUrl: imageUrl?.toString().trim() || null

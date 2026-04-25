@@ -7,7 +7,8 @@ const DynamicCategorySection = ({
   isVisible,
   onToggle,
   onAddItem,
-  generateTempId
+  generateTempId,
+  permitCity // Ciudad del permit para pre-seleccionar supplier SAND
 }) => {
   const [selection, setSelection] = useState({
     name: '',
@@ -52,6 +53,24 @@ const DynamicCategorySection = ({
       }
     }
   }, [category, categoryItems, selection.name]);
+
+  // Pre-seleccionar supplier de SAND según la ciudad del permit
+  useEffect(() => {
+    if (category.toUpperCase() !== 'SAND') return;
+    if (!permitCity) return;
+    // Solo pre-seleccionar si el supplier todavía no fue elegido por el usuario
+    setSelection(prev => {
+      if (prev.supplierName) return prev; // ya fue seleccionado
+      // Verificar que existe un item SAND para esa ciudad en el catálogo
+      const exists = normalizedCatalog.some(
+        i => i.category === category && (i.supplierName || '').toUpperCase() === permitCity.toUpperCase()
+      );
+      if (exists) {
+        return { ...prev, supplierName: permitCity.toUpperCase() };
+      }
+      return prev;
+    });
+  }, [category, permitCity, normalizedCatalog]);
 
   // ✅ VERIFICAR QUÉ CAMPOS REALMENTE TIENEN DATOS EN ESTA CATEGORÍA
   const fieldAnalysis = useMemo(() => {
@@ -185,7 +204,7 @@ const handleSelectionChange = (e) => {
       if (fieldAnalysis.hasMarcas) newState.marca = '';
       if (fieldAnalysis.hasCapacities) newState.capacity = '';
       if (fieldAnalysis.hasDescriptions) newState.description = '';
-      if (category.toUpperCase() === 'SAND') newState.supplierName = '';
+      if (category.toUpperCase() === 'SAND') newState.supplierName = permitCity ? permitCity.toUpperCase() : '';
     }
     if (name === 'marca') {
       if (fieldAnalysis.hasCapacities) newState.capacity = '';

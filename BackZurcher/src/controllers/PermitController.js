@@ -371,10 +371,11 @@ const createPermit = async (req, res, next) => {
     
     if (propertyAddress) {
       const servicePPI = require('../services/ServicePPI');
+      const { normalizeCityName } = require('../utils/cityNormalizer');
       const parsed = servicePPI.ServicePPI._parseAddress(propertyAddress);
       
       ppiStreetAddress = parsed.streetAddress;
-      cityParsed = parsed.city;
+      cityParsed = normalizeCityName(parsed.city); // ✅ Normalizar ciudad
       stateParsed = parsed.state;
       zipCodeParsed = parsed.zipCode;
       
@@ -647,7 +648,8 @@ const updatePermit = async (req, res) => {
       const parsed = servicePPI.ServicePPI._parseAddress(updates.propertyAddress);
       
       updates.ppiStreetAddress = parsed.streetAddress;
-      updates.city = parsed.city;
+      const { normalizeCityName } = require('../utils/cityNormalizer');
+      updates.city = normalizeCityName(parsed.city); // ✅ Normalizar ciudad
       updates.state = parsed.state || 'FL';
       updates.zipCode = parsed.zipCode;
       
@@ -1434,7 +1436,10 @@ const updatePermitFields = async (req, res, next) => {
     
     // 🆕 Campos PPI Part 2
     if (ppiStreetAddress !== undefined) updateData.ppiStreetAddress = ppiStreetAddress; // 🆕 Street Address editable
-    if (city !== undefined) updateData.city = city;
+    if (city !== undefined) {
+      const { normalizeCityName } = require('../utils/cityNormalizer');
+      updateData.city = normalizeCityName(city); // ✅ Normalizar ciudad
+    }
     if (state !== undefined) updateData.state = state;
     if (zipCode !== undefined) updateData.zipCode = zipCode;
     if (subdivision !== undefined) updateData.subdivision = subdivision;
@@ -2734,7 +2739,10 @@ const updatePPIAddress = async (req, res) => {
     // Actualizar solo los campos del PPI
     const updates = {};
     if (ppiStreetAddress !== undefined) updates.ppiStreetAddress = ppiStreetAddress;
-    if (city !== undefined) updates.city = city;
+    if (city !== undefined) {
+      const { normalizeCityName } = require('../utils/cityNormalizer');
+      updates.city = normalizeCityName(city); // ✅ Normalizar ciudad
+    }
     if (state !== undefined) updates.state = state;
     if (zipCode !== undefined) updates.zipCode = zipCode;
 

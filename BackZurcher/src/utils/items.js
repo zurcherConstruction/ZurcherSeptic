@@ -34,14 +34,14 @@ const defaultItems = [
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 2800, supplierName: "Cape Coral", supplierLocation: "" },
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1600, supplierName: "Cape Coral", supplierLocation: "" },
 
-  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1820, supplierName: "Sebring", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1540, supplierName: "Sebring", supplierLocation: "" },
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1040, supplierName: "Sebring", supplierLocation: "" },
 
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 3010, supplierName: "North Port", supplierLocation: "" },
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1720, supplierName: "North Port", supplierLocation: "" },
 
-  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 3010, supplierName: "Porth Charlotte", supplierLocation: "" },
-  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1720, supplierName: "Porth Charlotte", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 3010, supplierName: "Port Charlotte", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1720, supplierName: "Port Charlotte", supplierLocation: "" },
 
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 2660, supplierName: "Deltona", supplierLocation: "" },
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1520, supplierName: "Deltona", supplierLocation: "" },
