@@ -57,6 +57,7 @@ const companyEmailRoutes = require('./companyEmailRoutes'); // 🆕 Rutas para e
 const knowledgeBaseRoutes = require('./knowledgeBaseRoutes'); // 🆕 Rutas para base de conocimiento
 const newsletterRoutes = require('./newsletterRoutes'); // 🆕 Rutas para sistema de newsletter
 const signatureDocumentRoutes = require('./signatureDocumentRoutes'); // 🆕 Rutas para documentos de firma genéricos
+const fleetRoutes = require('./fleetRoutes'); // 🆕 Rutas para flota y maquinaria
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -124,6 +125,7 @@ router.use('/sales-leads', salesLeadRoutes); // 🆕 Ruta para prospectos de ven
 router.use('/lead-notes', leadNoteRoutes); // 🆕 Ruta para notas de leads
 router.use('/company-emails', companyEmailRoutes); // 🆕 Ruta para emails masivos de marketing
 router.use('/knowledge-base', knowledgeBaseRoutes); // 🆕 Ruta para base de conocimiento
+router.use('/fleet', fleetRoutes); // 🆕 Ruta para flota y maquinaria
 router.use('/signature-documents', signatureDocumentRoutes); // 🆕 Ruta para documentos de firma genéricos (SignNow/DocuSign)
 
 module.exports = router;

@@ -32,6 +32,7 @@ import marketingCampaignsReducer from '../Reducer/marketingCampaignsReducer'; //
 import knowledgeBaseReducer from '../Reducer/knowledgeBaseReducer'; // 🆕 Knowledge Base reducer
 import newsletterReducer from '../Reducers/newsletterReducer'; // 🆕 Newsletter reducer
 import signatureDocumentReducer from '../Reducers/signatureDocumentReducer'; // 🆕 Signature Documents reducer
+import fleetReducer from '../Reducer/fleetReducer'; // 🆕 Fleet & Equipment reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -65,6 +66,7 @@ const rootReducer = combineReducers({
   knowledgeBase: knowledgeBaseReducer, // 🆕 Knowledge Base reducer
   newsletter: newsletterReducer, // 🆕 Newsletter reducer
   signatureDocuments: signatureDocumentReducer, // 🆕 Signature Documents reducer
+  fleet: fleetReducer, // 🆕 Fleet & Equipment reducer
 });
 
 export const store = configureStore({
