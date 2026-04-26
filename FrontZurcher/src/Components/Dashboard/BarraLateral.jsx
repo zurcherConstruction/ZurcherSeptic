@@ -35,7 +35,8 @@ import {
   FaEnvelope, 
   FaBook, 
   FaNewspaper,
-  FaFileSignature
+  FaFileSignature,
+  FaTruck
 } from "react-icons/fa";
 
 const BarraLateral = () => { 
@@ -129,6 +130,14 @@ const BarraLateral = () => {
         { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign }, // 🆕 Gastos Fijos
         { name: "Monthly Expenses", path: "/monthly-expenses", icon: FaCalendarAlt }, // 🆕 Gastos Devengados
         { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign }, // 🆕 Cuentas por cobrar
+      ],
+    },
+    {
+      name: "Fleet & Equipment",
+      icon: FaTruck,
+      color: "text-cyan-400",
+      items: [
+        { name: "Fleet Dashboard", path: "/fleet", icon: FaTruck },
       ],
     },
     {
@@ -230,6 +239,14 @@ const BarraLateral = () => {
             // Solo Upload Vouchers para admin
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
+          ],
+        },
+        {
+          name: "Fleet & Equipment",
+          icon: FaTruck,
+          color: "text-cyan-400",
+          items: [
+            { name: "Fleet Dashboard", path: "/fleet", icon: FaTruck },
           ],
         },
         {

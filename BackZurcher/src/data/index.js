@@ -97,7 +97,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -946,6 +946,31 @@ NewsletterSubscriber.belongsToMany(Newsletter, {
   otherKey: 'newsletterId',
   as: 'newslettersSent'
 });
+
+// ========================= FLEET ASSET ASSOCIATIONS ========================= //
+// Un FleetAsset puede estar asignado a un Staff
+FleetAsset.belongsTo(Staff, { foreignKey: 'assignedToId', as: 'assignedTo' });
+Staff.hasMany(FleetAsset, { foreignKey: 'assignedToId', as: 'assignedFleetAssets' });
+
+// Un FleetAsset tiene muchos registros de mantenimiento
+FleetAsset.hasMany(FleetMaintenance, { foreignKey: 'assetId', as: 'maintenances' });
+FleetMaintenance.belongsTo(FleetAsset, { foreignKey: 'assetId', as: 'asset' });
+
+// Un FleetMaintenance fue realizado por un Staff
+FleetMaintenance.belongsTo(Staff, { foreignKey: 'performedById', as: 'performedBy' });
+Staff.hasMany(FleetMaintenance, { foreignKey: 'performedById', as: 'performedMaintenances' });
+
+// Un FleetMaintenance fue creado por un Staff
+FleetMaintenance.belongsTo(Staff, { foreignKey: 'createdById', as: 'createdBy' });
+Staff.hasMany(FleetMaintenance, { foreignKey: 'createdById', as: 'createdMaintenances' });
+
+// Un FleetAsset tiene muchos logs de mileaje/horas
+FleetAsset.hasMany(FleetMileageLog, { foreignKey: 'assetId', as: 'mileageLogs' });
+FleetMileageLog.belongsTo(FleetAsset, { foreignKey: 'assetId', as: 'asset' });
+
+// Un FleetMileageLog fue registrado por un Staff
+FleetMileageLog.belongsTo(Staff, { foreignKey: 'recordedById', as: 'recordedBy' });
+Staff.hasMany(FleetMileageLog, { foreignKey: 'recordedById', as: 'mileageLogs' });
 
 // --- RELACIONES PARA SIGNATURE DOCUMENTS (DOCUMENTOS PARA FIRMA) ---
 

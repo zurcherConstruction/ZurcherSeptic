@@ -104,6 +104,8 @@ import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup 
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
 import NewLeadForm from './Components/SalesLeads/NewLeadForm'; // 🆕 New lead form
 import KnowledgeBase from './Components/KnowledgeBase/KnowledgeBase'; // 🆕 Base de Conocimiento
+import FleetDashboard from './Components/Fleet/FleetDashboard'; // 🆕 Flota y Maquinaria
+import FleetAssetDetail from './Components/Fleet/FleetAssetDetail'; // 🆕 Detalle de activo de flota
 
 function App() {
   const dispatch = useDispatch();
@@ -746,6 +748,24 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner", "recept"]}>
                     <SignatureDocumentsDashboard />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Fleet Management - Flota y Maquinaria */}
+              <Route
+                path="/fleet"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <FleetDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/fleet/:id"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <FleetAssetDetail />
                   </PrivateRoute>
                 }
               />
