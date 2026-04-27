@@ -680,34 +680,44 @@ const SalesLeadController = {
   // 📈 Métricas de actividad (nuevos + contactados por período)
   async getActivityMetrics(req, res) {
     try {
-      const now = new Date();
-      
-      // 📅 Calcular inicio y fin de la semana actual (Lunes 00:00 - Domingo 23:59)
-      const currentDayOfWeek = now.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
-      const daysFromMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1; // Si es domingo, retroceder 6 días
-      
-      const thisWeekStart = new Date(now);
-      thisWeekStart.setDate(now.getDate() - daysFromMonday);
-      thisWeekStart.setHours(0, 0, 0, 0);
-      
-      const thisWeekEnd = new Date(thisWeekStart);
-      thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
-      thisWeekEnd.setHours(23, 59, 59, 999);
-      
-      // 📅 Calcular inicio y fin de la semana anterior (Lunes 00:00 - Domingo 23:59)
-      const prevWeekStart = new Date(thisWeekStart);
-      prevWeekStart.setDate(thisWeekStart.getDate() - 7);
-      
-      const prevWeekEnd = new Date(prevWeekStart);
-      prevWeekEnd.setDate(prevWeekStart.getDate() + 6);
-      prevWeekEnd.setHours(23, 59, 59, 999);
-      
-      // 📅 Calcular inicio de período quincenal (hace 2 semanas desde el lunes)
-      const biweeklyStart = new Date(thisWeekStart);
-      biweeklyStart.setDate(thisWeekStart.getDate() - 14);
-      
-      // 📅 Calcular inicio de período mensual (hace 30 días)
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      // Calcular "ahora" en Eastern Time (America/New_York) — timezone del negocio en Florida
+      // El servidor corre en UTC; usamos Intl para obtener fecha/hora local correcta
+      const TZ = 'America/New_York';
+      const nowUTC = new Date();
+      const etParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).formatToParts(nowUTC);
+      const et = {};
+      etParts.forEach(p => { et[p.type] = p.value; });
+      // Construir Date que representa medianoche ET de hoy como timestamp UTC
+      const todayEtMidnightUTC = new Date(`${et.year}-${et.month}-${et.day}T00:00:00`);
+      // Ajustar offset: ET midnight en UTC = medianoche ET + offset (5h invierno / 4h verano)
+      const etOffsetMs = nowUTC.getTime() - new Date(
+        `${et.year}-${et.month}-${et.day}T${et.hour}:${et.minute}:${et.second}`
+      ).getTime();
+      const todayMidnightET = new Date(todayEtMidnightUTC.getTime() + etOffsetMs);
+
+      // Día de la semana en ET (0=Dom, 1=Lun...)
+      const etDayOfWeek = new Date(nowUTC.getTime() - etOffsetMs * -1).getDay(); // workaround: usar la fecha ET
+      const etDateStr = `${et.year}-${et.month}-${et.day}`;
+      const etDate = new Date(etDateStr + 'T12:00:00'); // mediodía para evitar DST edge
+      const currentDayOfWeek = etDate.getDay(); // 0=Domingo, 1=Lunes...
+      const daysFromMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+
+      // 📅 Inicio de semana actual: lunes 00:00 ET
+      const thisWeekStart = new Date(todayMidnightET.getTime() - daysFromMonday * 24 * 60 * 60 * 1000);
+      const thisWeekEnd   = new Date(thisWeekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+
+      // 📅 Semana anterior
+      const prevWeekStart = new Date(thisWeekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const prevWeekEnd   = new Date(thisWeekStart.getTime() - 1);
+
+      // 📅 Quincenal (hace 2 semanas desde inicio de semana actual)
+      const biweeklyStart = new Date(thisWeekStart.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+      // 📅 Mensual (hace 30 días desde ahora)
+      const monthAgo = new Date(nowUTC.getTime() - 30 * 24 * 60 * 60 * 1000);
 
       // Estados que consideramos "contactados" = TODOS excepto 'new'
       // Incluye 'archived' porque significa que se contactó y se archivó (ej: no interesado)
@@ -866,29 +876,31 @@ const SalesLeadController = {
     try {
       const { startDate, endDate, staffId } = req.query;
 
-      // Calcular rango de la semana (por defecto la actual)
-      const now = new Date();
-      
-      // Calcular semana actual (Lunes 00:00 → Domingo 23:59) si no se especifican fechas
-      const weekStart = startDate 
-        ? new Date(startDate) 
-        : (() => {
-            const currentDayOfWeek = now.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
-            const daysFromMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
-            const start = new Date(now);
-            start.setDate(now.getDate() - daysFromMonday);
-            start.setHours(0, 0, 0, 0);
-            return start;
-          })();
+      // Calcular rango de la semana (por defecto la actual) en Eastern Time (Florida)
+      const nowUTC = new Date();
+      const TZ = 'America/New_York';
+      const etParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+      }).formatToParts(nowUTC);
+      const et = {};
+      etParts.forEach(p => { et[p.type] = p.value; });
+      const etOffsetMs = nowUTC.getTime() - new Date(
+        `${et.year}-${et.month}-${et.day}T${et.hour}:${et.minute}:${et.second}`
+      ).getTime();
+      const todayEtMidnightUTC = new Date(`${et.year}-${et.month}-${et.day}T00:00:00`);
+      const todayMidnightET = new Date(todayEtMidnightUTC.getTime() + etOffsetMs);
+      const etDate = new Date(`${et.year}-${et.month}-${et.day}T12:00:00`);
+      const currentDayOfWeekET = etDate.getDay();
+      const daysFromMonday = currentDayOfWeekET === 0 ? 6 : currentDayOfWeekET - 1;
 
-      const weekEnd = endDate 
-        ? new Date(endDate) 
-        : (() => {
-            const end = new Date(weekStart);
-            end.setDate(weekStart.getDate() + 6);
-            end.setHours(23, 59, 59, 999);
-            return end;
-          })();
+      const weekStart = startDate
+        ? new Date(startDate)
+        : new Date(todayMidnightET.getTime() - daysFromMonday * 24 * 60 * 60 * 1000);
+
+      const weekEnd = endDate
+        ? new Date(endDate)
+        : new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
 
       // Filtro base de notas
       const whereNotes = {
