@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FaBars, FaTimes, FaPhone, FaEnvelope, FaUser } from 'react-icons/fa';
+import { FaBars, FaTimes, FaPhone, FaEnvelope, FaUser, FaChevronDown } from 'react-icons/fa';
 import logo from '/logo.png';
 
 const Navbar = ({ onLoginClick }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [servicesHover, setServicesHover] = useState(false);
+  const [mobileServicesOpen, setMobileServicesOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -18,11 +20,16 @@ const Navbar = ({ onLoginClick }) => {
 
   const navLinks = [
     { name: 'Home', path: '/' },
-    { name: 'Installation', path: '/installation' },
     { name: 'Gallery', path: '/gallery' },
-    { name: 'Services', path: '/services' },
-    { name: 'Maintenance', path: '/maintenance-services' },
-    { name: 'Repairs', path: '/repairs' },
+    {
+      name: 'Services',
+      dropdown: [
+        { name: 'ATU System Installation', path: '/services/atu-installation', desc: 'Aerobic treatment units' },
+        { name: 'Conventional Septic System', path: '/services/regular-installation', desc: 'Standard septic installation' },
+        { name: 'Maintenance', path: '/maintenance-services', desc: 'Ongoing system care' },
+        { name: 'Repairs', path: '/repairs', desc: 'Fast, reliable fixes' },
+      ],
+    },
     { name: 'About Us', path: '/about' },
     { name: 'Contact', path: '/contact' },
   ];
@@ -62,20 +69,58 @@ const Navbar = ({ onLoginClick }) => {
 
             {/* Desktop Navigation */}
             <div className="hidden xl:flex items-center gap-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  to={link.path}
-                  className={`px-4 py-2 font-medium transition-colors relative group ${
-                    isActive(link.path) ? 'text-blue-400' : 'text-slate-100 hover:text-blue-400'
-                  }`}
-                >
-                  {link.name}
-                  <span className={`absolute bottom-0 left-0 h-0.5 bg-blue-400 transition-all duration-300 ${
-                    isActive(link.path) ? 'w-full' : 'w-0 group-hover:w-full'
-                  }`}></span>
-                </Link>
-              ))}
+              {navLinks.map((link) =>
+                link.dropdown ? (
+                  <div
+                    key={link.name}
+                    className="relative"
+                    onMouseEnter={() => setServicesHover(true)}
+                    onMouseLeave={() => setServicesHover(false)}
+                  >
+                    <button
+                      className={`flex items-center gap-1.5 px-4 py-2 font-medium transition-colors relative group ${
+                        link.dropdown.some((d) => isActive(d.path)) ? 'text-blue-400' : 'text-slate-100 hover:text-blue-400'
+                      }`}
+                    >
+                      {link.name}
+                      <FaChevronDown className={`text-xs transition-transform duration-200 ${servicesHover ? 'rotate-180' : ''}`} />
+                      <span className={`absolute bottom-0 left-0 h-0.5 bg-blue-400 transition-all duration-300 ${
+                        link.dropdown.some((d) => isActive(d.path)) ? 'w-full' : 'w-0 group-hover:w-full'
+                      }`}></span>
+                    </button>
+                    <div className={`absolute top-full left-0 w-64 bg-slate-800 border border-slate-600/50 rounded-xl shadow-2xl overflow-hidden transition-all duration-200 ${
+                      servicesHover ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-2 pointer-events-none'
+                    }`}>
+                      {link.dropdown.map((item) => (
+                        <Link
+                          key={item.name}
+                          to={item.path}
+                          onClick={() => setServicesHover(false)}
+                          className={`flex flex-col px-5 py-4 border-b border-slate-700/50 last:border-0 transition-colors hover:bg-slate-700/60 ${
+                            isActive(item.path) ? 'bg-slate-700/60 text-blue-400' : 'text-slate-100'
+                          }`}
+                        >
+                          <span className="font-semibold text-sm">{item.name}</span>
+                          {item.desc && <span className="text-xs text-slate-400 mt-0.5">{item.desc}</span>}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <Link
+                    key={link.name}
+                    to={link.path}
+                    className={`px-4 py-2 font-medium transition-colors relative group ${
+                      isActive(link.path) ? 'text-blue-400' : 'text-slate-100 hover:text-blue-400'
+                    }`}
+                  >
+                    {link.name}
+                    <span className={`absolute bottom-0 left-0 h-0.5 bg-blue-400 transition-all duration-300 ${
+                      isActive(link.path) ? 'w-full' : 'w-0 group-hover:w-full'
+                    }`}></span>
+                  </Link>
+                )
+              )}
             </div>
 
             {/* Contact Info & Login Desktop */}
@@ -118,21 +163,53 @@ const Navbar = ({ onLoginClick }) => {
               ? 'bg-gradient-to-b from-slate-700/95 to-slate-800/95' 
               : 'bg-slate-900/70'
           }`}>
-            <div className="container mx-auto px-4 py-4 space-y-2 max-h-80 overflow-y-auto">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  to={link.path}
-                  onClick={() => setIsOpen(false)}
-                  className={`block w-full text-left px-4 py-3 rounded-lg font-medium transition-all transform hover:translate-x-2 ${
-                    isActive(link.path) 
-                      ? 'bg-slate-600/50 text-blue-400' 
-                      : 'text-slate-100 hover:bg-slate-600/30 hover:text-blue-400'
-                  }`}
-                >
-                  {link.name}
-                </Link>
-              ))}
+            <div className="container mx-auto px-4 py-4 space-y-2 max-h-[70vh] overflow-y-auto">
+              {navLinks.map((link) =>
+                link.dropdown ? (
+                  <div key={link.name}>
+                    <button
+                      onClick={() => setMobileServicesOpen(!mobileServicesOpen)}
+                      className={`flex items-center justify-between w-full px-4 py-3 rounded-lg font-medium transition-all ${
+                        link.dropdown.some((d) => isActive(d.path))
+                          ? 'bg-slate-600/50 text-blue-400'
+                          : 'text-slate-100 hover:bg-slate-600/30 hover:text-blue-400'
+                      }`}
+                    >
+                      <span>{link.name}</span>
+                      <FaChevronDown className={`text-xs transition-transform duration-200 ${mobileServicesOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <div className={`overflow-hidden transition-all duration-300 ${mobileServicesOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0'}`}>
+                      <div className="ml-4 mt-1 space-y-1 border-l-2 border-blue-600/50 pl-3">
+                        {link.dropdown.map((item) => (
+                          <Link
+                            key={item.name}
+                            to={item.path}
+                            onClick={() => { setIsOpen(false); setMobileServicesOpen(false); }}
+                            className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-all hover:translate-x-1 ${
+                              isActive(item.path) ? 'text-blue-400 bg-slate-600/30' : 'text-slate-200 hover:text-blue-400 hover:bg-slate-600/20'
+                            }`}
+                          >
+                            {item.name}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Link
+                    key={link.name}
+                    to={link.path}
+                    onClick={() => setIsOpen(false)}
+                    className={`block w-full text-left px-4 py-3 rounded-lg font-medium transition-all transform hover:translate-x-2 ${
+                      isActive(link.path)
+                        ? 'bg-slate-600/50 text-blue-400'
+                        : 'text-slate-100 hover:bg-slate-600/30 hover:text-blue-400'
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                )
+              )}
 
               
               {/* Contact Info Mobile */}

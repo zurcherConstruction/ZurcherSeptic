@@ -61,6 +61,8 @@ import BudgetReviewPage from "./Components/Budget/BudgetReviewPage";
 import LandingClients from "./Components/Landing/LandingClients";
 import AboutPage from "./Components/Landing/AboutPage";
 import ServicesPage from "./Components/Landing/ServicesPage";
+import ATUInstallationPage from "./Components/Landing/ATUInstallationPage";
+import RegularInstallationPage from "./Components/Landing/RegularInstallationPage";
 import InstallationPage from "./Components/Landing/InstallationPage";
 import GalleryPage from "./Components/Landing/GalleryPage";
 import MaintenancePage from "./Components/Landing/MaintenancePage";
@@ -122,7 +124,8 @@ function App() {
   useEffect(() => {
     // Lista de rutas públicas que no requieren redirección automática
     const publicRoutes = [
-      "/", "/about", "/services", "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
+      "/", "/about", "/services", "/services/atu-installation", "/services/regular-installation",
+      "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
       "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"
     ];
     const isPublicRoute = publicRoutes.some(route =>
@@ -144,7 +147,8 @@ function App() {
 
   // Determinar si estamos en una ruta pública de la landing
   const publicLandingRoutes = [
-    "/", "/about", "/services", "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
+    "/", "/about", "/services", "/services/atu-installation", "/services/regular-installation",
+    "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
     "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"
   ];
   const isSimpleWorkApproveRoute = location.pathname.startsWith("/simple-work-approve/");
@@ -169,6 +173,8 @@ function App() {
               <Route path="/" element={<LandingClients />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/services" element={<ServicesPage />} />
+              <Route path="/services/atu-installation" element={<ATUInstallationPage />} />
+              <Route path="/services/regular-installation" element={<RegularInstallationPage />} />
               <Route path="/installation" element={<InstallationPage />} />
               <Route path="/gallery" element={<GalleryPage />} />
               <Route path="/maintenance-services" element={<MaintenancePage />} />
