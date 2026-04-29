@@ -5,13 +5,22 @@ import SEOHelmet from '../SEO/SEOHelmet';
 import LoginPopup from '../Auth/LoginPopup';
 import FloatingQuoteButton from './FloatingQuoteButton';
 import ScheduleQuoteModal from './ScheduleQuoteModal';
-import { FaPhone, FaCheckCircle, FaArrowLeft, FaCertificate, FaShieldAlt, FaClipboardCheck, FaClock, FaTools } from 'react-icons/fa';
+import {
+  PhoneIcon,
+  CheckCircleIcon,
+  ShieldCheckIcon,
+  ClipboardDocumentCheckIcon,
+  ClockIcon,
+  WrenchScrewdriverIcon,
+  StarIcon,
+  ArrowLeftIcon,
+} from '@heroicons/react/24/outline';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // IMÁGENES — Cloudinary
 // Base URL: https://res.cloudinary.com/TU_CLOUD_NAME/image/upload/f_auto,q_auto/
 // Reemplazá TU_CLOUD_NAME por tu cuenta y el nombre del archivo por el public_id
-// que te asigna Cloudinary al subir cada imagen.
+// que te asigna Cloudinary al subir cada imagen. when is an
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Hero desktop  →  archivo original: chata2.jpeg
@@ -21,30 +30,32 @@ const atuPortadaImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,
 const atuPortadaCeluImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777472931/chata2Celu_bbwl99.jpg';
 
 // Sección 1 — ¿Qué es un ATU?  →  archivo original: atu.jpeg
-const atuSystemImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473055/atu_csdfu2.jpg';
+const atuSystemImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1777491666/atu1_ey1jon.png';
 
 // Sección 2 — How it works  →  archivo original: howitswork.jpeg
-const howItWorksImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_1200/v1777473108/howitswork_badb2f.jpg';
+const howItWorksImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1777492908/howitworks_zxiupq.png';
 
 // Sección 3 — When required  →  archivo original: atu.jpeg (misma que atuSystemImg)
-const atuImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473055/atu_csdfu2.jpg';
-
+const atuImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473360/general_ydct7t.jpg';
+//https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473360/general_ydct7t.jpg
 // Sección 4 — Qué incluye  →  archivo original: servicios.png
 const queIncluyeImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_1200/v1777473242/servicios_vyew3h.png';
 
 // Sección 5 — ATU vs Conventional  →  archivo original: AtuVsRegular.jpeg
-const atuVsImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_1200/v1777473279/AtuVsRegular_k59rqn.jpg';
+const atuVsImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1777492988/vs_etlkxb.png';
 
 // Fotos proceso de instalación (fila de 3 fotos en Sección 6)
 // photo1  →  archivo original: general.jpeg
-const photo1 = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473360/general_ydct7t.jpg';
+const photo3 = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1774382867/works/a431a726-11a0-4b91-9953-fdec5fc7d331/sistema%20instalado/a1oz3pqgmirtaqixcoyr.jpg';
 // photo2  →  archivo original: tanqueinstalado.jpeg
 const photo2 = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473408/tanqueinstalado_mpoqps.jpg';
 // photo3  →  archivo original: Excavadora.jpeg
-const photo3 = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473994/Excavadora_jhbx6k.jpg';
+const photo1 = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473994/Excavadora_jhbx6k.jpg';
 
 // Sección 7 — Why Choose Us  →  archivo original: atuPortada.jpeg
 const photo4 = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_900/v1777473709/atuPortada_bz1aax.jpg';
+
+
 
 const ATUInstallationPage = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -103,21 +114,20 @@ const ATUInstallationPage = () => {
                 onClick={() => setShowQuoteModal(true)}
                 className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-black px-7 py-3.5 rounded-lg text-sm transition-colors uppercase"
               >
-                <FaPhone className="text-xs" /> Get a Free Quote
+                <PhoneIcon className="w-4 h-4" /> Get a Free Quote
               </button>
               <a
                 href="tel:+19546368200"
                 className="flex items-center gap-2 border border-slate-500 hover:border-blue-400 hover:text-blue-400 text-slate-200 font-bold px-7 py-3.5 rounded-lg text-sm transition-colors uppercase"
               >
-                <FaPhone className="text-xs" /> Call Now (954) 636-8200
+                <PhoneIcon className="w-4 h-4" /> Call Now (954) 636-8200
               </a>
             </div>
 
             {/* Badge mobile — inline, debajo de botones */}
             <div className="flex md:hidden items-center gap-3 bg-slate-900/80 border border-yellow-400 rounded-xl px-4 py-3 w-fit">
               <div className="relative">
-                <FaShieldAlt className="text-yellow-400 text-2xl" />
-                <FaCheckCircle className="absolute -bottom-1 -right-1 text-yellow-400 text-xs bg-slate-900 rounded-full" />
+                <ShieldCheckIcon className="text-yellow-400 w-7 h-7" />
               </div>
               <div className="text-white text-xs">
                 <span className="font-black">2-Year</span>
@@ -132,8 +142,7 @@ const ATUInstallationPage = () => {
           <div className="bg-slate-900/95 border border-yellow-400 rounded-2xl p-5 text-center backdrop-blur-sm">
             {/* Icono shield + check superpuesto */}
             <div className="relative inline-flex items-center justify-center mb-3">
-              <FaShieldAlt className="text-yellow-400 text-4xl" />
-              <FaCheckCircle className="absolute text-yellow-400 text-sm bg-slate-900 rounded-full" style={{bottom:'-2px', right:'-4px'}} />
+              <ShieldCheckIcon className="text-yellow-400 w-12 h-12" />
             </div>
             <div className="text-slate-300 text-[9px] font-bold uppercase leading-snug tracking-wide mb-2">
               Maintenance<br />Included for
@@ -154,11 +163,11 @@ const ATUInstallationPage = () => {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             {[
-              { icon: <FaShieldAlt />, label: 'Licensed & Insured' },
-              { icon: <FaClipboardCheck />, label: 'ATU System Experts' },
-              { icon: <FaCheckCircle />, label: 'Approved Installations' },
-              { icon: <FaClock />, label: 'Fast & On-Time Process' },
-              { icon: <FaTools />, label: 'We Handle Everything' },
+              { icon: <ShieldCheckIcon className="w-6 h-6" />, label: 'Licensed & Insured' },
+              { icon: <ClipboardDocumentCheckIcon className="w-6 h-6" />, label: 'ATU System Experts' },
+              { icon: <CheckCircleIcon className="w-6 h-6" />, label: 'Approved Installations' },
+              { icon: <ClockIcon className="w-6 h-6" />, label: 'Fast & On-Time Process' },
+              { icon: <WrenchScrewdriverIcon className="w-6 h-6" />, label: 'We Handle Everything' },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3">
                 <div className="text-yellow-400 text-2xl flex-shrink-0">{item.icon}</div>
@@ -203,7 +212,7 @@ const ATUInstallationPage = () => {
           <h2 className="text-4xl font-black text-white mb-10 uppercase leading-tight text-center">How Does an ATU System Work?</h2>
 
           {/* image — full width, no crop */}
-          <div className="bg-white rounded-2xl shadow-2xl p-6 mb-12">
+          <div className="bg-white rounded-2xl shadow-2xl p-1 mb-12">
             <img src={howItWorksImg} alt="How ATU system works" className="w-full h-auto object-contain" />
           </div>
 
@@ -245,7 +254,7 @@ const ATUInstallationPage = () => {
                 "Replacing an old or failed system in a restricted zone",
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <FaCheckCircle className="text-blue-600 flex-shrink-0 mt-0.5 text-lg" />
+                  <CheckCircleIcon className="text-blue-600 flex-shrink-0 mt-0.5 w-5 h-5" />
                   <span className="text-slate-700">{item}</span>
                 </li>
               ))}
@@ -279,7 +288,7 @@ const ATUInstallationPage = () => {
               '2-year maintenance plan (visits every 6 months)',
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-3 bg-slate-800 rounded-xl p-4">
-                <FaCheckCircle className="text-yellow-400 flex-shrink-0 mt-0.5" />
+                <CheckCircleIcon className="text-yellow-400 flex-shrink-0 mt-0.5 w-5 h-5" />
                 <span className="text-slate-200 text-sm">{item}</span>
               </div>
             ))}
@@ -307,7 +316,7 @@ const ATUInstallationPage = () => {
       </div>
 
       {/* ── SECTION 6: INSTALLATION PROCESS ── horizontal timeline ── */}
-      <div className="bg-blue-900 py-20 px-6">
+      <div className="bg-slate-900 py-20 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <p className="text-blue-300 text-xs font-bold uppercase tracking-widest mb-3">Step by Step</p>
@@ -354,14 +363,14 @@ const ATUInstallationPage = () => {
       </div>
 
       {/* ── SECTION 7: WHY CHOOSE US ── */}
-      <div className="bg-slate-800 py-20 px-6">
+      <div className="bg-slate-50 py-20 px-6">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
           <div className="overflow-hidden rounded-2xl shadow-2xl h-72 md:h-[420px]">
             <img src={photo4} alt="Zurcher Septic professionals" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" />
           </div>
           <div>
-            <p className="text-yellow-400 text-xs font-bold uppercase tracking-widest mb-3">Our Advantage</p>
-            <h2 className="text-4xl font-black text-white mb-8 uppercase leading-tight">Why Choose<br />Zurcher Septic?</h2>
+            <p className="text-blue-600 text-xs font-bold uppercase tracking-widest mb-3">Our Advantage</p>
+            <h2 className="text-4xl font-black text-slate-800 mb-8 uppercase leading-tight">Why Choose<br />Zurcher Septic?</h2>
             <div className="space-y-3">
               {[
                 'Licensed & insured — CFC1433240',
@@ -372,9 +381,9 @@ const ATUInstallationPage = () => {
                 'Fast turnaround — avg. 6–8 weeks',
                 'Clear communication every step of the way',
               ].map((item, i) => (
-                <div key={i} className="flex items-start gap-3 bg-slate-700/50 rounded-xl p-4">
-                  <FaCheckCircle className="text-yellow-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-slate-200 text-sm">{item}</span>
+                <div key={i} className="flex items-start gap-3 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                  <CheckCircleIcon className="text-blue-600 flex-shrink-0 mt-0.5 w-5 h-5" />
+                  <span className="text-slate-700 text-sm">{item}</span>
                 </div>
               ))}
             </div>
@@ -403,18 +412,18 @@ const ATUInstallationPage = () => {
               href="tel:+19546368200"
               className="flex items-center justify-center gap-3 bg-white/10 border-2 border-white hover:bg-white hover:text-blue-700 text-white font-bold px-10 py-5 rounded-xl text-lg transition-all duration-300"
             >
-              <FaPhone /> (954) 636-8200
+              <PhoneIcon className="w-5 h-5" /> (954) 636-8200
             </a>
           </div>
           <div className="flex flex-wrap justify-center gap-6 mt-10">
             <div className="flex items-center gap-2 text-blue-200 text-sm">
-              <FaCertificate className="text-yellow-400" /> Licensed CFC1433240
+              <StarIcon className="text-yellow-400 w-4 h-4" /> Licensed CFC1433240
             </div>
             <div className="flex items-center gap-2 text-blue-200 text-sm">
-              <FaCheckCircle className="text-yellow-400" /> 2-Year Maintenance Included
+              <CheckCircleIcon className="text-yellow-400 w-4 h-4" /> 2-Year Maintenance Included
             </div>
             <div className="flex items-center gap-2 text-blue-200 text-sm">
-              <FaShieldAlt className="text-yellow-400" /> Fully Insured
+              <ShieldCheckIcon className="text-yellow-400 w-4 h-4" /> Fully Insured
             </div>
           </div>
         </div>
