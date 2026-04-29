@@ -86,7 +86,7 @@ const RegularInstallationPage = () => {
         <div className="relative z-10 w-full px-8 md:px-14 pt-28 md:pt-24 pb-14">
           <div className="max-w-xl">
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Septic System Installation</p>
-            <h1 className="text-5xl md:text-6xl xl:text-7xl font-black text-yellow-400 leading-none uppercase mb-1">CONVENTIONAL</h1>
+            <h1 className="text-4xl md:text-6xl xl:text-7xl font-black text-yellow-400 leading-none uppercase mb-1">CONVENTIONAL</h1>
             <h2 className="text-2xl md:text-3xl font-black text-white uppercase mb-6">Septic System in Florida</h2>
             <p className="text-slate-300 text-base leading-relaxed mb-8">
               Reliable, code-compliant conventional septic installations adapted to your property's needs.
