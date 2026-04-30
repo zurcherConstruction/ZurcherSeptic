@@ -23,6 +23,11 @@ export default function FleetAssetCard({ asset, onClick }) {
   const status = statusConfig[asset.status] || statusConfig.inactive;
   const type = typeConfig[asset.assetType] || typeConfig.vehicle;
   const TypeIcon = type.icon;
+  const companyLabel = asset.companyType === 'zurcher'
+    ? 'ZURCHER'
+    : asset.companyType === 'invertech'
+      ? 'INVERTECH'
+      : (asset.companyOtherName || 'OTRA');
 
   const hasMileage = asset.assetType === 'vehicle' || asset.assetType === 'trailer';
   const hasHours = asset.assetType === 'machine' || asset.assetType === 'equipment';
@@ -38,7 +43,7 @@ export default function FleetAssetCard({ asset, onClick }) {
           <img
             src={asset.imageUrl}
             alt={asset.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-contain bg-white p-2 group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
           <div className={`flex items-center justify-center h-full bg-gradient-to-br ${type.gradient}`}>
@@ -65,6 +70,9 @@ export default function FleetAssetCard({ asset, onClick }) {
       {/* Info */}
       <div className="p-4">
         <h3 className="font-bold text-gray-800 truncate text-sm mb-0.5">{asset.name}</h3>
+        <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-100 mb-1">
+          {companyLabel}
+        </span>
         {(asset.brand || asset.model) && (
           <p className="text-xs text-gray-400 truncate">
             {[asset.brand, asset.model, asset.year].filter(Boolean).join(' · ')}

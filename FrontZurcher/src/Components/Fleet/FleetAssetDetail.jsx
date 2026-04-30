@@ -72,8 +72,12 @@ export default function FleetAssetDetail() {
 
   const handleLogMileage = async (e) => {
     e.preventDefault();
+    if ((!mileageForm.mileage || mileageForm.mileage === '') && (!mileageForm.hours || mileageForm.hours === '')) {
+      return toast.error('Ingresá millas, horas o ambos valores');
+    }
     try {
       await dispatch(logFleetMileage(id, mileageForm));
+      await dispatch(fetchFleetAssetById(id));
       toast.success('Mileaje/horas actualizado');
       setShowMileageModal(false);
       setMileageForm({ mileage: '', hours: '', recordedAt: new Date().toISOString().split('T')[0], notes: '' });
@@ -136,6 +140,11 @@ export default function FleetAssetDetail() {
 
   const statusInfo = statusConfig[asset.status] || statusConfig.inactive;
   const StatusIcon = statusInfo.icon;
+  const companyLabel = asset.companyType === 'zurcher'
+    ? 'ZURCHER'
+    : asset.companyType === 'invertech'
+      ? 'INVERTECH'
+      : (asset.companyOtherName || 'OTRA');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -184,7 +193,7 @@ export default function FleetAssetDetail() {
           {/* Imagen */}
           <div className="relative md:w-72 h-56 md:h-auto bg-gradient-to-br from-blue-600 to-blue-800 flex-shrink-0">
             {asset.imageUrl ? (
-              <img src={asset.imageUrl} alt={asset.name} className="w-full h-full object-cover" />
+              <img src={asset.imageUrl} alt={asset.name} className="w-full h-full object-contain bg-white/70" />
             ) : (
               <div className="flex items-center justify-center h-full">
                 {asset.assetType === 'machine' || asset.assetType === 'equipment' ? (
@@ -207,6 +216,9 @@ export default function FleetAssetDetail() {
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-800">{asset.name}</h2>
+                <span className="inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-100">
+                  {companyLabel}
+                </span>
                 <p className="text-gray-400 text-sm mt-0.5">
                   {[asset.brand, asset.model, asset.year].filter(Boolean).join(' · ')}
                 </p>
@@ -562,26 +574,23 @@ export default function FleetAssetDetail() {
               <button onClick={() => setShowMileageModal(false)} className="text-white/70 hover:text-white text-xl leading-none">✕</button>
             </div>
             <form onSubmit={handleLogMileage} className="p-5 space-y-4">
-              {isVehicle && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nuevo mileaje (mi)</label>
-                  <input type="number" value={mileageForm.mileage}
-                    onChange={(e) => setMileageForm((p) => ({ ...p, mileage: e.target.value }))}
-                    placeholder={`Actual: ${Number(asset.currentMileage || 0).toLocaleString()} mi`}
-                    min={asset.currentMileage || 0} step="0.1"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
-                </div>
-              )}
-              {isMachine && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nuevas horas</label>
-                  <input type="number" value={mileageForm.hours}
-                    onChange={(e) => setMileageForm((p) => ({ ...p, hours: e.target.value }))}
-                    placeholder={`Actual: ${Number(asset.currentHours || 0).toLocaleString()} hs`}
-                    min={asset.currentHours || 0} step="0.1"
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nuevo mileaje (mi)</label>
+                <input type="number" value={mileageForm.mileage}
+                  onChange={(e) => setMileageForm((p) => ({ ...p, mileage: e.target.value }))}
+                  placeholder={`Actual: ${Number(asset.currentMileage || 0).toLocaleString()} mi`}
+                  min={asset.currentMileage || 0} step="0.1"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Nuevas horas</label>
+                <input type="number" value={mileageForm.hours}
+                  onChange={(e) => setMileageForm((p) => ({ ...p, hours: e.target.value }))}
+                  placeholder={`Actual: ${Number(asset.currentHours || 0).toLocaleString()} hs`}
+                  min={asset.currentHours || 0} step="0.1"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50" />
+              </div>
+              <p className="text-xs text-gray-400">Podés actualizar solo millas, solo horas o ambos valores en el mismo registro.</p>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Fecha</label>
                 <input type="date" value={mileageForm.recordedAt}

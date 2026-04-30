@@ -95,12 +95,21 @@ const fleetSlice = createSlice({
       // Mileage
       .addMatcher((a) => a.type === LOG_FLEET_MILEAGE_SUCCESS, (state, action) => {
         state.loading = false;
-        const { assetId, asset } = action.payload;
+        const { assetId, asset, log } = action.payload;
         if (asset) {
           state.assets = state.assets.map((a) => (a.id === assetId ? { ...a, ...asset } : a));
           if (state.currentAsset?.id === assetId) {
-            state.currentAsset = { ...state.currentAsset, ...asset };
+            state.currentAsset = {
+              ...state.currentAsset,
+              ...asset,
+              mileageLogs: log
+                ? [log, ...(state.currentAsset.mileageLogs || [])]
+                : (state.currentAsset.mileageLogs || []),
+            };
           }
+        }
+        if (log) {
+          state.mileageLogs = [log, ...(state.mileageLogs || [])];
         }
       })
       .addMatcher((a) => a.type === FETCH_MILEAGE_LOGS_SUCCESS, (state, action) => {

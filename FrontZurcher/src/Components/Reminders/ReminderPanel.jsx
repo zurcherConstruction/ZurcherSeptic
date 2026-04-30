@@ -55,6 +55,14 @@ const EMPTY_FORM = {
 
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
+const getFleetCompanyFromReminder = (reminder) => {
+  if (reminder?.linkedEntityType !== 'fleet') return null;
+  const desc = reminder?.description || '';
+  const match = desc.match(/Empresa:\s*(.+)/i);
+  if (!match?.[1]) return null;
+  return match[1].trim().toUpperCase();
+};
+
 export default function ReminderPanel() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -109,6 +117,24 @@ export default function ReminderPanel() {
   });
 
   const pendingCount = reminders.filter(r => !r.myAssignment?.completed).length;
+
+  const groupedReminders = filtered.reduce((acc, reminder) => {
+    const company = getFleetCompanyFromReminder(reminder);
+    const key = company ? `fleet-${company}` : 'general';
+    const label = company ? `Fleet - ${company}` : 'General';
+
+    if (!acc[key]) {
+      acc[key] = { key, label, items: [] };
+    }
+    acc[key].items.push(reminder);
+    return acc;
+  }, {});
+
+  const sections = Object.values(groupedReminders).sort((a, b) => {
+    if (a.key === 'general') return -1;
+    if (b.key === 'general') return 1;
+    return a.label.localeCompare(b.label);
+  });
 
   // ---- Link entity search ----
   const handleLinkSearch = (query, entityType) => {
@@ -349,36 +375,50 @@ export default function ReminderPanel() {
             <p className="text-slate-400 text-sm mt-1">Crea uno nuevo con el botón de arriba</p>
           </div>
         ) : (
-        <div className="space-y-3">
-          {filtered.map(r => (
-            <ReminderCard
-              key={r.id}
-              reminder={r}
-              currentStaff={currentStaff}
-              isAdmin={isAdmin}
-              isEditing={editingId === r.id}
-              editForm={editForm}
-              setEditForm={setEditForm}
-              onEdit={() => startEdit(r)}
-              onSaveEdit={() => saveEdit(r.id)}
-              onCancelEdit={() => setEditingId(null)}
-              onToggleComplete={() => handleToggleComplete(r.id)}
-              onDelete={() => handleDelete(r.id)}
-              canManage={canManage(r)}
-              showComments={!!expandedComments[r.id]}
-              onToggleComments={() => toggleComments(r.id)}
-              commentInput={commentInputs[r.id] || ''}
-              onCommentChange={v => setCommentInputs(p => ({ ...p, [r.id]: v }))}
-              onAddComment={() => handleAddComment(r.id)}
-              onDeleteComment={(cId) => handleDeleteComment(r.id, cId)}
-              commentLoading={!!commentLoading[r.id]}
-              viewingAll={tab === 'all'}
-              onNavigateLink={() => navigate(
-                r.linkedEntityType === 'work'
-                  ? `/work/${r.linkedEntityId}`
-                  : '/budgets'
-              )}
-            />
+        <div className="space-y-5">
+          {sections.map(section => (
+            <div key={section.key}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs uppercase tracking-wider font-semibold text-slate-500">
+                  {section.label}
+                </h3>
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {section.items.length} item{section.items.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {section.items.map(r => (
+                  <ReminderCard
+                    key={r.id}
+                    reminder={r}
+                    currentStaff={currentStaff}
+                    isAdmin={isAdmin}
+                    isEditing={editingId === r.id}
+                    editForm={editForm}
+                    setEditForm={setEditForm}
+                    onEdit={() => startEdit(r)}
+                    onSaveEdit={() => saveEdit(r.id)}
+                    onCancelEdit={() => setEditingId(null)}
+                    onToggleComplete={() => handleToggleComplete(r.id)}
+                    onDelete={() => handleDelete(r.id)}
+                    canManage={canManage(r)}
+                    showComments={!!expandedComments[r.id]}
+                    onToggleComments={() => toggleComments(r.id)}
+                    commentInput={commentInputs[r.id] || ''}
+                    onCommentChange={v => setCommentInputs(p => ({ ...p, [r.id]: v }))}
+                    onAddComment={() => handleAddComment(r.id)}
+                    onDeleteComment={(cId) => handleDeleteComment(r.id, cId)}
+                    commentLoading={!!commentLoading[r.id]}
+                    viewingAll={tab === 'all'}
+                    onNavigateLink={() => navigate(
+                      r.linkedEntityType === 'work'
+                        ? `/work/${r.linkedEntityId}`
+                        : '/budgets'
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
         )}
@@ -671,6 +711,7 @@ function ReminderCard({
   const pCfg = PRIORITY_CONFIG[r.priority] || PRIORITY_CONFIG.medium;
   const tCfg = TYPE_CONFIG[r.type] || TYPE_CONFIG.personal;
   const TypeIcon = tCfg.icon;
+  const fleetCompany = getFleetCompanyFromReminder(r);
 
   const isCompleted = viewingAll
     ? r.assignments?.every(a => a.completed)
@@ -773,6 +814,11 @@ function ReminderCard({
 
             {/* Metadata row */}
             <div className="flex flex-wrap items-center gap-2 mt-2.5">
+              {fleetCompany && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                  {fleetCompany}
+                </span>
+              )}
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${pCfg.pill}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${pCfg.dot}`} />
                 {pCfg.label}

@@ -6,6 +6,8 @@ import { toast } from 'react-toastify';
 
 const initialForm = {
   assetType: 'vehicle',
+  companyType: 'zurcher',
+  companyOtherName: '',
   name: '',
   brand: '',
   model: '',
@@ -44,7 +46,12 @@ export default function FleetAssetForm({ onClose, onSuccess, assetToEdit }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      if (name === 'companyType' && value !== 'other') {
+        return { ...prev, companyType: value, companyOtherName: '' };
+      }
+      return { ...prev, [name]: value };
+    });
   };
 
   const handleImageSelect = (e) => {
@@ -65,6 +72,10 @@ export default function FleetAssetForm({ onClose, onSuccess, assetToEdit }) {
        'purchaseDate', 'insuranceExpiry', 'registrationExpiry'].forEach((k) => {
         if (!payload[k] || payload[k] === '') delete payload[k];
       });
+
+      if (payload.companyType !== 'other') {
+        delete payload.companyOtherName;
+      }
 
       let assetId;
       if (assetToEdit?.id) {
@@ -112,7 +123,7 @@ export default function FleetAssetForm({ onClose, onSuccess, assetToEdit }) {
               className="relative w-32 h-32 rounded-xl bg-gray-100 border-2 border-dashed border-gray-300 hover:border-blue-400 cursor-pointer overflow-hidden flex items-center justify-center group"
             >
               {imagePreview ? (
-                <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                <img src={imagePreview} alt="preview" className="w-full h-full object-contain bg-white" />
               ) : (
                 <div className="text-center text-gray-400 group-hover:text-blue-400">
                   <FaCamera className="text-2xl mx-auto mb-1" />
@@ -151,6 +162,37 @@ export default function FleetAssetForm({ onClose, onSuccess, assetToEdit }) {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Nombre */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Empresa *</label>
+              <select
+                name="companyType"
+                value={form.companyType}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="zurcher">ZURCHER</option>
+                <option value="invertech">INVERTECH</option>
+                <option value="other">OTRA</option>
+              </select>
+            </div>
+            {form.companyType === 'other' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de empresa *</label>
+                <input
+                  type="text"
+                  name="companyOtherName"
+                  value={form.companyOtherName || ''}
+                  onChange={handleChange}
+                  placeholder="Ej: Mi Empresa SRL"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            )}
           </div>
 
           {/* Nombre */}
