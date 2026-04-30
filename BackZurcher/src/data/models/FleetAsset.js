@@ -19,6 +19,20 @@ module.exports = (sequelize) => {
       comment: 'Tipo: vehicle=camioneta/auto, machine=excavadora/cargadora, equipment=herramienta pesada, trailer=remolque',
     },
 
+    // Empresa propietaria del activo
+    companyType: {
+      type: DataTypes.ENUM('zurcher', 'invertech', 'other'),
+      allowNull: false,
+      defaultValue: 'zurcher',
+      comment: 'Empresa: zurcher, invertech u otra',
+    },
+
+    companyOtherName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Nombre cuando companyType = other',
+    },
+
     // Identificación
     name: {
       type: DataTypes.STRING,

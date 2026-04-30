@@ -17,6 +17,24 @@ function sanitizeDates(data) {
   return result;
 }
 
+function sanitizeAssetPayload(data) {
+  const result = sanitizeDates(data);
+
+  if (!result.companyType) {
+    result.companyType = 'zurcher';
+  }
+
+  if (result.companyType !== 'other') {
+    result.companyOtherName = null;
+  } else if (!result.companyOtherName || !String(result.companyOtherName).trim()) {
+    result.companyOtherName = null;
+  } else {
+    result.companyOtherName = String(result.companyOtherName).trim();
+  }
+
+  return result;
+}
+
 const FleetController = {
 
   // ─────────────────────────────────────────────────────────────
@@ -92,7 +110,7 @@ const FleetController = {
 
   async createAsset(req, res) {
     try {
-      const data = sanitizeDates(req.body);
+      const data = sanitizeAssetPayload(req.body);
       const asset = await FleetAsset.create(data);
       res.status(201).json({ success: true, data: asset });
     } catch (error) {
@@ -107,7 +125,7 @@ const FleetController = {
       const asset = await FleetAsset.findByPk(id);
       if (!asset) return res.status(404).json({ success: false, message: 'Activo no encontrado' });
 
-      await asset.update(sanitizeDates(req.body));
+      await asset.update(sanitizeAssetPayload(req.body));
       res.json({ success: true, data: asset });
     } catch (error) {
       console.error('[FleetController.updateAsset]', error);
