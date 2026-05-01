@@ -26,13 +26,13 @@ const heroImgMobile = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,
 // Seccion 1 - What's Included  ->  archivo original: general.jpeg
 const img_incl = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_900/v1777473360/general_ydct7t.jpg';
 // Seccion 2 - How it works  ->  archivo original: tanqueinstalado.jpeg
-const img_how = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1777500154/regular_swvi7v.jpg';
+const img_how = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1777675842/regular_uy9bl4.jpg';
 // Seccion 3 - Process  ->  archivo original: Excavadora.jpeg
 const img_proc = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_900/v1777473994/Excavadora_jhbx6k.jpg';
 // Seccion 4 - Who needs it  ->  archivo original: atuPortada.jpeg
-const img_who = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1775762044/works/284559a7-91c2-4eef-aee1-1e45f6ea72fa/sistema%20instalado/frbhyqqsgcleixad8fp9.jpg';
+const img_who = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1766849824/works/e6676c9c-07a4-4943-b390-096e29a5b15a/trabajo%20cubierto/hxuqj4qk9rccvjv7mlvp.jpg';
 // Seccion 5 - Why choose us  ->  archivo original: chata2.jpeg
-const img_why = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1770840090/works/1f45c03d-9b4e-4b60-9750-725cf03e5f77/sistema%20instalado/ukrcylhdequ0yqlqfuoz.jpg';
+const img_why = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1766174828/works/68426718-a20c-428c-9e25-dbc5059fe703/materiales/owcaxzm36anxqowhoz4m.jpg';
 
 const ExcavatorIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
@@ -139,11 +139,51 @@ const RegularInstallationPage = () => {
       {/* SECTION 1: WHAT'S INCLUDED */}
       <div className="bg-white py-16 px-6">
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
 
-            {/* Col 1 — Título + Checklist */}
-            <div className="flex flex-col">
-              <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-8 uppercase">What's Included?</h2>
+          {/* ── MOBILE layout ── */}
+          <div className="md:hidden">
+            <h2 className="text-3xl font-black text-slate-800 mb-5 uppercase">What's Included?</h2>
+            {/* imagen full width, aspect ratio fijo */}
+            <div className="-mx-6 overflow-hidden aspect-[4/3] mb-6">
+              <img src={img_incl} alt="Septic drain field installation" className="w-full h-full object-cover" />
+            </div>
+            {/* checklist */}
+            <ul className="space-y-4 mb-6">
+              {[
+                'Coordination with engineers & soil studies (if needed)',
+                'Permit management with the Health Department',
+                'System design and tank sizing per approved plans',
+                'Complete excavation and installation',
+                'Private inspections to speed up timelines',
+                'Final inspection and certification',
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center">
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-slate-900" />
+                  </span>
+                  <span className="text-slate-700 text-sm leading-snug">{item}</span>
+                </li>
+              ))}
+            </ul>
+            {/* Important box horizontal */}
+            <div className="border-2 border-yellow-400 rounded-xl overflow-hidden">
+              <div className="bg-yellow-400 flex items-center gap-2 px-4 py-3">
+                <ExclamationCircleIcon className="w-5 h-5 text-slate-900 flex-shrink-0" />
+                <h3 className="text-slate-900 font-black text-sm uppercase tracking-widest">Important</h3>
+              </div>
+              <div className="bg-yellow-50 px-4 py-3 space-y-2">
+                <p className="text-slate-700 text-xs leading-relaxed">If you already have approved plans or design, we can start directly with the installation.</p>
+                <p className="text-slate-700 text-xs leading-relaxed">If you don't have them yet, we help you coordinate the entire process at no additional cost.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── DESKTOP layout ── */}
+          <div className="hidden md:flex flex-row gap-6 items-stretch">
+
+            {/* Col 1 — Título + Checklist ~28% */}
+            <div className="md:w-[28%] flex-shrink-0 flex flex-col">
+              <h2 className="text-4xl font-black text-slate-800 mb-8 uppercase">What's Included?</h2>
               <ul className="space-y-5">
                 {[
                   'Coordination with engineers & soil studies (if needed)',
@@ -163,24 +203,22 @@ const RegularInstallationPage = () => {
               </ul>
             </div>
 
-            {/* Col 2 — Photo */}
-            <div className="overflow-hidden rounded-xl shadow-lg min-h-[360px]">
+            {/* Col 2 — Photo ~48% */}
+            <div className="flex-1 overflow-hidden rounded-xl shadow-xl min-h-[360px]">
               <img src={img_incl} alt="Septic drain field installation" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" />
             </div>
 
-            {/* Col 3 — Important box */}
-            <div className="border-2 border-yellow-400 rounded-xl overflow-hidden flex flex-col">
-              {/* header amarillo */}
-              <div className="bg-yellow-400 flex flex-col items-center justify-center py-5 px-4">
-                <ExclamationCircleIcon className="w-8 h-8 text-slate-900 mb-2" />
-                <h3 className="text-slate-900 font-black text-base uppercase tracking-widest">Important</h3>
+            {/* Col 3 — Important box ~22% */}
+            <div className="w-[22%] flex-shrink-0 border-2 border-yellow-400 rounded-xl overflow-hidden flex flex-col">
+              <div className="bg-yellow-400 flex flex-col items-center justify-center py-4 px-3">
+                <ExclamationCircleIcon className="w-7 h-7 text-slate-900 mb-1.5" />
+                <h3 className="text-slate-900 font-black text-sm uppercase tracking-widest">Important</h3>
               </div>
-              {/* body con bg suave */}
               <div className="bg-yellow-50 flex flex-col flex-1 divide-y divide-yellow-200">
-                <p className="text-slate-700 text-sm leading-relaxed text-center px-6 py-5">
+                <p className="text-slate-700 text-xs leading-relaxed text-center px-4 py-4">
                   If you already have approved plans or design, we can start directly with the installation.
                 </p>
-                <p className="text-slate-700 text-sm leading-relaxed text-center px-6 py-5">
+                <p className="text-slate-700 text-xs leading-relaxed text-center px-4 py-4">
                   If you don't have them yet, we help you coordinate the entire process at no additional cost.
                 </p>
               </div>
