@@ -29,6 +29,8 @@ import {
 import LeadNotesModal from './LeadNotesModal';
 import EditLeadModal from './EditLeadModal';
 import SendProposalModal from './SendProposalModal';
+import LeadMergeModal from './LeadMergeModal';
+import DailyCallQueue from './DailyCallQueue';
 import WeeklyActivityReport from './WeeklyActivityReport';
 import MonthlyActivityReport from './MonthlyActivityReport';
 import api from '../../utils/axios';
@@ -143,6 +145,8 @@ const SalesLeads = () => {
 
   // Estados para modal de propuesta
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [showCallQueue, setShowCallQueue] = useState(false);
   const [leadForProposal, setLeadForProposal] = useState(null);
   const [proposalSentLeads, setProposalSentLeads] = useState(new Set());
 
@@ -545,6 +549,24 @@ const SalesLeads = () => {
               <ChartBarIcon className="h-5 w-5" />
               <span className="hidden md:inline">Reporte Mensual</span>
             </button>
+            {/* � Botón cola de llamadas */}
+            <button
+              onClick={() => setShowCallQueue(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 text-sm font-medium"
+              title="Cola de llamadas del día"
+            >
+              📋 <span className="hidden md:inline">Llamadas</span>
+            </button>
+            {/* �🔀 Botón unificar duplicados (solo admin/owner) */}
+            {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && (
+              <button
+                onClick={() => setShowMergeModal(true)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100 text-sm font-medium"
+                title="Detectar y unificar contactos duplicados"
+              >
+                🔀 <span className="hidden md:inline">Duplicados</span>
+              </button>
+            )}
             {/* 🧹 Botón limpiar sin contacto (solo admin/owner) */}
             {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && activityMetrics?.noContactCount > 0 && (
               <button
@@ -1331,6 +1353,24 @@ const SalesLeads = () => {
         />
       )}
 
+
+      {/* 📋 Drawer Cola de Llamadas */}
+      {showCallQueue && (
+        <DailyCallQueue
+          onClose={() => setShowCallQueue(false)}
+          onOpenNotes={(lead) => {
+            handleOpenNotes(lead);
+          }}
+        />
+      )}
+
+      {/* Unificar Duplicados Modal */}
+      {showMergeModal && (
+        <LeadMergeModal
+          onClose={() => setShowMergeModal(false)}
+          onMerged={() => loadLeads()}
+        />
+      )}
       {/* � Modal Reporte Semanal */}
       {showWeeklyReport && (
         <WeeklyActivityReport

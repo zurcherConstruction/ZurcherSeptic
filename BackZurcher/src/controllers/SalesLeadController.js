@@ -1331,6 +1331,221 @@ const SalesLeadController = {
         details: error.message 
       });
     }
+  },
+
+  // � Cola de llamadas diaria — devuelve N leads según preset
+  async callQueue(req, res) {
+    try {
+      const { preset = 'auto', limit = 20 } = req.query;
+      const n = Math.min(parseInt(limit) || 20, 50);
+      const excluded = ['archived', 'lost', 'won'];
+      const attrs = ['id', 'applicantName', 'applicantPhone', 'applicantEmail',
+                     'propertyAddress', 'status', 'priority', 'lastActivityDate', 'createdAt'];
+      let leads = [];
+
+      if (preset === 'new') {
+        // Nuevos sin contactar (status=new), los más antiguos primero
+        leads = await SalesLead.findAll({
+          where: { status: 'new' },
+          attributes: attrs,
+          order: [['createdAt', 'ASC']],
+          limit: n,
+        });
+
+      } else if (preset === 'alerts') {
+        // Leads con recordatorios activos
+        const alertRows = await LeadNote.findAll({
+          where: { isReminderActive: true },
+          attributes: [[sequelize.fn('DISTINCT', sequelize.col('lead_id')), 'leadId']],
+          raw: true,
+        });
+        const alertIds = alertRows.map(r => r.leadId);
+        leads = await SalesLead.findAll({
+          where: { id: { [Op.in]: alertIds }, status: { [Op.notIn]: excluded } },
+          attributes: attrs,
+          order: [['priority', 'DESC'], ['lastActivityDate', 'ASC']],
+          limit: n,
+        });
+
+      } else if (preset === 'inactive') {
+        // Sin actividad hace más de 7 días
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 7);
+        leads = await SalesLead.findAll({
+          where: {
+            status: { [Op.notIn]: excluded },
+            [Op.or]: [
+              { lastActivityDate: { [Op.lt]: cutoff } },
+              { lastActivityDate: null },
+            ],
+          },
+          attributes: attrs,
+          order: [[sequelize.literal('"lastActivityDate" ASC NULLS FIRST')]],
+          limit: n,
+        });
+
+      } else if (preset === 'priority') {
+        // Alta prioridad
+        leads = await SalesLead.findAll({
+          where: { priority: 'high', status: { [Op.notIn]: excluded } },
+          attributes: attrs,
+          order: [['lastActivityDate', 'ASC']],
+          limit: n,
+        });
+
+      } else {
+        // auto: scoring — prioridad + alertas + novedad + inactividad
+        const cutoff7 = new Date();
+        cutoff7.setDate(cutoff7.getDate() - 7);
+
+        const [allLeads, alertRows] = await Promise.all([
+          SalesLead.findAll({
+            where: { status: { [Op.notIn]: excluded } },
+            attributes: attrs,
+          }),
+          LeadNote.findAll({
+            where: { isReminderActive: true },
+            attributes: [[sequelize.fn('DISTINCT', sequelize.col('lead_id')), 'leadId']],
+            raw: true,
+          }),
+        ]);
+
+        const alertIds = new Set(alertRows.map(r => r.leadId));
+
+        const scored = allLeads.map(l => {
+          let score = 0;
+          if (l.priority === 'high')   score += 4;
+          if (l.priority === 'medium') score += 1;
+          if (alertIds.has(l.id))      score += 3;
+          if (l.status === 'new')        score += 2;
+          if (l.status === 'interested') score += 2;
+          if (l.status === 'contacted')  score += 1;
+          if (l.status === 'negotiating') score += 2;
+          const lastAct = l.lastActivityDate ? new Date(l.lastActivityDate) : null;
+          if (!lastAct || lastAct < cutoff7) score += 2;
+          return { lead: l, score };
+        });
+
+        scored.sort((a, b) => b.score - a.score || new Date(a.lead.createdAt) - new Date(b.lead.createdAt));
+        leads = scored.slice(0, n).map(s => s.lead);
+      }
+
+      res.json(leads.map(l => (l.toJSON ? l.toJSON() : l)));
+
+    } catch (error) {
+      console.error('Error al generar cola de llamadas:', error);
+      res.status(500).json({ error: 'Error al generar cola de llamadas', details: error.message });
+    }
+  },
+
+  // �🔀 Agrupar todos los leads duplicados por teléfono, email o nombre
+  async groupDuplicates(req, res) {
+    try {
+      const allLeads = await SalesLead.findAll({
+        where: { status: { [Op.ne]: 'archived' } },
+        attributes: ['id', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress', 'status', 'priority', 'createdAt', 'lastActivityDate'],
+        order: [['createdAt', 'ASC']]
+      });
+
+      const normPhone = (p) => (p || '').replace(/\D/g, '').slice(-10);
+      const normEmail = (e) => (e || '').trim().toLowerCase();
+      const normName  = (n) => (n || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+      // Agrupar por teléfono (≥10 dígitos)
+      const byPhone = {};
+      allLeads.forEach(l => {
+        const k = normPhone(l.applicantPhone);
+        if (k.length >= 10) {
+          if (!byPhone[k]) byPhone[k] = [];
+          byPhone[k].push(l);
+        }
+      });
+
+      // Agrupar por email
+      const byEmail = {};
+      allLeads.forEach(l => {
+        const k = normEmail(l.applicantEmail);
+        if (k.length > 3) {
+          if (!byEmail[k]) byEmail[k] = [];
+          byEmail[k].push(l);
+        }
+      });
+
+      // Agrupar por nombre (exacto normalizado)
+      const byName = {};
+      allLeads.forEach(l => {
+        const k = normName(l.applicantName);
+        if (k.length > 2) {
+          if (!byName[k]) byName[k] = [];
+          byName[k].push(l);
+        }
+      });
+
+      const toGroups = (map) =>
+        Object.values(map)
+          .filter(g => g.length > 1)
+          .map(g => g.map(l => l.toJSON()))
+          .sort((a, b) => b.length - a.length);
+
+      res.json({
+        byPhone: toGroups(byPhone),
+        byEmail: toGroups(byEmail),
+        byName:  toGroups(byName),
+        totalGroups: toGroups(byPhone).length + toGroups(byEmail).length + toGroups(byName).length
+      });
+
+    } catch (error) {
+      console.error('Error al agrupar duplicados:', error);
+      res.status(500).json({ error: 'Error al agrupar duplicados', details: error.message });
+    }
+  },
+
+  // 🔀 Mergear leads: conservar uno, mover notas de los demás y eliminarlos
+  async mergeLeads(req, res) {
+    const t = await sequelize.transaction();
+    try {
+      const { keepId, mergeIds } = req.body;
+
+      if (!keepId || !Array.isArray(mergeIds) || mergeIds.length === 0) {
+        await t.rollback();
+        return res.status(400).json({ error: 'keepId y mergeIds son requeridos' });
+      }
+
+      // Verificar que el lead a conservar existe
+      const keepLead = await SalesLead.findByPk(keepId, { transaction: t });
+      if (!keepLead) {
+        await t.rollback();
+        return res.status(404).json({ error: 'Lead a conservar no encontrado' });
+      }
+
+      // Mover todas las notas de los leads a mergear al lead ganador
+      await LeadNote.update(
+        { leadId: keepId },
+        { where: { leadId: { [Op.in]: mergeIds } }, transaction: t }
+      );
+
+      // Eliminar los leads duplicados
+      await SalesLead.destroy({
+        where: { id: { [Op.in]: mergeIds } },
+        transaction: t
+      });
+
+      await t.commit();
+
+      const updatedLead = await SalesLead.findByPk(keepId, {
+        include: [{ model: Staff, as: 'creator', attributes: ['id', 'name'] }]
+      });
+
+      res.json({
+        message: `${mergeIds.length} lead(s) mergeados correctamente en "${keepLead.applicantName}"`,
+        lead: updatedLead
+      });
+
+    } catch (error) {
+      await t.rollback();
+      console.error('Error al mergear leads:', error);
+      res.status(500).json({ error: 'Error al mergear leads', details: error.message });
+    }
   }
 };
 
