@@ -332,7 +332,7 @@ const CreateBudget = () => {
           { 
             category: "INSPECTION", 
             name: "PRIVATE INSPECTION",
-            description: "FIRST INSPECTION"
+            description: "FIRST INSPECTION (IF NECESSARY)"
           },
           // 4. PRIVATE INSPECTION FINAL - Siempre
           { 
