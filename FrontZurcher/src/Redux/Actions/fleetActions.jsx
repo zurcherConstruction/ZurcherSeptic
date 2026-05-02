@@ -24,32 +24,56 @@ export const FETCH_MILEAGE_LOGS_SUCCESS = 'FETCH_MILEAGE_LOGS_SUCCESS';
 // Stats
 export const FETCH_FLEET_STATS_SUCCESS = 'FETCH_FLEET_STATS_SUCCESS';
 
+// Upcoming alerts
+export const FETCH_FLEET_UPCOMING_SUCCESS = 'FETCH_FLEET_UPCOMING_SUCCESS';
+
 const handleError = (error, fallback) =>
   error.response?.data?.message || error.message || fallback;
 
+const FLEET_DASHBOARD_CACHE_MS = 15000;
+let statsInFlightPromise = null;
+const upcomingInFlightMap = new Map();
+let assetsInFlightPromise = null;
+
 // ─── Assets ──────────────────────────────────────────────────────────────
 
-export const fetchFleetAssets = (params = {}) => async (dispatch) => {
-  dispatch({ type: FLEET_REQUEST });
-  try {
-    const queryString = new URLSearchParams(params).toString();
-    const response = await api.get(`/fleet?${queryString}`);
-    dispatch({ type: FETCH_FLEET_ASSETS_SUCCESS, payload: response.data.data });
-    return response.data.data;
-  } catch (error) {
-    dispatch({ type: FLEET_FAILURE, payload: handleError(error, 'Error obteniendo flota') });
+export const fetchFleetAssets = (params = {}, opts = {}) => async (dispatch, getState) => {
+  const { force } = opts;
+  const hasParams = Object.keys(params).length > 0;
+  if (!force && !hasParams) {
+    const { assetsFetchedAt } = getState().fleet;
+    if (assetsFetchedAt && Date.now() - assetsFetchedAt < FLEET_DASHBOARD_CACHE_MS) return;
+    if (assetsInFlightPromise) return assetsInFlightPromise;
   }
+  dispatch({ type: FLEET_REQUEST });
+  const queryString = new URLSearchParams(params).toString();
+  const promise = api.get(`/fleet?${queryString}`).then(response => {
+    dispatch({ type: FETCH_FLEET_ASSETS_SUCCESS, payload: response.data.data });
+    if (!hasParams) assetsInFlightPromise = null;
+    return response.data.data;
+  }).catch(error => {
+    if (!hasParams) assetsInFlightPromise = null;
+    dispatch({ type: FLEET_FAILURE, payload: handleError(error, 'Error obteniendo flota') });
+  });
+  if (!hasParams) assetsInFlightPromise = promise;
+  return promise;
 };
 
+const assetByIdInFlight = new Map();
+
 export const fetchFleetAssetById = (id) => async (dispatch) => {
+  if (assetByIdInFlight.has(id)) return assetByIdInFlight.get(id);
   dispatch({ type: FLEET_REQUEST });
-  try {
-    const response = await api.get(`/fleet/${id}`);
+  const promise = api.get(`/fleet/${id}`).then(response => {
     dispatch({ type: FETCH_FLEET_ASSET_SUCCESS, payload: response.data.data });
+    assetByIdInFlight.delete(id);
     return response.data.data;
-  } catch (error) {
+  }).catch(error => {
+    assetByIdInFlight.delete(id);
     dispatch({ type: FLEET_FAILURE, payload: handleError(error, 'Error obteniendo activo') });
-  }
+  });
+  assetByIdInFlight.set(id, promise);
+  return promise;
 };
 
 export const createFleetAsset = (data) => async (dispatch) => {
@@ -178,12 +202,66 @@ export const deleteMaintenance = (assetId, maintenanceId) => async (dispatch) =>
 
 // ─── Stats ────────────────────────────────────────────────────────────────
 
-export const fetchFleetStats = () => async (dispatch) => {
-  try {
-    const response = await api.get('/fleet/stats');
-    dispatch({ type: FETCH_FLEET_STATS_SUCCESS, payload: response.data.data });
-    return response.data.data;
-  } catch (error) {
-    dispatch({ type: FLEET_FAILURE, payload: handleError(error, 'Error obteniendo estadísticas') });
+export const fetchFleetStats = (options = {}) => async (dispatch, getState) => {
+  const { force = false } = options;
+  const state = getState()?.fleet || {};
+
+  if (!force && state.stats && state.statsFetchedAt && (Date.now() - state.statsFetchedAt) < FLEET_DASHBOARD_CACHE_MS) {
+    return state.stats;
   }
+
+  if (!force && statsInFlightPromise) {
+    return statsInFlightPromise;
+  }
+
+  statsInFlightPromise = (async () => {
+    try {
+      const response = await api.get('/fleet/stats');
+      dispatch({ type: FETCH_FLEET_STATS_SUCCESS, payload: response.data.data });
+      return response.data.data;
+    } catch (error) {
+      dispatch({ type: FLEET_FAILURE, payload: handleError(error, 'Error obteniendo estadísticas') });
+      throw error;
+    } finally {
+      statsInFlightPromise = null;
+    }
+  })();
+
+  return statsInFlightPromise;
+};
+
+export const fetchFleetUpcoming = (days = 30, options = {}) => async (dispatch, getState) => {
+  const { force = false } = options;
+  const state = getState()?.fleet || {};
+  const cacheKey = String(days);
+
+  if (
+    !force &&
+    state.upcoming &&
+    state.upcomingFetchedAt &&
+    state.upcomingDays === days &&
+    (Date.now() - state.upcomingFetchedAt) < FLEET_DASHBOARD_CACHE_MS
+  ) {
+    return state.upcoming;
+  }
+
+  if (!force && upcomingInFlightMap.has(cacheKey)) {
+    return upcomingInFlightMap.get(cacheKey);
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const response = await api.get(`/fleet/upcoming?days=${days}`);
+      dispatch({ type: FETCH_FLEET_UPCOMING_SUCCESS, payload: response.data.data, meta: { days } });
+      return response.data.data;
+    } catch (error) {
+      dispatch({ type: FLEET_FAILURE, payload: handleError(error, 'Error obteniendo alertas próximas') });
+      throw error;
+    } finally {
+      upcomingInFlightMap.delete(cacheKey);
+    }
+  })();
+
+  upcomingInFlightMap.set(cacheKey, requestPromise);
+  return requestPromise;
 };

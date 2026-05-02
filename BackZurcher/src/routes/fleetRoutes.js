@@ -20,6 +20,12 @@ router.use(verifyToken);
 // ─── Stats ───────────────────────────────────────────────
 router.get('/stats', FleetController.getFleetStats);
 
+// ─── Export ──────────────────────────────────────────────
+router.get('/export', FleetController.exportFleetReport);
+
+// ─── Upcoming Alerts ─────────────────────────────────────
+router.get('/upcoming', FleetController.getUpcomingAlerts);
+
 // ─── Assets ──────────────────────────────────────────────
 router.get('/', FleetController.getAllAssets);
 router.post('/', FleetController.createAsset);
