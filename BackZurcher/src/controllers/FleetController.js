@@ -1,6 +1,7 @@
 const { FleetAsset, FleetMaintenance, FleetMileageLog, Staff } = require('../data');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { Op } = require('sequelize');
+const ExcelJS = require('exceljs');
 
 // Convierte strings vacíos o "Invalid date" en null para campos de fecha
 const DATE_FIELDS = ['purchaseDate', 'insuranceExpiry', 'registrationExpiry', 'serviceDate', 'nextServiceDate', 'recordedAt'];
@@ -77,31 +78,33 @@ const FleetController = {
     try {
       const { id } = req.params;
 
-      const asset = await FleetAsset.findByPk(id, {
-        include: [
-          { model: Staff, as: 'assignedTo', attributes: ['id', 'name', 'email'] },
-          {
-            model: FleetMaintenance,
-            as: 'maintenances',
-            include: [
-              { model: Staff, as: 'performedBy', attributes: ['id', 'name'] },
-              { model: Staff, as: 'createdBy', attributes: ['id', 'name'] },
-            ],
-            order: [['serviceDate', 'DESC']],
-          },
-          {
-            model: FleetMileageLog,
-            as: 'mileageLogs',
-            include: [{ model: Staff, as: 'recordedBy', attributes: ['id', 'name'] }],
-            order: [['recordedAt', 'DESC']],
-            limit: 20,
-          },
-        ],
-      });
+      const [asset, maintenances, mileageLogs] = await Promise.all([
+        FleetAsset.findByPk(id, {
+          include: [{ model: Staff, as: 'assignedTo', attributes: ['id', 'name', 'email'] }],
+        }),
+        FleetMaintenance.findAll({
+          where: { assetId: id },
+          include: [
+            { model: Staff, as: 'performedBy', attributes: ['id', 'name'] },
+            { model: Staff, as: 'createdBy', attributes: ['id', 'name'] },
+          ],
+          order: [['serviceDate', 'DESC']],
+        }),
+        FleetMileageLog.findAll({
+          where: { assetId: id },
+          include: [{ model: Staff, as: 'recordedBy', attributes: ['id', 'name'] }],
+          order: [['recordedAt', 'DESC']],
+          limit: 20,
+        }),
+      ]);
 
       if (!asset) return res.status(404).json({ success: false, message: 'Activo no encontrado' });
 
-      res.json({ success: true, data: asset });
+      const data = asset.toJSON();
+      data.maintenances = maintenances.map((m) => m.toJSON());
+      data.mileageLogs = mileageLogs.map((l) => l.toJSON());
+
+      res.json({ success: true, data });
     } catch (error) {
       console.error('[FleetController.getAssetById]', error);
       res.status(500).json({ success: false, message: 'Error obteniendo activo' });
@@ -385,6 +388,303 @@ const FleetController = {
     } catch (error) {
       console.error('[FleetController.uploadMaintenanceAttachment]', error);
       res.status(500).json({ success: false, message: 'Error subiendo adjunto' });
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // UPCOMING ALERTS (placa, seguro, service)
+  // ─────────────────────────────────────────────────────────────
+
+  async getUpcomingAlerts(req, res) {
+    try {
+      const days = Number(req.query.days || 30);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const maxDate = new Date(today);
+      maxDate.setDate(today.getDate() + days);
+
+      const toISO = (d) => d.toISOString().split('T')[0];
+      const parseDateOnly = (value) => {
+        if (!value) return null;
+        const str = String(value);
+        const match = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return null;
+        const [, y, m, day] = match;
+        return new Date(Number(y), Number(m) - 1, Number(day));
+      };
+      const normalizeDateOnly = (value) => {
+        if (!value) return null;
+        const str = String(value);
+        const match = str.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return str;
+        return `${match[1]}-${match[2]}-${match[3]}`;
+      };
+      const getDaysLeft = (value) => {
+        const d = parseDateOnly(value);
+        if (!d) return null;
+        return Math.ceil((d - today) / 86400000);
+      };
+
+      // Assets con vencimientos próximos
+      const assets = await FleetAsset.findAll({
+        where: {
+          status: { [Op.ne]: 'retired' },
+          [Op.or]: [
+            { registrationExpiry: { [Op.between]: [toISO(today), toISO(maxDate)] } },
+            { insuranceExpiry: { [Op.between]: [toISO(today), toISO(maxDate)] } },
+          ],
+        },
+        attributes: ['id', 'name', 'assetType', 'companyType', 'companyOtherName', 'licensePlate', 'serialNumber', 'imageUrl', 'registrationExpiry', 'insuranceExpiry'],
+        order: [['name', 'ASC']],
+      });
+
+      const registrations = assets
+        .filter((a) => a.registrationExpiry && a.registrationExpiry >= toISO(today) && a.registrationExpiry <= toISO(maxDate))
+        .map((a) => ({
+          assetId: a.id, name: a.name, assetType: a.assetType,
+          companyType: a.companyType, companyOtherName: a.companyOtherName,
+          plate: a.licensePlate || a.serialNumber || 'S/D',
+          imageUrl: a.imageUrl,
+          date: normalizeDateOnly(a.registrationExpiry),
+          daysLeft: getDaysLeft(a.registrationExpiry),
+        }))
+        .sort((a, b) => a.daysLeft - b.daysLeft);
+
+      const insurances = assets
+        .filter((a) => a.insuranceExpiry && a.insuranceExpiry >= toISO(today) && a.insuranceExpiry <= toISO(maxDate))
+        .map((a) => ({
+          assetId: a.id, name: a.name, assetType: a.assetType,
+          companyType: a.companyType, companyOtherName: a.companyOtherName,
+          plate: a.licensePlate || a.serialNumber || 'S/D',
+          imageUrl: a.imageUrl,
+          date: normalizeDateOnly(a.insuranceExpiry),
+          daysLeft: getDaysLeft(a.insuranceExpiry),
+        }))
+        .sort((a, b) => a.daysLeft - b.daysLeft);
+
+      const maintenances = await FleetMaintenance.findAll({
+        where: {
+          status: 'scheduled',
+          nextServiceDate: { [Op.between]: [toISO(today), toISO(maxDate)] },
+        },
+        include: [{
+          model: FleetAsset,
+          as: 'asset',
+          where: { status: { [Op.ne]: 'retired' } },
+          attributes: ['id', 'name', 'assetType', 'companyType', 'companyOtherName', 'licensePlate', 'serialNumber', 'imageUrl'],
+        }],
+        order: [['nextServiceDate', 'ASC']],
+      });
+
+      const services = maintenances.map((m) => ({
+        maintenanceId: m.id,
+        assetId: m.asset.id,
+        name: m.asset.name,
+        assetType: m.asset.assetType,
+        companyType: m.asset.companyType,
+        companyOtherName: m.asset.companyOtherName,
+        plate: m.asset.licensePlate || m.asset.serialNumber || 'S/D',
+        imageUrl: m.asset.imageUrl,
+        maintenanceType: m.maintenanceType,
+        serviceNumber: m.serviceNumber,
+        date: normalizeDateOnly(m.nextServiceDate),
+        daysLeft: getDaysLeft(m.nextServiceDate),
+      }));
+
+      res.json({
+        success: true,
+        data: { registrations, insurances, services },
+      });
+    } catch (error) {
+      console.error('[FleetController.getUpcomingAlerts]', error);
+      res.status(500).json({ success: false, message: 'Error obteniendo alertas' });
+    }
+  },
+
+  // ─────────────────────────────────────────────────────────────
+  // EXPORT REPORT (Excel)
+  // ─────────────────────────────────────────────────────────────
+
+  async exportFleetReport(req, res) {
+    try {
+      const { month, year } = req.query;
+
+      const assets = await FleetAsset.findAll({
+        where: { status: { [Op.ne]: 'retired' } },
+        include: [
+          { model: Staff, as: 'assignedTo', attributes: ['id', 'name'] },
+          {
+            model: FleetMaintenance,
+            as: 'maintenances',
+            include: [{ model: Staff, as: 'performedBy', attributes: ['id', 'name'] }],
+            order: [['serviceDate', 'DESC']],
+          },
+        ],
+        order: [['name', 'ASC']],
+      });
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'ZurcherSystem';
+      wb.created = new Date();
+
+      const HEADER_FILL = {
+        type: 'pattern', pattern: 'solid',
+        fgColor: { argb: 'FF1D4ED8' },
+      };
+      const HEADER_FONT = { name: 'Calibri', bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+      const BORDER = {
+        top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+        right: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+      };
+
+      const companyLabel = (asset) => {
+        if (asset.companyType === 'zurcher') return 'ZURCHER';
+        if (asset.companyType === 'invertech') return 'INVERTECH';
+        if (asset.companyType === 'other') return asset.companyOtherName || 'OTRA';
+        return 'ZURCHER';
+      };
+
+      const fmtDate = (d) => {
+        if (!d) return '';
+        try {
+          return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        } catch { return ''; }
+      };
+
+      const fmtCurrency = (n) => (n != null ? `$${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2 })}` : '');
+
+      const COLUMNS = [
+        { header: 'Nombre', key: 'name', width: 24 },
+        { header: 'Marca', key: 'brand', width: 16 },
+        { header: 'Modelo', key: 'model', width: 16 },
+        { header: 'Año', key: 'year', width: 8 },
+        { header: 'Placa / Serie', key: 'plate', width: 18 },
+        { header: 'Color', key: 'color', width: 12 },
+        { header: 'Combustible', key: 'fuelType', width: 14 },
+        { header: 'Empresa', key: 'company', width: 14 },
+        { header: 'Estado', key: 'status', width: 14 },
+        { header: 'Km / Millas actuales', key: 'mileage', width: 20 },
+        { header: 'Horas actuales', key: 'hours', width: 16 },
+        { header: 'Asignado a', key: 'assignedTo', width: 20 },
+        { header: 'Fecha Compra', key: 'purchaseDate', width: 16 },
+        { header: 'Precio Compra', key: 'purchasePrice', width: 18 },
+        { header: 'Venc. Seguro', key: 'insuranceExpiry', width: 16 },
+        { header: 'Venc. Placa', key: 'registrationExpiry', width: 16 },
+        { header: 'Último Service', key: 'lastServiceDate', width: 16 },
+        { header: 'Tipo Último Service', key: 'lastServiceType', width: 22 },
+        { header: 'Costo Último Service', key: 'lastServiceCost', width: 22 },
+        { header: 'Próx. Service Fecha', key: 'nextServiceDate', width: 20 },
+        { header: 'Próx. Service Km/Mi', key: 'nextServiceMileage', width: 20 },
+        { header: 'Notas', key: 'notes', width: 30 },
+      ];
+
+      const statusLabels = {
+        active: 'Operativo', in_repair: 'En Taller',
+        inactive: 'Inactivo', retired: 'Retirado',
+      };
+
+      const buildRow = (asset) => {
+        const lastMaint = (asset.maintenances || []).find((m) => m.status === 'completed');
+        const nextMaint = (asset.maintenances || []).find((m) => m.status === 'scheduled');
+        return {
+          name: asset.name || '',
+          brand: asset.brand || '',
+          model: asset.model || '',
+          year: asset.year || '',
+          plate: asset.licensePlate || asset.serialNumber || '',
+          color: asset.color || '',
+          fuelType: asset.fuelType || '',
+          company: companyLabel(asset),
+          status: statusLabels[asset.status] || asset.status,
+          mileage: asset.currentMileage != null ? asset.currentMileage : '',
+          hours: asset.currentHours != null ? asset.currentHours : '',
+          assignedTo: asset.assignedTo?.name || '',
+          purchaseDate: fmtDate(asset.purchaseDate),
+          purchasePrice: fmtCurrency(asset.purchasePrice),
+          insuranceExpiry: fmtDate(asset.insuranceExpiry),
+          registrationExpiry: fmtDate(asset.registrationExpiry),
+          lastServiceDate: lastMaint ? fmtDate(lastMaint.serviceDate) : '',
+          lastServiceType: lastMaint?.maintenanceType || '',
+          lastServiceCost: lastMaint ? fmtCurrency(lastMaint.cost) : '',
+          nextServiceDate: nextMaint ? fmtDate(nextMaint.nextServiceDate) : '',
+          nextServiceMileage: nextMaint?.nextServiceMileage != null ? nextMaint.nextServiceMileage : '',
+          notes: asset.notes || '',
+        };
+      };
+
+      const applyHeaderStyle = (sheet) => {
+        sheet.getRow(1).eachCell((cell) => {
+          cell.fill = HEADER_FILL;
+          cell.font = HEADER_FONT;
+          cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+          cell.border = BORDER;
+        });
+        sheet.getRow(1).height = 28;
+      };
+
+      const applyDataStyle = (sheet, rowIdx) => {
+        const row = sheet.getRow(rowIdx);
+        const isEven = rowIdx % 2 === 0;
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: 'middle', wrapText: false };
+          cell.border = BORDER;
+          if (isEven) {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FF' } };
+          }
+        });
+      };
+
+      const buildSheet = (sheetName, filteredAssets) => {
+        const ws = wb.addWorksheet(sheetName);
+        ws.columns = COLUMNS;
+
+        const periodLabel = month && year
+          ? `Reporte ${String(month).padStart(2, '0')}/${year}`
+          : `Reporte ${new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}`;
+
+        // Title row
+        ws.insertRow(1, []);
+        ws.mergeCells(1, 1, 1, COLUMNS.length);
+        const titleCell = ws.getCell('A1');
+        titleCell.value = `${sheetName} - ${periodLabel}`;
+        titleCell.font = { name: 'Calibri', bold: true, size: 14, color: { argb: 'FF1D4ED8' } };
+        titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getRow(1).height = 32;
+
+        // Header row is now row 2
+        applyHeaderStyle(ws);
+
+        filteredAssets.forEach((asset, i) => {
+          ws.addRow(buildRow(asset));
+          applyDataStyle(ws, i + 3); // row 1=title, row 2=headers
+        });
+
+        // Auto-freeze header rows
+        ws.views = [{ state: 'frozen', xSplit: 0, ySplit: 2, topLeftCell: 'A3', activeCell: 'A3' }];
+        return ws;
+      };
+
+      // Separate by type: "Vehículos" = vehicle + trailer, "Maquinaria" = machine + equipment
+      const vehicles = assets.filter((a) => ['vehicle', 'trailer'].includes(a.assetType));
+      const machinery = assets.filter((a) => ['machine', 'equipment'].includes(a.assetType));
+
+      buildSheet('Vehículos', vehicles);
+      buildSheet('Maquinaria', machinery);
+
+      const monthStr = month ? String(month).padStart(2, '0') : String(new Date().getMonth() + 1).padStart(2, '0');
+      const yearStr = year || new Date().getFullYear();
+      const filename = `Fleet_Report_${yearStr}_${monthStr}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+      await wb.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error('[FleetController.exportFleetReport]', error);
+      res.status(500).json({ success: false, message: 'Error generando reporte' });
     }
   },
 

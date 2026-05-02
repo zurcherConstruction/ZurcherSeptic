@@ -95,6 +95,8 @@ export const formatDateOnly = (dateString, format = 'DD/MM/YYYY') => {
       return `${day}/${month}/${year}`;
     case 'MM/DD/YYYY':
       return `${month}/${day}/${year}`;
+    case 'MM-DD-YYYY':
+      return `${month}-${day}-${year}`;
     case 'YYYY-MM-DD':
       return `${year}-${month}-${day}`;
     default:

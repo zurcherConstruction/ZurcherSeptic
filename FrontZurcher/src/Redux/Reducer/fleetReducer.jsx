@@ -6,7 +6,7 @@ import {
   FETCH_FLEET_MAINTENANCE_SUCCESS, CREATE_FLEET_MAINTENANCE_SUCCESS,
   UPDATE_FLEET_MAINTENANCE_SUCCESS, DELETE_FLEET_MAINTENANCE_SUCCESS,
   LOG_FLEET_MILEAGE_SUCCESS, FETCH_MILEAGE_LOGS_SUCCESS,
-  FETCH_FLEET_STATS_SUCCESS,
+  FETCH_FLEET_STATS_SUCCESS, FETCH_FLEET_UPCOMING_SUCCESS,
 } from '../Actions/fleetActions';
 
 const initialState = {
@@ -14,7 +14,16 @@ const initialState = {
   currentAsset: null,
   maintenanceByAsset: {}, // { [assetId]: [records] }
   mileageLogs: [],
+  assets: [],
+  assetsFetchedAt: null,
+  currentAsset: null,
+  maintenanceByAsset: {}, // { [assetId]: [records] }
+  mileageLogs: [],
   stats: null,
+  statsFetchedAt: null,
+  upcoming: null, // { registrations, insurances, services }
+  upcomingFetchedAt: null,
+  upcomingDays: null,
   loading: false,
   error: null,
 };
@@ -36,7 +45,9 @@ const fleetSlice = createSlice({
       })
       // Assets
       .addMatcher((a) => a.type === FETCH_FLEET_ASSETS_SUCCESS, (state, action) => {
-        state.loading = false; state.assets = action.payload || [];
+        state.loading = false;
+        state.assets = action.payload || [];
+        state.assetsFetchedAt = Date.now();
       })
       .addMatcher((a) => a.type === FETCH_FLEET_ASSET_SUCCESS, (state, action) => {
         state.loading = false; state.currentAsset = action.payload;
@@ -118,6 +129,13 @@ const fleetSlice = createSlice({
       // Stats
       .addMatcher((a) => a.type === FETCH_FLEET_STATS_SUCCESS, (state, action) => {
         state.stats = action.payload;
+        state.statsFetchedAt = Date.now();
+      })
+      // Upcoming alerts
+      .addMatcher((a) => a.type === FETCH_FLEET_UPCOMING_SUCCESS, (state, action) => {
+        state.upcoming = action.payload;
+        state.upcomingFetchedAt = Date.now();
+        state.upcomingDays = action.meta?.days || null;
       });
   },
 });

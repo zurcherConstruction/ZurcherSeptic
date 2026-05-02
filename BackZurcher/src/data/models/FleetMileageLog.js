@@ -60,5 +60,9 @@ module.exports = (sequelize) => {
   }, {
     timestamps: true,
     tableName: 'fleet_mileage_logs',
+    indexes: [
+      { fields: ['assetId'] },
+      { fields: ['assetId', 'recordedAt'] },
+    ],
   });
 };

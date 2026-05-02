@@ -9,12 +9,14 @@ import {
 } from 'react-icons/fa';
 import {
   fetchFleetAssetById, updateFleetAsset, deleteFleetAsset,
-  fetchMaintenanceByAsset, logFleetMileage, fetchMileageLogs,
+  logFleetMileage, fetchMileageLogs,
   uploadFleetAssetImage, deleteMaintenance
 } from '../../Redux/Actions/fleetActions';
 import FleetMaintenanceForm from './FleetMaintenanceForm';
 import FleetAssetForm from './FleetAssetForm';
 import { toast } from 'react-toastify';
+import { formatDateOnly, parseDateOnly } from '../../utils/dateHelpers';
+import { clearCurrentAsset } from '../../Redux/Reducer/fleetReducer';
 
 const statusConfig = {
   active: { label: 'Operativo', color: 'bg-green-100 text-green-700 border border-green-200', dot: 'bg-green-500', icon: FaCheckCircle },
@@ -49,16 +51,20 @@ export default function FleetAssetDetail() {
   const [showMileageModal, setShowMileageModal] = useState(false);
   const [mileageForm, setMileageForm] = useState({ mileage: '', hours: '', recordedAt: new Date().toISOString().split('T')[0], notes: '' });
 
-  const asset = currentAsset;
+  const asset = currentAsset && String(currentAsset.id) === String(id) ? currentAsset : null;
   const maintenances = maintenanceByAsset[id] || asset?.maintenances || [];
 
   const isOwnerOrAdmin = ['owner', 'admin'].includes(currentStaff?.role);
   const isVehicle = asset?.assetType === 'vehicle' || asset?.assetType === 'trailer';
   const isMachine = asset?.assetType === 'machine' || asset?.assetType === 'equipment';
+  const formatFleetDate = (value) => {
+    const formatted = formatDateOnly(value, 'MM-DD-YYYY');
+    return formatted === 'N/A' ? '' : formatted;
+  };
 
   useEffect(() => {
+    dispatch(clearCurrentAsset());
     dispatch(fetchFleetAssetById(id));
-    dispatch(fetchMaintenanceByAsset(id));
   }, [dispatch, id]);
 
   const handleStatusChange = async (newStatus) => {
@@ -111,8 +117,11 @@ export default function FleetAssetDetail() {
   // Verificar vencimientos próximos (30 días)
   const checkExpiry = (dateStr) => {
     if (!dateStr) return null;
-    const date = new Date(dateStr);
-    const daysLeft = Math.ceil((date - new Date()) / (1000 * 60 * 60 * 24));
+    const date = parseDateOnly(dateStr);
+    if (!date) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysLeft = Math.ceil((date - today) / (1000 * 60 * 60 * 24));
     if (daysLeft < 0) return { status: 'expired', label: 'Vencido', color: 'text-red-600' };
     if (daysLeft <= 30) return { status: 'warning', label: `Vence en ${daysLeft}d`, color: 'text-yellow-600' };
     return { status: 'ok', label: `${daysLeft}d restantes`, color: 'text-green-600' };
@@ -353,7 +362,7 @@ export default function FleetAssetDetail() {
                   </div>
                   {m.nextServiceDate && (
                     <span className="text-xs text-yellow-600 font-medium">
-                      {new Date(m.nextServiceDate).toLocaleDateString()}
+                      {formatFleetDate(m.nextServiceDate)}
                     </span>
                   )}
                 </div>
@@ -370,10 +379,10 @@ export default function FleetAssetDetail() {
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
               {asset.color && <><dt className="text-gray-400">Color</dt><dd className="text-gray-700">{asset.color}</dd></>}
               {asset.fuelType && asset.fuelType !== 'none' && <><dt className="text-gray-400">Combustible</dt><dd className="text-gray-700 capitalize">{asset.fuelType}</dd></>}
-              {asset.purchaseDate && <><dt className="text-gray-400">Fecha de compra</dt><dd className="text-gray-700">{new Date(asset.purchaseDate).toLocaleDateString()}</dd></>}
+              {asset.purchaseDate && <><dt className="text-gray-400">Fecha de compra</dt><dd className="text-gray-700">{formatFleetDate(asset.purchaseDate)}</dd></>}
               {asset.purchasePrice && <><dt className="text-gray-400">Precio de compra</dt><dd className="text-gray-700">${Number(asset.purchasePrice).toLocaleString()}</dd></>}
-              {asset.insuranceExpiry && <><dt className="text-gray-400">Seguro vence</dt><dd className="text-gray-700">{new Date(asset.insuranceExpiry).toLocaleDateString()}</dd></>}
-              {asset.registrationExpiry && <><dt className="text-gray-400">Registración vence</dt><dd className="text-gray-700">{new Date(asset.registrationExpiry).toLocaleDateString()}</dd></>}
+              {asset.insuranceExpiry && <><dt className="text-gray-400">Seguro vence</dt><dd className="text-gray-700">{formatFleetDate(asset.insuranceExpiry)}</dd></>}
+              {asset.registrationExpiry && <><dt className="text-gray-400">Registración vence</dt><dd className="text-gray-700">{formatFleetDate(asset.registrationExpiry)}</dd></>}
             </dl>
             {asset.notes && (
               <div className="mt-3 pt-3 border-t border-gray-50">
@@ -392,7 +401,7 @@ export default function FleetAssetDetail() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-medium text-gray-800">{last.title}</p>
-                    <p className="text-sm text-gray-400">{maintenanceTypeLabels[last.maintenanceType]} · {new Date(last.serviceDate).toLocaleDateString()}</p>
+                    <p className="text-sm text-gray-400">{maintenanceTypeLabels[last.maintenanceType]} · {formatFleetDate(last.serviceDate)}</p>
                     {last.performedBy && <p className="text-xs text-gray-400 mt-1">Por: {last.performedBy.name}</p>}
                     {last.externalShop && <p className="text-xs text-gray-400 mt-1">Taller: {last.externalShop}</p>}
                   </div>
@@ -448,7 +457,7 @@ export default function FleetAssetDetail() {
                     )}
                     <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-400">
                       <span className="flex items-center gap-1">
-                        <FaCalendarAlt /> {new Date(record.serviceDate).toLocaleDateString()}
+                        <FaCalendarAlt /> {formatFleetDate(record.serviceDate)}
                       </span>
                       {record.mileageAtService && (
                         <span className="flex items-center gap-1">
@@ -473,7 +482,7 @@ export default function FleetAssetDetail() {
                     </div>
                     {record.nextServiceDate && (
                       <div className="mt-2 text-xs text-orange-500">
-                        Próx. servicio: {new Date(record.nextServiceDate).toLocaleDateString()}
+                        Próx. servicio: {formatFleetDate(record.nextServiceDate)}
                         {record.nextServiceMileage && ` · ${Number(record.nextServiceMileage).toLocaleString()} mi`}
                         {record.nextServiceHours && ` · ${Number(record.nextServiceHours).toLocaleString()} hs`}
                       </div>
@@ -554,7 +563,7 @@ export default function FleetAssetDetail() {
                   {log.notes && <p className="text-xs text-gray-400 mt-1">{log.notes}</p>}
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400">{new Date(log.recordedAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-400">{formatFleetDate(log.recordedAt)}</p>
                   {log.recordedBy && <p className="text-xs text-gray-400">{log.recordedBy.name}</p>}
                 </div>
               </div>
@@ -630,7 +639,6 @@ export default function FleetAssetDetail() {
           onSuccess={() => {
             setShowMaintenanceForm(false);
             setEditingMaintenance(null);
-            dispatch(fetchMaintenanceByAsset(id));
             dispatch(fetchFleetAssetById(id));
           }}
         />

@@ -147,6 +147,11 @@ module.exports = (sequelize) => {
   }, {
     timestamps: true,
     tableName: 'fleet_maintenances',
+    indexes: [
+      { fields: ['assetId'] },
+      { fields: ['assetId', 'serviceDate'] },
+      { fields: ['status'] },
+    ],
   });
 
   return FleetMaintenance;

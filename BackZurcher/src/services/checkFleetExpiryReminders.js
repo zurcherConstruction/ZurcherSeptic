@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { Op } = require('sequelize');
 const {
   FleetAsset,
+  FleetMaintenance,
   Staff,
   Reminder,
   ReminderAssignment,
@@ -191,6 +192,142 @@ const checkFleetExpiryReminders = async () => {
     console.log(`✅ [CRON - FLEET REMINDERS] Alertas creadas: ${createdCount}`);
   } catch (error) {
     console.error('❌ [CRON - FLEET REMINDERS] Error:', error.message);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// MANTENIMIENTOS PROGRAMADOS: alerta 30 días antes de nextServiceDate
+// ─────────────────────────────────────────────────────────────
+const checkFleetMaintenanceAlerts = async () => {
+  try {
+    console.log('\n🔧 [CRON - FLEET MAINTENANCE] Verificando próximos mantenimientos...');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = addDays(today, ALERT_DAYS);
+
+    const owners = await Staff.findAll({
+      where: { role: 'owner', isActive: true },
+      attributes: ['id', 'name', 'email'],
+    });
+
+    if (!owners.length) return;
+
+    const maintenances = await FleetMaintenance.findAll({
+      where: {
+        status: 'scheduled',
+        nextServiceDate: {
+          [Op.gte]: toDateOnly(today),
+          [Op.lte]: toDateOnly(maxDate),
+        },
+      },
+      include: [
+        {
+          model: FleetAsset,
+          as: 'asset',
+          where: { status: { [Op.ne]: 'retired' } },
+          attributes: ['id', 'name', 'licensePlate', 'serialNumber', 'companyType', 'companyOtherName'],
+        },
+      ],
+    });
+
+    if (!maintenances.length) {
+      console.log('✅ [CRON - FLEET MAINTENANCE] Sin mantenimientos próximos');
+      return;
+    }
+
+    let createdCount = 0;
+
+    for (const maint of maintenances) {
+      const asset = maint.asset;
+      if (!asset) continue;
+
+      const dueDate = toDateOnly(new Date(maint.nextServiceDate));
+      const label = companyLabel(asset);
+      const plateOrSerial = asset.licensePlate || asset.serialNumber || 'N/D';
+      const maintType = maint.maintenanceType || 'Mantenimiento';
+
+      const reminderTitle = `Próx. Service: ${maintType} - ${asset.name} (${dueDate})`;
+
+      const existing = await Reminder.findOne({
+        where: {
+          linkedEntityType: 'fleet',
+          linkedEntityId: String(asset.id),
+          dueDate,
+          title: reminderTitle,
+        },
+      });
+
+      if (existing) continue;
+
+      const daysLeft = Math.max(0, Math.ceil((new Date(dueDate) - today) / (1000 * 60 * 60 * 24)));
+      const description = [
+        `Empresa: ${label}`,
+        `Activo: ${asset.name}`,
+        `Identificacion: ${plateOrSerial}`,
+        `Tipo: ${maintType}`,
+        `Fecha próx. service: ${dueDate}`,
+        `Faltan ${daysLeft} dias.`,
+      ].join('\n');
+
+      const reminder = await Reminder.create({
+        title: reminderTitle,
+        description,
+        type: 'tagged',
+        priority: daysLeft <= 7 ? 'high' : 'medium',
+        dueDate,
+        linkedEntityType: 'fleet',
+        linkedEntityId: String(asset.id),
+        linkedEntityLabel: asset.name,
+        createdBy: owners[0].id,
+      });
+
+      await ReminderAssignment.bulkCreate(
+        owners.map((owner) => ({ reminderId: reminder.id, staffId: owner.id })),
+        { ignoreDuplicates: true }
+      );
+
+      const dashboardUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/fleet/${asset.id}`;
+
+      for (const owner of owners) {
+        if (!owner.email) continue;
+        const html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1f2937;">
+            <h2 style="color: #d97706; margin-bottom: 8px;">Servicio Programado Próximo</h2>
+            <p style="margin-top: 0; color: #4b5563;">Se acerca la fecha de un mantenimiento programado.</p>
+
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 14px; margin: 16px 0;">
+              <p style="margin: 0 0 8px;"><strong>Empresa:</strong> ${label}</p>
+              <p style="margin: 0 0 8px;"><strong>Activo:</strong> ${asset.name}</p>
+              <p style="margin: 0 0 8px;"><strong>Identificacion:</strong> ${plateOrSerial}</p>
+              <p style="margin: 0 0 8px;"><strong>Tipo de service:</strong> ${maintType}</p>
+              <p style="margin: 0;"><strong>Fecha:</strong> ${dueDate} (faltan ${daysLeft} días)</p>
+            </div>
+
+            <a href="${dashboardUrl}" style="display:inline-block;background:#d97706;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-weight:600;">
+              Ver activo en Fleet
+            </a>
+
+            <p style="margin-top: 18px; font-size: 12px; color: #6b7280;">
+              Este email se envía una sola vez por cada alerta generada.
+            </p>
+          </div>
+        `;
+
+        await sendEmail({
+          to: owner.email,
+          subject: `Fleet Service: ${maintType} - ${asset.name} en ${daysLeft} días`,
+          html,
+          text: `Próximo service ${maintType}: ${asset.name} (${dueDate}) - Faltan ${daysLeft} días`,
+        });
+      }
+
+      createdCount += 1;
+    }
+
+    console.log(`✅ [CRON - FLEET MAINTENANCE] Alertas mantenimiento creadas: ${createdCount}`);
+  } catch (error) {
+    console.error('❌ [CRON - FLEET MAINTENANCE] Error:', error.message);
   }
 };
 

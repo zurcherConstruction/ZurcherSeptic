@@ -152,5 +152,11 @@ module.exports = (sequelize) => {
   }, {
     timestamps: true,
     tableName: 'fleet_assets',
+    indexes: [
+      { fields: ['assetType'] },
+      { fields: ['companyType'] },
+      { fields: ['status'] },
+      { fields: ['assignedToId'] },
+    ],
   });
 };

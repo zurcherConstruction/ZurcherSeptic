@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { FaTimes, FaCamera, FaTruck, FaCogs } from 'react-icons/fa';
 import { createFleetAsset, updateFleetAsset, uploadFleetAssetImage } from '../../Redux/Actions/fleetActions';
+import { fetchStaff } from '../../Redux/Actions/adminActions';
 import { toast } from 'react-toastify';
 
 const initialForm = {
@@ -40,6 +41,13 @@ export default function FleetAssetForm({ onClose, onSuccess, assetToEdit }) {
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(assetToEdit?.imageUrl || null);
   const fileInputRef = useRef();
+
+  // Cargar staff si todavía no está en el store
+  useEffect(() => {
+    if (!staffList || staffList.length === 0) {
+      dispatch(fetchStaff());
+    }
+  }, [dispatch, staffList]);
 
   const isVehicle = form.assetType === 'vehicle' || form.assetType === 'trailer';
   const isMachine = form.assetType === 'machine' || form.assetType === 'equipment';
