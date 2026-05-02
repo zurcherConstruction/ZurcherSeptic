@@ -20,7 +20,14 @@ router.get('/alerts/no-answer', verifyToken, allowRoles(authorizedRoles), SalesL
 // 🚫 Leads sin teléfono ni email
 router.get('/no-contact', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.getNoContactLeads);
 router.delete('/no-contact/bulk', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.deleteNoContactLeads);
+// 🔀 Agrupar duplicados (por teléfono, email o nombre) — sin paginación
+router.get('/group-duplicates', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.groupDuplicates);
 
+// 🔀 Mergear leads: conservar uno, eliminar el resto moviendo sus notas
+router.post('/merge', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.mergeLeads);
+
+// 📋 Cola de llamadas diaria — genera lista de N leads según preset
+router.get('/call-queue', verifyToken, allowRoles(authorizedRoles), SalesLeadController.callQueue);
 // �🔍 Verificar si ya existe un lead con esa dirección
 router.get('/check-by-address', verifyToken, allowRoles(authorizedRoles), SalesLeadController.checkLeadByAddress);
 

@@ -5,7 +5,8 @@ import {
   fetchLeadNotes,
   updateLeadNote,
   deleteLeadNote,
-  markLeadNoteAsRead
+  markLeadNoteAsRead,
+  completeReminder
 } from '../../Redux/Actions/salesLeadActions';
 import {
   XMarkIcon,
@@ -13,7 +14,10 @@ import {
   PlusIcon,
   TrashIcon,
   ClockIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  PencilSquareIcon,
+  CheckIcon,
+  XCircleIcon
 } from '@heroicons/react/24/outline';
 import MentionTextarea from '../Common/MentionTextarea';
 
@@ -49,6 +53,9 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
   // Estados locales
   const [showAddForm, setShowAddForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editMessage, setEditMessage] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const [formData, setFormData] = useState({
     message: '',
     noteType: 'follow_up',
@@ -146,8 +153,37 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
     await dispatch(fetchLeadNotes({ leadId: lead.id }));
     if (onNoteRead) onNoteRead(); // refresca badges en la lista
   };
+
+  const handleCompleteReminder = async (noteId) => {
+    await dispatch(completeReminder(noteId));
+    await dispatch(fetchLeadNotes({ leadId: lead.id }));
+    if (onNoteRead) onNoteRead();
+  };
+
+  const handleStartEdit = (note) => {
+    setEditingNoteId(note.id);
+    setEditMessage(note.message);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNoteId(null);
+    setEditMessage('');
+  };
+
+  const handleSaveEdit = async (noteId) => {
+    if (!editMessage.trim()) return;
+    setSavingEdit(true);
+    try {
+      await dispatch(updateLeadNote({ id: noteId, updates: { message: editMessage.trim() } }));
+      await dispatch(fetchLeadNotes({ leadId: lead.id }));
+      setEditingNoteId(null);
+      setEditMessage('');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-[60] overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
         {/* Overlay */}
         <div
@@ -314,6 +350,7 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
                   const priority = priorityLevels[note.priority] || priorityLevels.medium;
                   // Una nota es no-le\u00edda si el usuario actual NO est\u00e1 en readBy
                   const isUnread = userId && !(note.readBy || []).includes(userId);
+                  const isEditing = editingNoteId === note.id;
                   
                   return (
                     <div
@@ -349,10 +386,23 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
                             </button>
                           )}
                           {note.isReminderActive && (
-                            <span className="text-sm text-blue-600 flex items-center gap-1">
-                              <ClockIcon className="h-4 w-4" />
-                              Recordatorio
-                            </span>
+                            <button
+                              onClick={() => handleCompleteReminder(note.id)}
+                              className="text-blue-600 hover:text-blue-700 flex items-center gap-1 text-xs font-medium px-2 py-1 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
+                              title="Marcar recordatorio como hecho"
+                            >
+                              <CheckCircleIcon className="h-4 w-4" />
+                              ✅ Hecho
+                            </button>
+                          )}
+                          {!isEditing && (
+                            <button
+                              onClick={() => handleStartEdit(note)}
+                              className="text-gray-400 hover:text-blue-600 p-1 rounded hover:bg-blue-50 transition-colors"
+                              title="Editar nota"
+                            >
+                              <PencilSquareIcon className="h-4 w-4" />
+                            </button>
                           )}
                           <button
                             onClick={() => handleDelete(note.id)}
@@ -364,7 +414,36 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
                         </div>
                       </div>
                       
-                      <p className="text-gray-800 mb-2 whitespace-pre-wrap">{note.message}</p>
+                      {/* Contenido: modo edición o solo lectura */}
+                      {isEditing ? (
+                        <div className="mb-2">
+                          <textarea
+                            value={editMessage}
+                            onChange={(e) => setEditMessage(e.target.value)}
+                            rows={4}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm resize-y"
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button
+                              onClick={() => handleSaveEdit(note.id)}
+                              disabled={savingEdit}
+                              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60"
+                            >
+                              <CheckIcon className="h-3.5 w-3.5" />
+                              {savingEdit ? 'Guardando...' : 'Guardar'}
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="flex items-center gap-1 text-gray-600 hover:text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+                            >
+                              <XCircleIcon className="h-3.5 w-3.5" />
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-800 mb-2 whitespace-pre-wrap">{note.message}</p>
+                      )}
                       
                       <div className="flex justify-between items-center text-xs text-gray-500">
                         <span>
