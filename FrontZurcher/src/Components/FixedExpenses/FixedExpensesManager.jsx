@@ -247,12 +247,16 @@ const FixedExpensesManager = () => {
 
   const getStatusColor = (expense) => {
     if (expense.paymentStatus === 'paid') return 'bg-green-100 border-green-300';
+    if (expense.paymentStatus === 'paid_via_credit_card') return 'bg-blue-100 border-blue-300';
+    if (expense.paymentStatus === 'paid_via_invoice') return 'bg-green-100 border-green-300';
     if (expense.paymentStatus === 'partial') return 'bg-yellow-100 border-yellow-300';
     return 'bg-red-100 border-red-300';
   };
 
   const getStatusText = (expense) => {
     if (expense.paymentStatus === 'paid') return '✅ Pagado';
+    if (expense.paymentStatus === 'paid_via_credit_card') return '💳 Tarjeta (pendiente)';
+    if (expense.paymentStatus === 'paid_via_invoice') return '✅ Pagado vía invoice';
     if (expense.paymentStatus === 'partial') return '⚠️ Parcial';
     return '❌ Pendiente';
   };

@@ -226,10 +226,11 @@ module.exports = (sequelize) => {
     // 🆕 Estado de Pago del Gasto Fijo
     paymentStatus: {
       type: DataTypes.ENUM(
-        'unpaid',              // No pagado (sin pagos registrados)
-        'partial',             // 🆕 Pago parcial (tiene pagos pero no está completo)
-        'paid',                // Pagado completamente
-        'paid_via_invoice'     // Pagado a través de un SupplierInvoice
+        'unpaid',                 // No pagado (sin pagos registrados)
+        'partial',                // Pago parcial (tiene pagos pero no está completo)
+        'paid',                   // Pagado completamente (efectivo / banco / cheque)
+        'paid_via_credit_card',   // Pagado con tarjeta — la tarjeta todavía no fue liquidada
+        'paid_via_invoice'        // Pagado a través de un SupplierInvoice (tarjeta ya liquidada)
       ),
       allowNull: false,
       defaultValue: 'unpaid',

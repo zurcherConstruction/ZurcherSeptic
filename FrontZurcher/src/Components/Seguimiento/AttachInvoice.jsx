@@ -557,9 +557,13 @@ const AttachReceipt = () => {
           }
 
           // Determinar si es pago total o parcial (con tolerancia de 1 centavo)
+          const isCreditCard = ['chase credit card', 'amex'].includes((paymentMethod || '').toLowerCase().trim());
           const isFullPayment = Math.abs(paymentAmount - remainingAmount) <= 0.01;
           const newPaidAmount = Math.round((paidAmount + paymentAmount) * 100) / 100;
-          const newStatus = isFullPayment ? 'paid' : 'partial';
+          // 💳 Si es tarjeta: el gasto fijo queda paid_via_credit_card (no paid) hasta liquidar la tarjeta
+          const newStatus = isFullPayment
+            ? (isCreditCard ? 'paid_via_credit_card' : 'paid')
+            : 'partial';
 
           // Crear el expense vinculado al gasto fijo
           const expenseData = {
@@ -663,7 +667,9 @@ const AttachReceipt = () => {
             }
 
             // Mensajes de éxito
-            if (isFullPayment) {
+            if (isFullPayment && isCreditCard) {
+              toast.success(`💳 Gasto fijo cargado a tarjeta: ${fixedExpense.description || fixedExpense.name} - $${paymentAmount.toFixed(2)}. Pendiente de liquidar cuando se pague la tarjeta.`);
+            } else if (isFullPayment) {
               toast.success(`✅ Gasto fijo pagado completamente: ${fixedExpense.description || fixedExpense.name} - $${paymentAmount.toFixed(2)}`);
             } else {
               toast.success(`📝 Pago parcial registrado: $${paymentAmount.toFixed(2)}. Saldo restante: $${(remainingAmount - paymentAmount).toFixed(2)}`);

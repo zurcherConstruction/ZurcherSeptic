@@ -121,6 +121,7 @@ const createSupplierInvoice = async (req, res) => {
         }
 
         // Verificar que el expense no esté ya pagado
+        // 💳 EXCEPCIÓN: Expenses con tarjeta de crédito quedan 'unpaid' hasta liquidar la tarjeta
         if (expense.paymentStatus !== 'unpaid') {
           await transaction.rollback();
           return res.status(400).json({
@@ -148,8 +149,8 @@ const createSupplierInvoice = async (req, res) => {
           });
         }
 
-        // Verificar que el fixed expense no esté ya pagado
-        if (fixedExpense.paymentStatus !== 'unpaid') {
+        // Verificar que el fixed expense no esté ya pagado (pero sí permitir paid_via_credit_card)
+        if (fixedExpense.paymentStatus !== 'unpaid' && fixedExpense.paymentStatus !== 'paid_via_credit_card') {
           await transaction.rollback();
           return res.status(400).json({
             error: `El fixed expense ${itemData.relatedFixedExpenseId} ya está pagado o vinculado a otro invoice`
@@ -1593,6 +1594,22 @@ const paySupplierInvoice = async (req, res) => {
             paidDate: finalPaymentDate
           }, { transaction });
 
+          // 💳 Si el expense estaba 'unpaid' por tarjeta, actualizar también el FixedExpense relacionado
+          if (expense.relatedFixedExpenseId) {
+            try {
+              const relatedFixed = await FixedExpense.findByPk(expense.relatedFixedExpenseId, { transaction });
+              if (relatedFixed && relatedFixed.paymentStatus === 'paid_via_credit_card') {
+                await relatedFixed.update({
+                  paymentStatus: 'paid_via_invoice',
+                  paidDate: finalPaymentDate
+                }, { transaction });
+                console.log(`  💳 FixedExpense ${relatedFixed.idFixedExpense} actualizado a paid_via_invoice`);
+              }
+            } catch (fixedErr) {
+              console.error('  ⚠️ Error actualizando FixedExpense relacionado:', fixedErr.message);
+            }
+          }
+
           linkedExpenses.push({
             idExpense: expense.idExpense,
             amount: expense.amount,
@@ -2545,11 +2562,29 @@ const createCreditCardTransaction = async (req, res) => {
           const newPaidAmount = paidAmount + amountToApply;
 
           // Actualizar expense
+          const newExpenseStatus = newPaidAmount >= expenseAmount ? 'paid' : 'partial';
           await expense.update({
             paidAmount: newPaidAmount,
-            paymentStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial',
+            paymentStatus: newExpenseStatus,
             paidDate: newPaidAmount >= expenseAmount ? normalizedDate : expense.paidDate
           }, { transaction: dbTransaction });
+
+          // 💳 Si el expense estaba vinculado a un FixedExpense en paid_via_credit_card,
+          // actualizarlo a 'paid' ahora que el dinero salió del banco
+          if (newExpenseStatus === 'paid' && expense.relatedFixedExpenseId) {
+            try {
+              const relatedFixed = await FixedExpense.findByPk(expense.relatedFixedExpenseId, { transaction: dbTransaction });
+              if (relatedFixed && relatedFixed.paymentStatus === 'paid_via_credit_card') {
+                await relatedFixed.update({
+                  paymentStatus: 'paid',
+                  paidDate: normalizedDate
+                }, { transaction: dbTransaction });
+                console.log(`  💳 FixedExpense ${relatedFixed.idFixedExpense} (${relatedFixed.description || relatedFixed.name}) actualizado a paid`);
+              }
+            } catch (fixedErr) {
+              console.error('  ⚠️ Error actualizando FixedExpense relacionado (FIFO):', fixedErr.message);
+            }
+          }
 
           updatedExpenses.push({
             idExpense: expense.idExpense,

@@ -1954,6 +1954,7 @@ const customCategoryOrder = [
               <div className="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-4 pt-3"> {/* Made payment section responsive */}
                 <label htmlFor="payment_perc" className="text-sm font-medium text-gray-700">Pago Inicial:</label>
                 <select id="payment_perc" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handlePaymentPercentageChange} className={`${standardInputClasses} !mt-0 w-auto min-w-[120px]`}>
+                  <option value="50">50%</option>
                   <option value="60">60%</option>
                   <option value="total">Total (100%)</option>
                 </select>

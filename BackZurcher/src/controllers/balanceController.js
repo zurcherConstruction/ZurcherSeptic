@@ -249,14 +249,11 @@ const getGeneralBalance = async (req, res) => {
       ]
     });
 
-    // � Filtrar gastos duplicados (misma lógica que FinancialDashboardController)
+    // 📊 Filtrar gastos duplicados
+    // ⚠️ NO excluir gastos con relatedFixedExpenseId - son gastos reales de tarjeta
+    // Solo excluir comisiones y otros gastos que no son transacciones reales
     const nonDuplicatedExpenses = allExpenses.filter(exp => {
-      // Excluir si tiene relatedFixedExpenseId
-      if (exp.relatedFixedExpenseId) return false;
-      
-      // Excluir si es un pago parcial de gasto fijo (detectado por notas)
-      if (exp.notes && exp.notes.toLowerCase().includes('pago parcial de gasto fijo')) return false;
-      
+      // No hay necesidad de filtrar por ahora - todos son gastos reales
       return true;
     });
 

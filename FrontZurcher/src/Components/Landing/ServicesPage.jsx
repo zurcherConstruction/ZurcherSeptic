@@ -10,6 +10,8 @@ import img1 from '../../assets/landing/1.jpeg';
 import img2 from '../../assets/landing/2.jpeg';
 import img3 from '../../assets/landing/3.jpeg';
 import img7 from '../../assets/landing/7.jpeg';
+import imgReplacement from '../../assets/landing/tanqueinstalado.jpeg';
+import imgDrainfield from '../../assets/landing/drainfield.jpeg';
 
 const services = [
   {
@@ -43,6 +45,22 @@ const services = [
     path: '/repairs',
     icon: <FaWrench className="text-3xl" />,
     tag: 'Repairs',
+  },
+  {
+    title: 'Septic System Replacement',
+    description: 'Full system replacement when repairs are no longer viable. We handle evaluation, permits, removal, installation, and final certification.',
+    image: imgReplacement,
+    path: '/services/septic-replacement',
+    icon: <FaTools className="text-3xl" />,
+    tag: 'Replacement',
+  },
+  {
+    title: 'Drainfield Service',
+    description: 'Inspection, repair & replacement of drain fields. Precise diagnosis and real long-term solutions — fast & compliant with Florida regulations.',
+    image: imgDrainfield,
+    path: '/services/drainfield',
+    icon: <FaWrench className="text-3xl" />,
+    tag: 'Drainfield',
   },
 ];
 

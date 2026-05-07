@@ -62,8 +62,8 @@ import LandingClients from "./Components/Landing/LandingClients";
 import AboutPage from "./Components/Landing/AboutPage";
 import ServicesPage from "./Components/Landing/ServicesPage";
 import ATUInstallationPage from "./Components/Landing/ATUInstallationPage";
-import RegularInstallationPage from "./Components/Landing/RegularInstallationPage";
-import InstallationPage from "./Components/Landing/InstallationPage";
+import RegularInstallationPage from "./Components/Landing/RegularInstallationPage";import SepticReplacementPage from './Components/Landing/SepticReplacementPage';
+import DrainFieldPage from './Components/Landing/DrainFieldPage';import InstallationPage from "./Components/Landing/InstallationPage";
 import GalleryPage from "./Components/Landing/GalleryPage";
 import MaintenancePage from "./Components/Landing/MaintenancePage";
 import RepairsPage from "./Components/Landing/RepairsPage";
@@ -125,6 +125,7 @@ function App() {
     // Lista de rutas públicas que no requieren redirección automática
     const publicRoutes = [
       "/", "/about", "/services", "/services/atu-installation", "/services/regular-installation",
+      "/services/septic-replacement", "/services/drainfield",
       "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
       "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"
     ];
@@ -148,6 +149,7 @@ function App() {
   // Determinar si estamos en una ruta pública de la landing
   const publicLandingRoutes = [
     "/", "/about", "/services", "/services/atu-installation", "/services/regular-installation",
+    "/services/septic-replacement", "/services/drainfield",
     "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
     "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"
   ];
@@ -175,6 +177,8 @@ function App() {
               <Route path="/services" element={<ServicesPage />} />
               <Route path="/services/atu-installation" element={<ATUInstallationPage />} />
               <Route path="/services/regular-installation" element={<RegularInstallationPage />} />
+              <Route path="/services/septic-replacement" element={<SepticReplacementPage />} />
+              <Route path="/services/drainfield" element={<DrainFieldPage />} />
               <Route path="/installation" element={<InstallationPage />} />
               <Route path="/gallery" element={<GalleryPage />} />
               <Route path="/maintenance-services" element={<MaintenancePage />} />
