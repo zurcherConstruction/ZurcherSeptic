@@ -83,6 +83,34 @@ const LeadAlertBadge = ({ leadId, alertData, className = "h-5 w-5" }) => {
   );
 };
 
+const SOURCE_LABELS = {
+  website:      '🌐 Web',
+  walk_in:      '🚶 Recorrido',
+  phone_call:   '📞 Llamada',
+  referral:     '🤝 Referido',
+  social_media: '📱 Social',
+  email:        '✉️ Email',
+  other:        '🔹 Otro',
+};
+
+const TAG_LABELS = {
+  'large-account':    '⭐ Large Account',
+  'new-construction': '🏗️ New Constr.',
+  'commercial':       '🏢 Commercial',
+  'residential':      '🏠 Residential',
+  'contractor':       '👷 Contractor',
+  'urgent':           '⚡ Urgent',
+};
+
+const TAG_COLORS = {
+  'large-account':    'bg-yellow-100 text-yellow-800',
+  'new-construction': 'bg-blue-100 text-blue-800',
+  'commercial':       'bg-purple-100 text-purple-800',
+  'residential':      'bg-green-100 text-green-800',
+  'contractor':       'bg-orange-100 text-orange-800',
+  'urgent':           'bg-red-100 text-red-800',
+};
+
 const STATUS_LABELS = {
   new: 'Nuevo',
   contacted: 'Contactado',
@@ -132,6 +160,7 @@ const SalesLeads = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
+  const [tagFilter, setTagFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   
@@ -240,7 +269,7 @@ const SalesLeads = () => {
     if (canAccess) {
       loadLeads();
     }
-  }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, groupDuplicates, canAccess]);
+  }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, tagFilter, groupDuplicates, canAccess]);
 
   const loadLeads = async () => {
     try {
@@ -251,6 +280,7 @@ const SalesLeads = () => {
         status: statusFilter,
         priority: priorityFilter,
         source: sourceFilter,
+        tags: tagFilter !== 'all' ? tagFilter : undefined,
         sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate'
       }));
     } catch (error) {
@@ -783,6 +813,34 @@ const SalesLeads = () => {
               <option value="urgent">Urgente</option>
             </select>
           </div>
+
+          {/* Filtro de origen */}
+          <div>
+            <select
+              value={sourceFilter}
+              onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Todos los orígenes</option>
+              {Object.entries(SOURCE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro de tag */}
+          <div>
+            <select
+              value={tagFilter}
+              onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Todos los tipos</option>
+              {Object.entries(TAG_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Botón agrupar duplicados */}
@@ -954,6 +1012,19 @@ const SalesLeads = () => {
                     {lead.propertyAddress && (
                       <p className="text-xs text-gray-500 truncate mt-0.5">{lead.propertyAddress}</p>
                     )}
+                    {/* Source + Tags badges */}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {lead.source && lead.source !== 'website' && (
+                        <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          {SOURCE_LABELS[lead.source] || lead.source}
+                        </span>
+                      )}
+                      {(lead.tags || []).map(tag => (
+                        <span key={tag} className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600'}`}>
+                          {TAG_LABELS[tag] || tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     {lead.status === 'quoted' && (
@@ -1077,16 +1148,16 @@ const SalesLeads = () => {
           {/* Vista Desktop — Tabla */}
           <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="min-w-[960px] w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacto</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-64">Cliente</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-44">Contacto</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dirección</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Última Actividad</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Estado</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Prioridad</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">Últ. Actividad</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-40">Acciones</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -1095,30 +1166,45 @@ const SalesLeads = () => {
                     lead._groupType === 'email' ? 'border-l-4 border-l-orange-400' :
                     lead._groupType === 'phone' ? 'border-l-4 border-l-blue-400' : ''
                   }`}>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-medium text-gray-900">{lead.applicantName}</span>
-                        {lead._groupType && (
-                          <span className={`px-1.5 py-0.5 text-xs rounded-full ${
-                            lead._groupType === 'email' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {lead._groupType === 'email' ? '📧 mismo email' : '📞 mismo tel.'}
-                          </span>
-                        )}
-                        {lead.status === 'quoted' && (
-                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-500 text-white flex items-center gap-1 animate-pulse">
-                            <DocumentTextIcon className="h-3 w-3" />
-                            COTIZADO
-                          </span>
-                        )}
-                        {noAnswerLeadIds.has(lead.id) && (
-                          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-500 text-white flex items-center gap-1">
-                            📵 No responde
-                          </span>
-                        )}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium text-gray-900">{lead.applicantName}</span>
+                          {lead._groupType && (
+                            <span className={`px-1.5 py-0.5 text-xs rounded-full ${
+                              lead._groupType === 'email' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {lead._groupType === 'email' ? '📧 mismo email' : '📞 mismo tel.'}
+                            </span>
+                          )}
+                          {lead.status === 'quoted' && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500 text-white flex items-center gap-1 animate-pulse">
+                              <DocumentTextIcon className="h-3 w-3" />
+                              COTIZADO
+                            </span>
+                          )}
+                          {noAnswerLeadIds.has(lead.id) && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-500 text-white flex items-center gap-1">
+                              📵 No responde
+                            </span>
+                          )}
+                        </div>
+                        {/* Origen + Tags debajo del nombre */}
+                        <div className="flex flex-wrap items-center gap-1">
+                          {lead.source && lead.source !== 'website' && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                              {SOURCE_LABELS[lead.source] || lead.source}
+                            </span>
+                          )}
+                          {(lead.tags || []).map(tag => (
+                            <span key={tag} className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${TAG_COLORS[tag] || 'bg-gray-100 text-gray-600'}`}>
+                              {TAG_LABELS[tag] || tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-4 text-sm text-gray-600">
                       <div className="space-y-1">
                         {lead.applicantEmail && (
                           <div className="flex items-center gap-1">
@@ -1134,10 +1220,10 @@ const SalesLeads = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
-                      {lead.propertyAddress || 'N/A'}
+                    <td className="px-4 py-4 text-sm text-gray-700">
+                      {lead.propertyAddress || <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4">
                       <select
                         value={lead.status}
                         onChange={(e) => handleQuickStatusChange(lead.id, e.target.value)}
@@ -1149,7 +1235,7 @@ const SalesLeads = () => {
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                         lead.priority === 'urgent' ? 'bg-red-100 text-red-800' :
                         lead.priority === 'high' ? 'bg-orange-100 text-orange-800' :
@@ -1160,10 +1246,10 @@ const SalesLeads = () => {
                         {lead.priority.charAt(0).toUpperCase() + lead.priority.slice(1)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                    <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">
                       {getRelativeTime(lead.lastActivityDate)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
                           onClick={() => handleOpenNotes(lead)}

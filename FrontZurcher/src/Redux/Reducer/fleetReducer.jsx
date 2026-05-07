@@ -11,10 +11,6 @@ import {
 
 const initialState = {
   assets: [],
-  currentAsset: null,
-  maintenanceByAsset: {}, // { [assetId]: [records] }
-  mileageLogs: [],
-  assets: [],
   assetsFetchedAt: null,
   currentAsset: null,
   maintenanceByAsset: {}, // { [assetId]: [records] }

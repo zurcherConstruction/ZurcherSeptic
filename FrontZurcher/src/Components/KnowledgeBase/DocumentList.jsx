@@ -59,19 +59,21 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
   };
 
   const getFileIcon = (file) => {
-    // file puede ser un string (formato) o un objeto con property format
-    const format = typeof file === 'string' ? file : file?.format;
-    const ext = format?.toLowerCase();
-    
-    if (ext === 'pdf') {
-      return <FaFilePdf className="text-red-500 text-3xl" />;
-    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-      return <FaFileImage className="text-blue-500 text-3xl" />;
-    } else if (['xls', 'xlsx'].includes(ext)) {
-      return <FaFileExcel className="text-green-500 text-3xl" />;
-    } else if (['doc', 'docx'].includes(ext)) {
-      return <FaFileWord className="text-blue-600 text-3xl" />;
+    // file puede ser un string (formato) o un objeto con property format/mimeType
+    let ext;
+    if (typeof file === 'string') {
+      ext = file.toLowerCase();
+    } else {
+      ext = file?.format?.toLowerCase()
+        || (file?.mimeType === 'application/pdf' ? 'pdf' : null)
+        || (file?.mimeType?.startsWith('image/') ? file.mimeType.split('/')[1] : null)
+        || file?.url?.split('?')[0].split('.').pop()?.toLowerCase()
+        || '';
     }
+    if (ext === 'pdf') return <FaFilePdf className="text-red-500 text-3xl" />;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return <FaFileImage className="text-blue-500 text-3xl" />;
+    if (['xls', 'xlsx'].includes(ext)) return <FaFileExcel className="text-green-500 text-3xl" />;
+    if (['doc', 'docx'].includes(ext)) return <FaFileWord className="text-blue-600 text-3xl" />;
     return <FaFileAlt className="text-gray-500 text-3xl" />;
   };
 
@@ -166,7 +168,7 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
               {/* Header */}
               <div className="flex items-start justify-between mb-2 sm:mb-3">
                 <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                  <div className="flex-shrink-0">{getFileIcon({ format: firstFile.format || firstFile.url?.split('.').pop() })}</div>
+                  <div className="flex-shrink-0">{getFileIcon(firstFile)}</div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-semibold text-sm sm:text-base text-gray-800 line-clamp-1">
                       {document.title}
@@ -211,6 +213,24 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
                 </div>
               )}
 
+              {/* Badge vencimiento */}
+              {document.expiresAt && (() => {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const exp = new Date(document.expiresAt + 'T00:00:00');
+                const days = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+                let cls, icon;
+                if (days < 0) { cls = 'bg-red-100 text-red-700'; icon = '🔴'; }
+                else if (days <= 30) { cls = 'bg-orange-100 text-orange-700'; icon = '⚠️'; }
+                else if (days <= 60) { cls = 'bg-yellow-100 text-yellow-700'; icon = '📅'; }
+                else { cls = 'bg-green-100 text-green-700'; icon = '✅'; }
+                return (
+                  <div className={`flex items-center gap-1 text-[10px] sm:text-xs px-2 py-1 rounded mb-2 w-fit ${cls}`}>
+                    <span>{icon}</span>
+                    <span>{days < 0 ? `Vencido hace ${Math.abs(days)}d` : days === 0 ? 'Vence HOY' : `Vence en ${days}d`}</span>
+                  </div>
+                );
+              })()}
+
               {/* Archivos */}
               {(() => {
                 const files = parseFileUrls(document.fileUrl);
@@ -225,7 +245,7 @@ const DocumentList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
                         className="flex items-center justify-between text-xs bg-gray-50 p-2 rounded"
                       >
                         <div className="flex items-center space-x-2 flex-1 min-w-0">
-                          {getFileIcon({ format: file.format || file.url?.split('.').pop() })}
+                          {getFileIcon(file)}
                           <span className="truncate text-gray-700">
                             {file.originalFilename || `Archivo ${fileIndex + 1}`}
                           </span>
