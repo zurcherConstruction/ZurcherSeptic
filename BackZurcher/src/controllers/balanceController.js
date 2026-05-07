@@ -153,7 +153,7 @@ const getGeneralBalance = async (req, res) => {
 
     // Condiciones WHERE para Expense (usando misma lógica que FinancialDashboardController)
     const expenseWhere = {
-      paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'partial', 'unpaid'] }, // 🔧 INCLUIR todos los gastos reales
+      paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'paid_via_credit_card', 'partial', 'unpaid'] }, // 🔧 INCLUIR todos los gastos reales
       [Op.and]: [
         Sequelize.where(
           Sequelize.cast(Sequelize.col('typeExpense'), 'TEXT'),
