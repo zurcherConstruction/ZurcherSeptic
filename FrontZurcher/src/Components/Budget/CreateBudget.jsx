@@ -506,6 +506,25 @@ const CreateBudget = () => {
               cat.category === itemDef.category.toUpperCase() &&
               cat.name.includes("SYSTEM PARTS") && cat.name.includes("ELECTRICAL")
             );
+          }
+          // Para INSPECTION: buscar por nombre y que la descripción contenga la palabra clave principal
+          // (ej: BD puede tener "FIRST INSPECTION" o "FIRST INSPECTION (IF NECESSARY)" - ambos válidos)
+          else if (itemDef.category === "INSPECTION") {
+            const descKeyword = itemDef.description
+              ? itemDef.description.toUpperCase().replace(/\s*\(IF NECESSARY\)\s*/i, '').trim()
+              : null;
+            found = normalizedBudgetItemsCatalog.find(cat => {
+              if (cat.category !== itemDef.category.toUpperCase()) return false;
+              if (cat.name !== itemDef.name.toUpperCase()) return false;
+              if (!descKeyword) return true;
+              const catDesc = (cat.description || '').toUpperCase();
+              return catDesc.includes(descKeyword);
+            });
+            if (found) {
+              console.log(`✅ INSPECTION encontrada: "${found.description}" para búsqueda "${itemDef.description}"`);
+            } else {
+              console.warn(`⚠️ INSPECTION no encontrada: "${itemDef.name}" - "${itemDef.description}"`);
+            }
           } else {
             // Para otros: buscar con descripción exacta
             found = normalizedBudgetItemsCatalog.find(cat => 
