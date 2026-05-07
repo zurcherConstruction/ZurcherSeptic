@@ -13,14 +13,20 @@ import {
   WrenchScrewdriverIcon,
   ExclamationCircleIcon,
   ArrowRightIcon,
+  MagnifyingGlassIcon,
+  DocumentTextIcon,
+  TruckIcon,
+  CogIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 
 const heroImg      = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_1600/v1777472871/chata2_nudqht.jpg';
 const heroImgMobile = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777472931/chata2Celu_bbwl99.jpg';
 const imgIncl      = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_900/v1777473360/general_ydct7t.jpg';
 const imgProcess   = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_900/v1777473994/Excavadora_jhbx6k.jpg';
-const imgBefore    = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1766174828/works/68426718-a20c-428c-9e25-dbc5059fe703/materiales/owcaxzm36anxqowhoz4m.jpg';
-const imgAfter     = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473408/tanqueinstalado_mpoqps.jpg';
+const imgBefore    = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_800/v1777473408/tanqueinstalado_mpoqps.jpg';
+const imgAfter     = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1766174828/works/68426718-a20c-428c-9e25-dbc5059fe703/materiales/owcaxzm36anxqowhoz4m.jpg';
+
 
 const SepticReplacementPage = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -131,121 +137,68 @@ const SepticReplacementPage = () => {
       {/* ── SECTION 1: WHAT'S INCLUDED ── */}
       <div className="bg-white py-16 px-6">
         <div className="max-w-6xl mx-auto">
-
-          {/* Mobile */}
-          <div className="md:hidden">
-            <h2 className="text-3xl font-black text-slate-800 mb-5 uppercase">What's Included?</h2>
-            <div className="-mx-6 overflow-hidden aspect-[4/3] mb-6">
-              <img src={imgIncl} alt="Septic system replacement" className="w-full h-full object-cover" />
-            </div>
-            <ul className="space-y-4 mb-6">
-              {[
-                'Full evaluation of the existing system',
-                'Permit management with the Health Department',
-                'Complete removal of the old system',
-                'Design and sizing of the new system per approved plans',
-                'Full excavation and installation',
-                'Private inspections to speed up timelines',
-                'Final inspection and certification',
-              ].map((item, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center">
-                    <CheckCircleIcon className="w-3.5 h-3.5 text-slate-900" />
-                  </span>
-                  <span className="text-slate-700 text-sm leading-snug">{item}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="border-2 border-yellow-400 rounded-xl overflow-hidden">
-              <div className="bg-yellow-400 flex items-center gap-2 px-4 py-3">
-                <ExclamationCircleIcon className="w-5 h-5 text-slate-900 flex-shrink-0" />
-                <h3 className="text-slate-900 font-black text-sm uppercase tracking-widest">Important</h3>
+          <p className="text-blue-600 text-xs font-bold uppercase tracking-widest mb-3 text-center">Full Service</p>
+          <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-4 uppercase text-center">What's Included in Our Service?</h2>
+          <p className="text-slate-500 text-sm text-center max-w-2xl mx-auto mb-12">
+            From the first evaluation to the final certification — we manage every step of the replacement process.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            {[
+              { icon: <MagnifyingGlassIcon className="w-7 h-7" />, title: 'Full System Evaluation', desc: 'Complete assessment of your existing system condition' },
+              { icon: <ClipboardDocumentCheckIcon className="w-7 h-7" />, title: 'Clear Diagnosis', desc: 'Accurate determination of whether replacement is required' },
+              { icon: <TruckIcon className="w-7 h-7" />, title: 'Old System Removal', desc: 'Safe removal and proper disposal of the existing system' },
+              { icon: <CogIcon className="w-7 h-7" />, title: 'New System Design', desc: 'Tank, components and drain field per approved plans' },
+              { icon: <DocumentTextIcon className="w-7 h-7" />, title: 'Permit Management', desc: 'Full Health Department permit process handled for you' },
+              { icon: <WrenchScrewdriverIcon className="w-7 h-7" />, title: 'Complete Installation', desc: 'Professional installation following all Florida regulations' },
+              { icon: <ClockIcon className="w-7 h-7" />, title: 'Private Inspections', desc: 'We coordinate inspections to avoid project delays' },
+              { icon: <ShieldCheckIcon className="w-7 h-7" />, title: 'Final Certification', desc: 'System approved, certified and fully operational' },
+            ].map((item, i) => (
+              <div key={i} className="flex flex-col items-center text-center p-3 lg:p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-lg transition-all duration-300 group">
+                <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-2xl bg-blue-50 group-hover:bg-blue-600 flex items-center justify-center mb-3 transition-colors duration-300 flex-shrink-0">
+                  <div className="text-blue-600 group-hover:text-white transition-colors duration-300">{item.icon}</div>
+                </div>
+                <h3 className="font-black text-slate-800 text-[10px] lg:text-xs uppercase tracking-wide mb-1 leading-tight">{item.title}</h3>
+                <p className="text-slate-500 text-[10px] lg:text-xs leading-relaxed hidden sm:block">{item.desc}</p>
               </div>
-              <div className="bg-yellow-50 px-4 py-3 space-y-2">
-                <p className="text-slate-700 text-xs leading-relaxed">In many cases, what looks like a repair job turns out to require a complete system replacement.</p>
-                <p className="text-slate-700 text-xs leading-relaxed">We give you an honest diagnosis before any work begins — no surprises.</p>
-              </div>
-            </div>
+            ))}
           </div>
+        </div>
+      </div>
 
-          {/* Desktop */}
-          <div className="hidden md:flex flex-row gap-6 items-stretch">
-            <div className="md:w-[28%] flex-shrink-0 flex flex-col">
-              <h2 className="text-4xl font-black text-slate-800 mb-8 uppercase">What's Included?</h2>
-              <ul className="space-y-5">
-                {[
-                  'Full evaluation of the existing system',
-                  'Permit management with the Health Department',
-                  'Complete removal of the old system',
-                  'Design and sizing of the new system',
-                  'Full excavation and installation',
-                  'Private inspections to speed up timelines',
-                  'Final inspection and certification',
-                ].map((item, i) => (
+      {/* ── SECTION 2: WHEN + BEFORE/AFTER ── */}
+      <div className="bg-slate-900 py-16 px-6">
+        <div className="max-w-6xl mx-auto">
+
+          {/* When do you need */}
+          <div className="grid md:grid-cols-2 gap-12 items-center mb-16">
+            <div>
+              <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-3">Know the signs</p>
+              <h2 className="text-3xl font-black text-white mb-6 uppercase">When Do You Need a Full Replacement?</h2>
+              <p className="text-slate-300 text-sm leading-relaxed mb-6">
+                A septic system typically lasts 20–30 years. When it starts failing repeatedly, a replacement is often the most cost-effective long-term decision.
+              </p>
+              <ul className="space-y-3 mb-6">
+                {whenReplace.map((item, i) => (
                   <li key={i} className="flex items-start gap-3">
-                    <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-yellow-400 flex items-center justify-center">
-                      <CheckCircleIcon className="w-3.5 h-3.5 text-slate-900" />
-                    </span>
-                    <span className="text-slate-700 text-sm leading-snug">{item}</span>
+                    <ArrowRightIcon className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                    <span className="text-slate-300 text-sm">{item}</span>
                   </li>
                 ))}
               </ul>
-            </div>
-            <div className="flex-1 overflow-hidden rounded-xl shadow-xl min-h-[360px]">
-              <img src={imgIncl} alt="Septic system replacement" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700" />
-            </div>
-            <div className="w-[22%] flex-shrink-0 border-2 border-yellow-400 rounded-xl overflow-hidden flex flex-col">
-              <div className="bg-yellow-400 flex flex-col items-center justify-center py-4 px-3">
-                <ExclamationCircleIcon className="w-7 h-7 text-slate-900 mb-1.5" />
-                <h3 className="text-slate-900 font-black text-sm uppercase tracking-widest">Important</h3>
-              </div>
-              <div className="bg-yellow-50 flex flex-col flex-1 divide-y divide-yellow-200">
-                <p className="text-slate-700 text-xs leading-relaxed text-center px-4 py-4">
-                  In many cases, what starts as a repair turns out to require a complete replacement.
-                </p>
-                <p className="text-slate-700 text-xs leading-relaxed text-center px-4 py-4">
-                  We give you an honest diagnosis before any work begins — no surprises, no hidden costs.
+              <div className="bg-slate-800 border-l-4 border-blue-400 rounded-r-xl p-5">
+                <p className="text-blue-200 text-sm font-semibold">
+                  In many cases we can start with a repair — but if the system can't be saved, we'll tell you upfront. We don't sell unnecessary work.
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── SECTION 2: WHEN DO YOU NEED A REPLACEMENT? ── */}
-      <div className="bg-slate-50 py-16 px-6">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <p className="text-blue-600 text-xs font-bold uppercase tracking-widest mb-3">Know the signs</p>
-            <h2 className="text-3xl font-black text-slate-800 mb-6 uppercase">When Do You Need a Full Replacement?</h2>
-            <p className="text-slate-600 leading-relaxed mb-6">
-              A septic system typically lasts 20–30 years. When it starts failing repeatedly, a replacement is often the most cost-effective long-term decision.
-            </p>
-            <ul className="space-y-3">
-              {whenReplace.map((item, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <ArrowRightIcon className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <span className="text-slate-700 text-sm">{item}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-6 bg-blue-50 border-l-4 border-blue-600 rounded-r-xl p-5">
-              <p className="text-blue-800 text-sm font-semibold">
-                In many cases we can start with a repair — but if the system can't be saved, we'll tell you upfront. We don't sell unnecessary work.
-              </p>
+            <div className="overflow-hidden rounded-xl shadow-xl">
+              <img src={imgIncl} alt="Old septic system needing replacement" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700 min-h-[300px]" />
             </div>
           </div>
-          <div className="overflow-hidden rounded-xl shadow-xl">
-            <img src={imgBefore} alt="Old septic system" className="w-full h-full object-cover hover:scale-105 transition-transform duration-700 min-h-[300px]" />
-          </div>
-        </div>
-      </div>
 
-      {/* ── SECTION 3: BEFORE / AFTER ── */}
-      <div className="bg-white py-16 px-6">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-blue-600 text-xs font-bold uppercase tracking-widest mb-3 text-center">Results</p>
-          <h2 className="text-3xl font-black text-slate-800 mb-10 uppercase text-center">Before & After</h2>
+          {/* Before / After */}
+          <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-3 text-center">Real Results</p>
+          <h2 className="text-3xl font-black text-white mb-10 uppercase text-center">Before & After</h2>
           <div className="grid md:grid-cols-2 gap-6">
             <div className="relative overflow-hidden rounded-2xl shadow-lg">
               <img src={imgBefore} alt="Before septic replacement" className="w-full h-64 object-cover" />
@@ -269,40 +222,78 @@ const SepticReplacementPage = () => {
         </div>
       </div>
 
-      {/* ── SECTION 4: OUR PROCESS ── */}
-      <div className="bg-slate-900 py-16 px-6">
+      {/* ── SECTION 3: OUR PROCESS ── */}
+      <div className="bg-white py-16 px-6">
         <div className="max-w-6xl mx-auto">
-          <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-3 text-center">Step by step</p>
-          <h2 className="text-4xl font-black text-white mb-12 uppercase text-center">Our Process</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            {processSteps.map((step) => (
-              <div key={step.num} className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-yellow-400/50 transition-colors">
-                <div className="text-yellow-400 text-3xl font-black mb-3 leading-none">{step.num}</div>
-                <h3 className="text-white font-bold text-sm uppercase tracking-wide mb-2">{step.title}</h3>
-                <p className="text-slate-400 text-xs leading-relaxed">{step.desc}</p>
+          <p className="text-blue-600 text-xs font-bold uppercase tracking-widest mb-3 text-center">Step by step</p>
+          <h2 className="text-3xl md:text-4xl font-black text-slate-800 mb-12 uppercase text-center">Our Process</h2>
+
+          {/* Desktop: horizontal con línea conectora */}
+          <div className="hidden md:block relative">
+            <div className="absolute top-[26px] left-[8%] right-[8%] h-0.5 bg-slate-200 z-0"></div>
+            <div className="grid grid-cols-6 gap-4 relative z-10">
+              {[
+                { num: '1', icon: <MagnifyingGlassIcon className="w-9 h-9" />, title: 'Evaluation', desc: 'We assess the current system to determine what needs to be replaced.' },
+                { num: '2', icon: <ClipboardDocumentCheckIcon className="w-9 h-9" />, title: 'Diagnosis', desc: 'We identify whether a partial repair or full replacement is right.' },
+                { num: '3', icon: <DocumentTextIcon className="w-9 h-9" />, title: 'Permits', desc: 'We handle the entire Health Department permit process for you.' },
+                { num: '4', icon: <TruckIcon className="w-9 h-9" />, title: 'Removal & Install', desc: 'Old system removed and new system installed per approved plans.' },
+                { num: '5', icon: <ClockIcon className="w-9 h-9" />, title: 'Inspections', desc: 'We coordinate all required inspections, including private ones.' },
+                { num: '6', icon: <ShieldCheckIcon className="w-9 h-9" />, title: 'Final Approval', desc: 'System approved, certified, and fully operational.' },
+              ].map((step, i) => (
+                <div key={i} className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 text-white font-black text-base flex items-center justify-center mb-5 shadow-md border-4 border-white">
+                    {step.num}
+                  </div>
+                  <div className="text-blue-600 mb-4">{step.icon}</div>
+                  <h3 className="font-black text-slate-800 text-xs uppercase tracking-wide mb-2 leading-tight">{step.title}</h3>
+                  <p className="text-slate-500 text-xs leading-relaxed">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Mobile: vertical */}
+          <div className="md:hidden space-y-6">
+            {[
+              { num: '1', icon: <MagnifyingGlassIcon className="w-7 h-7" />, title: 'Evaluation', desc: 'We assess the current system to determine what needs to be replaced.' },
+              { num: '2', icon: <ClipboardDocumentCheckIcon className="w-7 h-7" />, title: 'Diagnosis', desc: 'We identify whether a partial repair or full replacement is right.' },
+              { num: '3', icon: <DocumentTextIcon className="w-7 h-7" />, title: 'Permits', desc: 'We handle the entire Health Department permit process for you.' },
+              { num: '4', icon: <TruckIcon className="w-7 h-7" />, title: 'Removal & Installation', desc: 'Old system removed and new system installed per approved plans.' },
+              { num: '5', icon: <ClockIcon className="w-7 h-7" />, title: 'Inspections', desc: 'We coordinate all required inspections, including private ones.' },
+              { num: '6', icon: <ShieldCheckIcon className="w-7 h-7" />, title: 'Final Approval', desc: 'System approved, certified, and fully operational.' },
+            ].map((step, i) => (
+              <div key={i} className="flex gap-4 items-start">
+                <div className="w-11 h-11 rounded-full bg-slate-800 text-white font-black text-sm flex items-center justify-center flex-shrink-0">{step.num}</div>
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="text-blue-600">{step.icon}</span>
+                    <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">{step.title}</h3>
+                  </div>
+                  <p className="text-slate-600 text-sm leading-relaxed">{step.desc}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ── SECTION 5: WHY CHOOSE US ── */}
-      <div className="bg-white py-16 px-6">
+      {/* ── SECTION 4: WHY CHOOSE US ── */}
+      <div className="bg-slate-900 py-16 px-6">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12 items-center">
           <div className="overflow-hidden rounded-xl shadow-xl">
             <img src={imgProcess} alt="Zurcher Septic team working" className="w-full h-full object-cover min-h-[300px] hover:scale-105 transition-transform duration-700" />
           </div>
           <div>
-            <p className="text-blue-600 text-xs font-bold uppercase tracking-widest mb-3">Why Us</p>
-            <h2 className="text-3xl font-black text-slate-800 mb-6 uppercase">Why Choose Zurcher Septic?</h2>
-            <p className="text-slate-600 leading-relaxed mb-6">
+            <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-3">Why Us</p>
+            <h2 className="text-3xl font-black text-white mb-6 uppercase">Why Choose Zurcher Septic?</h2>
+            <p className="text-slate-300 text-sm leading-relaxed mb-6">
               We work with durable, professionally selected materials for each installation — ensuring the system performs correctly and lasts for decades. Every project is handled following the proper standards from day one.
             </p>
             <ul className="space-y-3 mb-8">
               {whyUs.map((item, i) => (
                 <li key={i} className="flex items-center gap-3">
-                  <CheckCircleIcon className="w-5 h-5 text-green-500 flex-shrink-0" />
-                  <span className="text-slate-700 text-sm">{item}</span>
+                  <CheckCircleIcon className="w-5 h-5 text-yellow-400 flex-shrink-0" />
+                  <span className="text-slate-200 text-sm">{item}</span>
                 </li>
               ))}
             </ul>
@@ -315,7 +306,7 @@ const SepticReplacementPage = () => {
               </button>
               <a
                 href="tel:+19546368200"
-                className="flex items-center justify-center gap-2 border border-slate-300 hover:border-blue-500 hover:text-blue-600 text-slate-700 font-bold px-6 py-3 rounded-lg text-sm transition-colors"
+                className="flex items-center justify-center gap-2 border border-slate-500 hover:border-blue-400 hover:text-blue-400 text-slate-200 font-bold px-6 py-3 rounded-lg text-sm transition-colors"
               >
                 <PhoneIcon className="w-4 h-4" /> (954) 636-8200
               </a>
