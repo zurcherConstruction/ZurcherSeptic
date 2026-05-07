@@ -108,6 +108,7 @@ module.exports = (sequelize) => {
         'unpaid',              // No pagado (gasto comprometido pero sin pagar)
         'partial',             // Pagado parcialmente (para Chase Credit Card con FIFO)
         'paid',                // Pagado directamente (sin invoice de proveedor)
+        'paid_via_credit_card', // Cargado a tarjeta de crédito, pendiente de liquidación
         'paid_via_invoice'     // Pagado a través de un SupplierInvoice
       ),
       allowNull: false,

@@ -506,6 +506,25 @@ const CreateBudget = () => {
               cat.category === itemDef.category.toUpperCase() &&
               cat.name.includes("SYSTEM PARTS") && cat.name.includes("ELECTRICAL")
             );
+          }
+          // Para INSPECTION: buscar por nombre y que la descripción contenga la palabra clave principal
+          // (ej: BD puede tener "FIRST INSPECTION" o "FIRST INSPECTION (IF NECESSARY)" - ambos válidos)
+          else if (itemDef.category === "INSPECTION") {
+            const descKeyword = itemDef.description
+              ? itemDef.description.toUpperCase().replace(/\s*\(IF NECESSARY\)\s*/i, '').trim()
+              : null;
+            found = normalizedBudgetItemsCatalog.find(cat => {
+              if (cat.category !== itemDef.category.toUpperCase()) return false;
+              if (cat.name !== itemDef.name.toUpperCase()) return false;
+              if (!descKeyword) return true;
+              const catDesc = (cat.description || '').toUpperCase();
+              return catDesc.includes(descKeyword);
+            });
+            if (found) {
+              console.log(`✅ INSPECTION encontrada: "${found.description}" para búsqueda "${itemDef.description}"`);
+            } else {
+              console.warn(`⚠️ INSPECTION no encontrada: "${itemDef.name}" - "${itemDef.description}"`);
+            }
           } else {
             // Para otros: buscar con descripción exacta
             found = normalizedBudgetItemsCatalog.find(cat => 
@@ -1954,6 +1973,7 @@ const customCategoryOrder = [
               <div className="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-4 pt-3"> {/* Made payment section responsive */}
                 <label htmlFor="payment_perc" className="text-sm font-medium text-gray-700">Pago Inicial:</label>
                 <select id="payment_perc" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handlePaymentPercentageChange} className={`${standardInputClasses} !mt-0 w-auto min-w-[120px]`}>
+                  <option value="50">50%</option>
                   <option value="60">60%</option>
                   <option value="total">Total (100%)</option>
                 </select>

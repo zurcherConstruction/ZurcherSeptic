@@ -26,6 +26,8 @@ const Navbar = ({ onLoginClick }) => {
       dropdown: [
         { name: 'ATU System Installation', path: '/services/atu-installation', desc: 'Aerobic treatment units' },
         { name: 'Conventional Septic System', path: '/services/regular-installation', desc: 'Standard septic installation' },
+        { name: 'Septic System Replacement', path: '/services/septic-replacement', desc: 'Full system replacement' },
+        { name: 'Drainfield Service', path: '/services/drainfield', desc: 'Inspection, repair & replacement' },
         { name: 'Maintenance', path: '/maintenance-services', desc: 'Ongoing system care' },
         { name: 'Repairs', path: '/repairs', desc: 'Fast, reliable fixes' },
       ],

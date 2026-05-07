@@ -142,7 +142,7 @@ const FinancialDashboardController = {
       
       // Filtro de fechas para expenses (usan campo 'date' string YYYY-MM-DD)
       const expenseFilter = {
-        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'partial'] }, // Dashboard: solo gastos pagados
+        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'paid_via_credit_card', 'partial'] }, // Dashboard: solo gastos pagados
         date: { [Op.gte]: MINIMUM_DATE }
       };
       
@@ -396,7 +396,7 @@ const FinancialDashboardController = {
       // =============================================================
 
       const expenseFilter = {
-        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'partial'] }, // Dashboard: solo gastos pagados
+        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'paid_via_credit_card', 'partial'] }, // Dashboard: solo gastos pagados
         date: { [Op.gte]: MINIMUM_DATE }
       };
 
@@ -488,8 +488,8 @@ const FinancialDashboardController = {
           category = 'Proveedores';
           proveedoresTotal += parseFloat(expense.amount || 0);
         }
-        // 🏦 PRIORIDAD 2: Si viene de gasto fijo (FixedExpense)
-        else if (expense.relatedFixedExpenseId) {
+        // 🏦 PRIORIDAD 2: Si viene de gasto fijo (FixedExpense) — por relación directa O por typeExpense
+        else if (expense.relatedFixedExpenseId || expense.typeExpense === 'Gasto Fijo') {
           category = 'Gastos Fijos';
           gastosFijosTotal += parseFloat(expense.amount || 0);
         }

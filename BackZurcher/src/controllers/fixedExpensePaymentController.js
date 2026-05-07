@@ -13,6 +13,10 @@ const { Op } = require('sequelize');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
 const { validateNoDuplicatePeriod, validatePaymentPeriod } = require('../utils/paymentPeriodValidator');
+
+// 💳 Métodos de pago que son tarjeta de crédito (no salen del banco hasta pagar la tarjeta)
+const CREDIT_CARD_METHODS = ['chase credit card', 'amex'];
+const isCreditCardPayment = (method) => CREDIT_CARD_METHODS.includes((method || '').toLowerCase().trim());
 const { calculateNextDueDate: calculateNextDueDateFromExpenseController } = require('./fixedExpenseController');
 
 /**
@@ -268,7 +272,14 @@ const addPartialPayment = async (req, res) => {
       return amountMatch && methodMatch && dateMatch && periodMatch;
     });
 
-    if (exactDuplicate) {
+    // ✅ Solo bloquear si el gasto ya está completamente pagado con ese pago
+    // Si hay saldo restante después del pago existente, puede ser un segundo pago legítimo del mismo monto
+    const totalPaidSoFar = existingPayments
+      .filter(p => p.periodStart === calculatedPeriodStart && p.periodEnd === calculatedPeriodEnd)
+      .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const wouldExceedTotal = totalPaidSoFar + paymentAmount > totalAmount + 0.01;
+
+    if (exactDuplicate && wouldExceedTotal) {
       // 🚨 Verificar si el pago es muy reciente (< 2 minutos)
       // Esto detecta doble clic
       const duplicateTime = new Date(exactDuplicate.createdAt);
@@ -360,8 +371,9 @@ const addPartialPayment = async (req, res) => {
         typeExpense: 'Gasto Fijo',
         paymentMethod: paymentMethod || fixedExpense.paymentMethod || 'Otro',
         notes: notes || `Pago parcial de: ${fixedExpense.name}`,
-        paymentStatus: 'paid',
-        paidDate: normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]),
+        // 💳 Si se paga con tarjeta, el Expense queda 'unpaid' hasta que se liquide la tarjeta
+        paymentStatus: isCreditCardPayment(paymentMethod || fixedExpense.paymentMethod) ? 'unpaid' : 'paid',
+        paidDate: isCreditCardPayment(paymentMethod || fixedExpense.paymentMethod) ? null : normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]),
         staffId: staffId || fixedExpense.createdByStaffId,
         relatedFixedExpenseId: fixedExpenseId,
         vendor: fixedExpense.vendor,
@@ -454,7 +466,16 @@ const addPartialPayment = async (req, res) => {
     
     // El newPaidAmount debe ser el TOTAL para el período actual
     const newPaidAmount = totalForThisPeriod;
-    const newPaymentStatus = newPaidAmount >= totalAmount ? 'paid' : (newPaidAmount > 0 ? 'partial' : 'unpaid');
+    // 💳 Si se pagó con tarjeta: estado especial 'paid_via_credit_card' (tarjeta pendiente de liquidar)
+    const usedCreditCard = isCreditCardPayment(paymentMethod || fixedExpense.paymentMethod);
+    let newPaymentStatus;
+    if (newPaidAmount >= totalAmount) {
+      newPaymentStatus = usedCreditCard ? 'paid_via_credit_card' : 'paid';
+    } else if (newPaidAmount > 0) {
+      newPaymentStatus = 'partial';
+    } else {
+      newPaymentStatus = 'unpaid';
+    }
     
     console.log('💰 Actualizando FixedExpense:', {
       oldPaidAmount: paidAmount,
@@ -470,7 +491,9 @@ const addPartialPayment = async (req, res) => {
     await fixedExpense.update({
       paidAmount: newPaidAmount,
       paymentStatus: newPaymentStatus,
-      paidDate: newPaymentStatus === 'paid' ? normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]) : fixedExpense.paidDate
+      paidDate: (newPaymentStatus === 'paid' || newPaymentStatus === 'paid_via_credit_card')
+        ? normalizeDateString(paymentDate || new Date().toISOString().split('T')[0])
+        : fixedExpense.paidDate
     });
 
     console.log('✅ FixedExpense actualizado:', {
@@ -478,8 +501,8 @@ const addPartialPayment = async (req, res) => {
       paymentStatus: fixedExpense.paymentStatus
     });
 
-    // 🆕 Si se pagó completamente, calcular siguiente nextDueDate
-    if (newPaymentStatus === 'paid') {
+    // 🆕 Si se pagó completamente (con banco o con tarjeta), calcular siguiente nextDueDate
+    if (newPaymentStatus === 'paid' || newPaymentStatus === 'paid_via_credit_card') {
       // 🔧 FIX: Solo resetear gastos recurrentes, NO bonos únicos
       const isRecurringExpense = fixedExpense.frequency &&
         fixedExpense.frequency !== 'one_time' &&
@@ -1134,22 +1157,40 @@ async function getPendingPaymentPeriods(req, res) {
     // 🆕 Filtrar períodos NO PAGADOS (pendientes de pago, vencidos o no)
     const todayString = today.toISOString().split('T')[0];
     console.log(`📅 Hoy es: ${todayString}`);
+    
+    // Calcular fecha límite para considerar períodos "históricos" (2 meses atrás)
+    const twoMonthsAgo = new Date(today);
+    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+    const twoMonthsAgoString = twoMonthsAgo.toISOString().split('T')[0];
+    
     const pendingPeriods = allPeriods
       .filter(period => {
         const periodKey = `${period.periodStart}_${period.periodEnd}`;
-        const isOverdue = period.dueDate <= todayString;
+        const isPastPeriod = period.dueDate < todayString;
+        const isHistoricalPeriod = period.dueDate < twoMonthsAgoString; // Más de 2 meses atrás
         
-        // 🆕 IMPORTANTE: Verificar si el período está COMPLETAMENTE pagado
+        // Verificar pagos del período
         const totalPaidForPeriod = paidPeriodMap.get(periodKey) || 0;
+        const hasSomePayment = totalPaidForPeriod > 0;
         const isFullyPaid = totalPaidForPeriod >= fixedExpense.totalAmount;
-        // 🔧 FIX: Mostrar NO solo vencidos, sino TODOS los NO PAGADOS (aunque sean futuros)
-        const isPending = !isFullyPaid;
         
-        console.log(`   Período ${period.displayDate}: overdue=${isOverdue}, paid=$${totalPaidForPeriod}/$${fixedExpense.totalAmount}, pending=${isPending} (key: ${periodKey})`);
+        // 🔧 LÓGICA MEJORADA: Considerar períodos históricos vs recientes
+        // - Períodos HISTÓRICOS (>2 meses) con algún pago → Completos (monto histórico válido)
+        // - Períodos RECIENTES (≤2 meses) → Deben tener el monto completo
+        // - Períodos FUTUROS → Deben tener el monto completo
+        // - Períodos sin pagos → Siempre pendientes
+        let isPending;
+        if (isHistoricalPeriod) {
+          // Histórico: completo si tiene algún pago
+          isPending = !hasSomePayment;
+        } else {
+          // Reciente o futuro: completo solo si tiene el monto total
+          isPending = !isFullyPaid;
+        }
         
-        // 🔧 FIX: Mostrar todos los NO PAGADOS, no solo los vencidos
-        // Solo si NO está completamente pagado
-        return !isFullyPaid;
+        console.log(`   Período ${period.displayDate}: historical=${isHistoricalPeriod}, past=${isPastPeriod}, paid=$${totalPaidForPeriod}/$${fixedExpense.totalAmount}, pending=${isPending} (key: ${periodKey})`);
+        
+        return isPending;
       })
       .map(period => ({
         date: period.dueDate,
@@ -1163,6 +1204,7 @@ async function getPendingPaymentPeriods(req, res) {
       }));
 
     console.log(`✅ Períodos PENDIENTES resultantes (${pendingPeriods.length}):`);
+    console.log(`   (Períodos >2 meses con pagos se consideran completos, períodos recientes deben pagarse completamente)`);
     pendingPeriods.forEach(p => {
       console.log(`   - ${p.displayDate} (${p.startDate} a ${p.endDate}) - Overdue: ${p.isOverdue}`);
     });

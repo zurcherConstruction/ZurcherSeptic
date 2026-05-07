@@ -32,7 +32,7 @@ const normalizeDateToLocal = (dateInput) => {
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
-  let { date, amount, typeExpense, notes, workId, simpleWorkId, staffId, paymentMethod, paymentDetails, verified } = req.body;
+  let { date, amount, typeExpense, notes, workId, simpleWorkId, staffId, paymentMethod, paymentDetails, verified, fixedExpenseId } = req.body;
   
   // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
   date = normalizeDateToLocal(date);
@@ -62,7 +62,8 @@ const createExpense = async (req, res) => {
       paymentMethod, 
       paymentDetails,
       verified: verified || false,
-      paymentStatus: 'unpaid'  // 🆕 Todos los gastos inician como no pagados
+      paymentStatus: 'unpaid',  // 🆕 Todos los gastos inician como no pagados
+      relatedFixedExpenseId: fixedExpenseId || null  // 💳 Vincular con FixedExpense para cascade al liquidar tarjeta
     }, { transaction });
 
     console.log('✅ [EXPENSE] Gasto creado:', {

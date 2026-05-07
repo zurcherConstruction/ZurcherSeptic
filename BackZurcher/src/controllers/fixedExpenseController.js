@@ -509,16 +509,16 @@ const getAllFixedExpenses = async (req, res) => {
         const paidAmount = parseFloat(feData.paidAmount || 0);
         const totalAmount = parseFloat(feData.totalAmount || 0);
         
-        // Solo marcar como 'unpaid' si NO hay pago para el período vencido
+        // Respetar paid_via_credit_card y paid_via_invoice del registro real
         let paymentStatus;
-        if (existingExpense) {
+        if (feData.paymentStatus === 'paid_via_credit_card' || feData.paymentStatus === 'paid_via_invoice') {
+          paymentStatus = feData.paymentStatus;
+        } else if (existingExpense && paidAmount >= totalAmount) {
           paymentStatus = 'paid';
+        } else if (paidAmount > 0 && paidAmount < totalAmount) {
+          paymentStatus = 'partial';
         } else {
           paymentStatus = 'unpaid';
-        }
-        // Si hay pagos parciales, marcar como 'partial'
-        if (!existingExpense && paidAmount > 0 && paidAmount < totalAmount) {
-          paymentStatus = 'partial';
         }
 
         return {
