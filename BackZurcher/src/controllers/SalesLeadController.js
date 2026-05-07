@@ -255,10 +255,13 @@ const SalesLeadController = {
 
       if (tags) {
         // Buscar leads que contengan al menos uno de los tags
+        // Usamos literal con cast ::text[] para evitar incompatibilidad text[] vs varchar[]
         const tagsArray = Array.isArray(tags) ? tags : [tags];
-        whereClause.tags = {
-          [Op.overlap]: tagsArray
-        };
+        const escapedTags = tagsArray.map(t => `'${t.replace(/'/g, "''")}'`).join(',');
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push(
+          sequelize.literal(`"SalesLead"."tags" && ARRAY[${escapedTags}]::text[]`)
+        );
       }
 
       if (search) {

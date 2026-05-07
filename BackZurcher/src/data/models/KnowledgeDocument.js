@@ -82,6 +82,22 @@ module.exports = (sequelize) => {
       field: 'is_favorite',
       comment: 'Documento marcado como favorito',
     },
+
+    // 📅 VENCIMIENTO (opcional)
+    expiresAt: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: 'expires_at',
+      comment: 'Fecha de vencimiento del documento (opcional)',
+    },
+
+    expiryNotified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: 'expiry_notified',
+      comment: 'Ya se envió la notificación de vencimiento',
+    },
     
     // 👤 AUDITORÍA
     createdBy: {

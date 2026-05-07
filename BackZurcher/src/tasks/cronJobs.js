@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const archiveBudgets = require("./archiveBudgets");
 const { sendScheduledNewsletters, processRecurringNewsletters } = require("./newsletterScheduler");
+const { checkKnowledgeDocExpiry } = require("../services/checkKnowledgeDocExpiry");
 
 // Solo activar el cron si la variable de entorno lo indica
 if (process.env.ENABLE_AUTO_ARCHIVE === 'true') {
@@ -31,9 +32,17 @@ if (process.env.ENABLE_NEWSLETTER_SCHEDULER !== 'false') {
   console.log("ℹ️ Newsletter Scheduler DESHABILITADO. Activa quitando ENABLE_NEWSLETTER_SCHEDULER=false");
 }
 
+// Knowledge Base — Vencimiento de documentos (todos los días a las 8:00 AM)
+cron.schedule("0 8 * * *", () => {
+  console.log("⏰ [CRON] Verificando vencimientos de documentos KB...");
+  checkKnowledgeDocExpiry();
+});
+console.log("✅ Cron de vencimientos KB activado (diario a las 08:00).");
+
 // Exportar función para ejecución manual
 module.exports = { 
   archiveBudgets,
   sendScheduledNewsletters,
-  processRecurringNewsletters
+  processRecurringNewsletters,
+  checkKnowledgeDocExpiry
 };

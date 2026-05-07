@@ -544,10 +544,16 @@ exports.updateDocument = async (req, res) => {
     const { id } = req.params;
     const staffId = req.user?.id;
     
-    const [updated] = await KnowledgeDocument.update(
-      { ...req.body, updatedBy: staffId },
-      { where: { id } }
-    );
+    // Si cambia la fecha de vencimiento, resetear la notificación para que vuelva a avisar
+    const updateData = { ...req.body, updatedBy: staffId };
+    if (req.body.expiresAt !== undefined) {
+      const current = await KnowledgeDocument.findByPk(id, { attributes: ['expiresAt'] });
+      if (current && req.body.expiresAt !== current.expiresAt) {
+        updateData.expiryNotified = false;
+      }
+    }
+
+    const [updated] = await KnowledgeDocument.update(updateData, { where: { id } });
 
     if (updated) {
       const document = await KnowledgeDocument.findByPk(id, {
@@ -620,20 +626,25 @@ exports.uploadDocumentFiles = async (req, res) => {
         } else if (file.mimetype.startsWith('video/')) {
           resourceType = 'video';
         } else if (file.mimetype === 'application/pdf') {
-          resourceType = 'image'; // Cloudinary maneja PDFs como 'image'
+          resourceType = 'raw'; // 'raw' preserva el PDF original sin convertirlo a imagen
         }
 
         const result = await uploadBufferToCloudinary(file.buffer, {
           folder: 'knowledge-base-documents',
           resource_type: resourceType,
-          // Para PDFs, no aplicar transformaciones
-          ...(file.mimetype === 'application/pdf' ? {} : {})
         });
+
+        // Para raw, Cloudinary no devuelve format → inferirlo del mimetype/nombre
+        const inferredFormat = result.format
+          || (file.mimetype === 'application/pdf' ? 'pdf' : null)
+          || file.originalname.split('.').pop()?.toLowerCase()
+          || 'bin';
 
         return {
           url: result.secure_url,
           publicId: result.public_id,
-          format: result.format,
+          format: inferredFormat,
+          mimeType: file.mimetype,
           resourceType: result.resource_type,
           size: result.bytes,
           originalFilename: file.originalname,

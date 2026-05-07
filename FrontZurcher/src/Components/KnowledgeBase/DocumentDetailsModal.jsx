@@ -16,17 +16,15 @@ const DocumentDetailsModal = ({ document, onClose, onPreview, onDownload }) => {
   };
 
   const getFileIcon = (file) => {
-    const format = file.format?.toLowerCase() || file.url?.split('.').pop()?.toLowerCase();
-    
-    if (format === 'pdf') {
-      return <FaFilePdf className="text-red-500 text-3xl" />;
-    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(format)) {
-      return <FaFileImage className="text-blue-500 text-3xl" />;
-    } else if (['xls', 'xlsx'].includes(format)) {
-      return <FaFileExcel className="text-green-500 text-3xl" />;
-    } else if (['doc', 'docx'].includes(format)) {
-      return <FaFileWord className="text-blue-600 text-3xl" />;
-    }
+    const format = file.format?.toLowerCase()
+      || (file.mimeType === 'application/pdf' ? 'pdf' : null)
+      || (file.mimeType?.startsWith('image/') ? file.mimeType.split('/')[1] : null)
+      || file.url?.split('?')[0].split('.').pop()?.toLowerCase()
+      || '';
+    if (format === 'pdf') return <FaFilePdf className="text-red-500 text-3xl" />;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(format)) return <FaFileImage className="text-blue-500 text-3xl" />;
+    if (['xls', 'xlsx'].includes(format)) return <FaFileExcel className="text-green-500 text-3xl" />;
+    if (['doc', 'docx'].includes(format)) return <FaFileWord className="text-blue-600 text-3xl" />;
     return <FaFileAlt className="text-gray-500 text-3xl" />;
   };
 
@@ -47,6 +45,19 @@ const DocumentDetailsModal = ({ document, onClose, onPreview, onDownload }) => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getExpiryInfo = (expiresAt) => {
+    if (!expiresAt) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiry = new Date(expiresAt + 'T00:00:00');
+    const daysLeft = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+    if (daysLeft < 0) return { daysLeft, label: `Vencido hace ${Math.abs(daysLeft)} días`, color: 'bg-red-50 border-red-200 text-red-700', icon: '🔴' };
+    if (daysLeft === 0) return { daysLeft, label: 'Vence HOY', color: 'bg-red-50 border-red-200 text-red-700', icon: '🔴' };
+    if (daysLeft <= 30) return { daysLeft, label: `Vence en ${daysLeft} días`, color: 'bg-orange-50 border-orange-200 text-orange-700', icon: '⚠️' };
+    if (daysLeft <= 60) return { daysLeft, label: `Vence en ${daysLeft} días`, color: 'bg-yellow-50 border-yellow-200 text-yellow-700', icon: '📅' };
+    return { daysLeft, label: `Vence en ${daysLeft} días`, color: 'bg-green-50 border-green-200 text-green-700', icon: '✅' };
   };
 
   const files = parseFileUrls(document.fileUrl);
@@ -171,6 +182,22 @@ const DocumentDetailsModal = ({ document, onClose, onPreview, onDownload }) => {
               </p>
             </div>
           )}
+
+          {/* Vencimiento */}
+          {document.expiresAt && (() => {
+            const expiry = getExpiryInfo(document.expiresAt);
+            return (
+              <div className={`border rounded-lg p-3 flex items-center gap-3 ${expiry.color}`}>
+                <span className="text-xl">{expiry.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold">{expiry.label}</p>
+                  <p className="text-xs opacity-75">
+                    Fecha de vencimiento: {new Date(document.expiresAt + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Metadata */}
           <div className="border-t pt-4">

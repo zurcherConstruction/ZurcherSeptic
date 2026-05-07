@@ -3,13 +3,43 @@ import { XMarkIcon } from '@heroicons/react/24/outline';
 import DuplicateWarning from '../Common/DuplicateWarning';
 import api from '../../utils/axios';
 
+const SOURCE_OPTIONS = [
+  { value: 'website',      label: '🌐 Web / Online' },
+  { value: 'walk_in',      label: '🚶 Recorrido (Field)' },
+  { value: 'phone_call',   label: '📞 Llamada' },
+  { value: 'referral',     label: '🤝 Referido' },
+  { value: 'social_media', label: '📱 Redes Sociales' },
+  { value: 'email',        label: '✉️ Email' },
+  { value: 'other',        label: '🔹 Otro' },
+];
+
+const PRESET_TAGS = [
+  { value: 'large-account',    label: '⭐ Large Account',    color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
+  { value: 'new-construction', label: '🏗️ New Construction',  color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  { value: 'commercial',       label: '🏢 Commercial',        color: 'bg-purple-100 text-purple-800 border-purple-300' },
+  { value: 'residential',      label: '🏠 Residential',       color: 'bg-green-100 text-green-800 border-green-300' },
+  { value: 'contractor',       label: '👷 Contractor',        color: 'bg-orange-100 text-orange-800 border-orange-300' },
+  { value: 'urgent',           label: '⚡ Urgent',            color: 'bg-red-100 text-red-800 border-red-300' },
+];
+
 const EditLeadModal = ({ lead, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     applicantName: lead.applicantName || '',
     applicantEmail: lead.applicantEmail || '',
     applicantPhone: lead.applicantPhone || '',
-    propertyAddress: lead.propertyAddress || ''
+    propertyAddress: lead.propertyAddress || '',
+    source: lead.source || 'website',
+    tags: lead.tags || [],
   });
+
+  const toggleTag = (tag) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.includes(tag)
+        ? prev.tags.filter(t => t !== tag)
+        : [...prev.tags, tag]
+    }));
+  };
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -158,6 +188,46 @@ const EditLeadModal = ({ lead, onClose, onSave }) => {
                   placeholder="123 Main St, City, State ZIP"
                 />
                 <DuplicateWarning field="address" data={duplicates.address} label="Dirección" />
+              </div>
+
+              {/* Origen del Lead */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Origen del contacto
+                </label>
+                <select
+                  name="source"
+                  value={formData.source}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {SOURCE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tags predefinidos */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de cliente
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESET_TAGS.map(tag => (
+                    <button
+                      key={tag.value}
+                      type="button"
+                      onClick={() => toggleTag(tag.value)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                        formData.tags.includes(tag.value)
+                          ? tag.color + ' ring-2 ring-offset-1 ring-current'
+                          : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-400'
+                      }`}
+                    >
+                      {tag.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

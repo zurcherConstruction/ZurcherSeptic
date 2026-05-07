@@ -18,7 +18,7 @@ import {
   FaBell, FaPlus, FaCheck, FaTrash, FaEdit, FaComment,
   FaTimes, FaChevronDown, FaChevronUp, FaUser, FaBroadcastTower,
   FaTag, FaLock, FaExclamationTriangle, FaCalendarAlt,
-  FaExternalLinkAlt, FaSearch, FaHardHat, FaFileAlt, FaTimesCircle
+  FaExternalLinkAlt, FaSearch, FaHardHat, FaFileAlt, FaTimesCircle, FaBook
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
@@ -62,6 +62,8 @@ const getFleetCompanyFromReminder = (reminder) => {
   if (!match?.[1]) return null;
   return match[1].trim().toUpperCase();
 };
+
+const isKbDocReminder = (reminder) => reminder?.linkedEntityType === 'kb_doc';
 
 export default function ReminderPanel() {
   const dispatch = useDispatch();
@@ -119,9 +121,15 @@ export default function ReminderPanel() {
   const pendingCount = reminders.filter(r => !r.myAssignment?.completed).length;
 
   const groupedReminders = filtered.reduce((acc, reminder) => {
-    const company = getFleetCompanyFromReminder(reminder);
-    const key = company ? `fleet-${company}` : 'general';
-    const label = company ? `Fleet - ${company}` : 'General';
+    let key, label;
+    if (isKbDocReminder(reminder)) {
+      key = 'kb_doc';
+      label = 'Knowledge Base';
+    } else {
+      const company = getFleetCompanyFromReminder(reminder);
+      key = company ? `fleet-${company}` : 'general';
+      label = company ? `Fleet - ${company}` : 'General';
+    }
 
     if (!acc[key]) {
       acc[key] = { key, label, items: [] };
@@ -413,6 +421,8 @@ export default function ReminderPanel() {
                     onNavigateLink={() => navigate(
                       r.linkedEntityType === 'work'
                         ? `/work/${r.linkedEntityId}`
+                        : r.linkedEntityType === 'kb_doc'
+                        ? '/knowledge-base'
                         : '/budgets'
                     )}
                   />
@@ -839,17 +849,19 @@ function ReminderCard({
               {r.linkedEntityType && r.linkedEntityId && (
                 <button
                   onClick={onNavigateLink}
-                  title={`Ir al ${r.linkedEntityType === 'work' ? 'trabajo' : 'presupuesto'}`}
+                  title={`Ir al ${ r.linkedEntityType === 'work' ? 'trabajo' : r.linkedEntityType === 'kb_doc' ? 'Knowledge Base' : 'presupuesto'}`}
                   className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
                     r.linkedEntityType === 'work'
                       ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                      : r.linkedEntityType === 'kb_doc'
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                       : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
                   }`}
                 >
-                  {r.linkedEntityType === 'work' ? <FaHardHat className="w-3 h-3" /> : <FaFileAlt className="w-3 h-3" />}
+                  {r.linkedEntityType === 'work' ? <FaHardHat className="w-3 h-3" /> : r.linkedEntityType === 'kb_doc' ? <FaBook className="w-3 h-3" /> : <FaFileAlt className="w-3 h-3" />}
                   {r.linkedEntityLabel
                     ? r.linkedEntityLabel.length > 28 ? r.linkedEntityLabel.slice(0, 28) + '…' : r.linkedEntityLabel
-                    : (r.linkedEntityType === 'work' ? 'Ver trabajo' : 'Ver presupuesto')}
+                    : (r.linkedEntityType === 'work' ? 'Ver trabajo' : r.linkedEntityType === 'kb_doc' ? 'Ver documento' : 'Ver presupuesto')}
                   <FaExternalLinkAlt className="w-2.5 h-2.5 ml-0.5" />
                 </button>
               )}
@@ -885,10 +897,12 @@ function ReminderCard({
               {r.linkedEntityType && r.linkedEntityId && (
                 <button
                   onClick={onNavigateLink}
-                  title={`Ir al ${r.linkedEntityType === 'work' ? 'trabajo' : 'presupuesto'}: ${r.linkedEntityLabel || r.linkedEntityId}`}
+                  title={`Ir al ${r.linkedEntityType === 'work' ? 'trabajo' : r.linkedEntityType === 'kb_doc' ? 'Knowledge Base' : 'presupuesto'}: ${r.linkedEntityLabel || r.linkedEntityId}`}
                   className={`p-2 rounded-xl transition-colors ${
                     r.linkedEntityType === 'work'
                       ? 'text-amber-400 hover:text-amber-600 hover:bg-amber-50'
+                      : r.linkedEntityType === 'kb_doc'
+                      ? 'text-emerald-400 hover:text-emerald-600 hover:bg-emerald-50'
                       : 'text-sky-400 hover:text-sky-600 hover:bg-sky-50'
                   }`}
                 >

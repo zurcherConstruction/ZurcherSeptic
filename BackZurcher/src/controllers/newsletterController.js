@@ -1130,9 +1130,12 @@ async function processNewsletterSending(newsletterId) {
         try {
           // Personalizar HTML con el ID del suscriptor para el botón de unsubscribe
           let personalizedHtml = newsletter.htmlContent.replace(/\{\{subscriberId\}\}/g, recipient.subscriber.id);
+
+          // 🔧 Reemplazar cualquier URL de localhost que haya quedado en el template
+          const backendUrl = process.env.API_URL || 'http://localhost:3001';
+          personalizedHtml = personalizedHtml.replace(/http:\/\/localhost:\d+/g, backendUrl);
           
           // 🆕 Agregar pixel de tracking invisible para registrar aperturas
-          const backendUrl = process.env.API_URL || 'http://localhost:3001';
           const trackingPixel = `<img src="${backendUrl}/newsletter/track-open/${recipient.id}" width="1" height="1" style="display:none;border:0;" alt="" />`;
           
           // Insertar el pixel justo antes del cierre del body

@@ -189,15 +189,37 @@ const processNewsletterSending = async (newsletter) => {
         html = html.replace(/{{firstName}}/g, subscriber.firstName || '');
         html = html.replace(/{{lastName}}/g, subscriber.lastName || '');
         html = html.replace(/{{email}}/g, subscriber.email || '');
+        html = html.replace(/\{\{subscriberId\}\}/g, subscriber.id);
         
         text = text.replace(/{{firstName}}/g, subscriber.firstName || '');
         text = text.replace(/{{lastName}}/g, subscriber.lastName || '');
         text = text.replace(/{{email}}/g, subscriber.email || '');
 
-        // Agregar link de desuscripción
-        const unsubscribeLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/newsletter/unsubscribe/${subscriber.id}`;
-        html += `<br/><br/><small><a href="${unsubscribeLink}">Desuscribirse</a></small>`;
-        text += `\n\nDesuscribirse: ${unsubscribeLink}`;
+        // 🔧 Reemplazar cualquier URL localhost que haya quedado en el template
+        const backendUrl = process.env.API_URL || 'http://localhost:3001';
+        html = html.replace(/http:\/\/localhost:\d+/g, backendUrl);
+
+        // Agregar link de desuscripción si no viene en el template
+        if (!html.includes('public-unsubscribe') && !html.includes('unsubscribe')) {
+          const unsubscribeLink = `${backendUrl}/newsletter/public-unsubscribe/${subscriber.id}`;
+          html += `<br/><br/><small><a href="${unsubscribeLink}">Unsubscribe</a></small>`;
+          text += `\n\nUnsubscribe: ${unsubscribeLink}`;
+        }
+
+        // Crear el recipient ANTES de enviar para obtener su ID para el pixel
+        const recipient = await NewsletterRecipient.create({
+          newsletterId: newsletter.id,
+          subscriberId: subscriber.id,
+          status: 'pending'
+        });
+
+        // 🆕 Agregar pixel de tracking invisible para registrar aperturas
+        const trackingPixel = `<img src="${backendUrl}/newsletter/track-open/${recipient.id}" width="1" height="1" style="display:none;border:0;" alt="" />`;
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', `${trackingPixel}</body>`);
+        } else {
+          html += trackingPixel;
+        }
 
         await transporter.sendMail({
           from: `"Zurcher Septic" <${process.env.SMTP_USER}>`,
@@ -207,10 +229,8 @@ const processNewsletterSending = async (newsletter) => {
           text
         });
 
-        // Registrar envío
-        await NewsletterRecipient.create({
-          newsletterId: newsletter.id,
-          subscriberId: subscriber.id,
+        // Registrar envío exitoso
+        await recipient.update({
           sentAt: new Date(),
           status: 'sent'
         });
@@ -219,12 +239,20 @@ const processNewsletterSending = async (newsletter) => {
       } catch (error) {
         console.error(`❌ Error enviando a ${subscriber.email}:`, error.message);
         
-        // Registrar fallo
-        await NewsletterRecipient.create({
-          newsletterId: newsletter.id,
-          subscriberId: subscriber.id,
-          status: 'failed'
-        });
+        // Si ya se creó el recipient, actualizarlo a failed; si no, crearlo
+        try {
+          await NewsletterRecipient.create({
+            newsletterId: newsletter.id,
+            subscriberId: subscriber.id,
+            status: 'failed'
+          });
+        } catch (_) {
+          // El recipient ya existe (creado antes del send), actualizar
+          const existing = await NewsletterRecipient.findOne({
+            where: { newsletterId: newsletter.id, subscriberId: subscriber.id }
+          });
+          if (existing) await existing.update({ status: 'failed' });
+        }
 
         return { success: false, email: subscriber.email };
       }
@@ -263,6 +291,7 @@ const processNewsletterSending = async (newsletter) => {
   // Actualizar newsletter con resultados
   await newsletter.update({
     status: finalSentCount > 0 ? 'sent' : 'failed',
+    sentAt: new Date(),
     recipientCount: recipients.length,
     sentCount: finalSentCount,
     failedCount: finalFailedCount,

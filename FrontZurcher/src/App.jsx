@@ -164,7 +164,7 @@ function App() {
   return (
     <>
       {shouldShowLayout && <Header />}
-      {isAuthenticated && <ReminderPopup />}
+      {shouldShowLayout && <ReminderPopup />}
       <LoadingSpinner />
       <div className={`flex ${shouldShowLayout ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
         {shouldShowLayout && <BarraLateral />}

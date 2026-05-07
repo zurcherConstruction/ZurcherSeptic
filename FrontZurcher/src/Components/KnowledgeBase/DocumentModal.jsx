@@ -14,7 +14,8 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
     title: '',
     description: '',
     fileType: 'PDF',
-    tags: []
+    tags: [],
+    expiresAt: ''
   });
   const [uploadedFiles, setUploadedFiles] = useState([]); // Archivos ya subidos a Cloudinary
   const [selectedFiles, setSelectedFiles] = useState([]); // Archivos seleccionados para subir
@@ -29,7 +30,8 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
         title: document.title || '',
         description: document.description || '',
         fileType: document.fileType || 'PDF',
-        tags: document.tags || []
+        tags: document.tags || [],
+        expiresAt: document.expiresAt || ''
       });
       
       // Parsear archivos existentes
@@ -50,7 +52,8 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
         title: '',
         description: '',
         fileType: 'PDF',
-        tags: []
+        tags: [],
+        expiresAt: ''
       });
       setUploadedFiles([]);
       setSelectedFiles([]);
@@ -131,26 +134,26 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
     }));
   };
 
+  const getFileFormat = (file) => {
+    if (file.format) return file.format.toLowerCase();
+    if (file.mimeType === 'application/pdf') return 'pdf';
+    if (file.mimeType?.startsWith('image/')) return file.mimeType.split('/')[1];
+    if (file.type === 'application/pdf') return 'pdf';
+    if (file.type?.startsWith('image/')) return file.type.split('/')[1];
+    return file.name?.split('.').pop()?.toLowerCase() || file.url?.split('?')[0].split('.').pop()?.toLowerCase() || '';
+  };
+
   const getFileIcon = (file) => {
-    const format = file.format?.toLowerCase() || file.type?.split('/')[1] || file.name?.split('.').pop()?.toLowerCase();
-    
-    if (format === 'pdf') {
-      return <FaFilePdf className="text-red-500 text-2xl" />;
-    } else if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'image'].includes(format)) {
-      return <FaFileImage className="text-blue-500 text-2xl" />;
-    } else if (['doc', 'docx'].includes(format)) {
-      return <FaFileWord className="text-blue-600 text-2xl" />;
-    } else if (['xls', 'xlsx'].includes(format)) {
-      return <FaFileExcel className="text-green-600 text-2xl" />;
-    }
+    const format = getFileFormat(file);
+    if (format === 'pdf') return <FaFilePdf className="text-red-500 text-2xl" />;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(format)) return <FaFileImage className="text-blue-500 text-2xl" />;
+    if (['doc', 'docx'].includes(format)) return <FaFileWord className="text-blue-600 text-2xl" />;
+    if (['xls', 'xlsx'].includes(format)) return <FaFileExcel className="text-green-600 text-2xl" />;
     return <FaFilePdf className="text-gray-500 text-2xl" />;
   };
 
   const isImage = (file) => {
-    if (file.type) {
-      return file.type.startsWith('image/');
-    }
-    const format = file.format?.toLowerCase() || file.url?.split('.').pop()?.toLowerCase();
+    const format = getFileFormat(file);
     return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(format);
   };
 
@@ -479,6 +482,27 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
                     </span>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Fecha de Vencimiento (opcional) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Fecha de Vencimiento
+                <span className="ml-1 text-xs text-gray-400 font-normal">(opcional)</span>
+              </label>
+              <input
+                type="date"
+                name="expiresAt"
+                value={formData.expiresAt}
+                onChange={handleChange}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {formData.expiresAt && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Se enviará recordatorio 30 días antes del vencimiento.
+                </p>
               )}
             </div>
 
