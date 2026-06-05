@@ -14,6 +14,19 @@ const { sendNotification } = require('../utils/notifications/notificationService
 const { sendNotificationToApp } = require('../utils/notifications/notificationServiceApp');
 const { filterDuplicates, registerSent } = require('../utils/notifications/notificationDeduplicator');
 
+async function getReceiptDataFromSessionId(sessionId) {
+  if (!sessionId) return { receiptUrl: null, session: null };
+
+  const session = await stripe.checkout.sessions.retrieve(sessionId, {
+    expand: ['payment_intent.latest_charge']
+  });
+
+  const latestCharge = session?.payment_intent?.latest_charge;
+  const receiptUrl = latestCharge?.receipt_url || null;
+
+  return { receiptUrl, session };
+}
+
 /**
  * 🔔 Maneja todos los eventos de webhook de Stripe
  */
@@ -132,6 +145,8 @@ async function processInvoicePayment(budgetId, amountPaid, session) {
 
     console.log(`💰 Procesando pago de $${amountPaid} para Budget #${budgetId}`);
 
+    const { receiptUrl } = await getReceiptDataFromSessionId(session.id);
+
     // Crear registro de Income
     const now = new Date();
     const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -145,6 +160,9 @@ async function processInvoicePayment(budgetId, amountPaid, session) {
       paymentMethod: 'Stripe',
       stripePaymentIntentId: session.payment_intent,
       stripeSessionId: session.id,
+      paymentDetails: receiptUrl
+        ? `Stripe session: ${session.id} | budget_id:${budgetId} | Receipt: ${receiptUrl}`
+        : `Stripe session: ${session.id} | budget_id:${budgetId}`,
       verified: false
     });
 
@@ -189,6 +207,8 @@ async function processFinalInvoicePayment(metadata, amountPaid, session) {
 
     console.log(`💰 Procesando pago final de $${amountPaid} para Final Invoice #${finalInvoiceId}`);
 
+    const { receiptUrl } = await getReceiptDataFromSessionId(session.id);
+
     // Buscar el Final Invoice
     const finalInvoice = await FinalInvoice.findByPk(finalInvoiceId);
     
@@ -225,6 +245,9 @@ async function processFinalInvoicePayment(metadata, amountPaid, session) {
       paymentMethod: 'Stripe',
       stripePaymentIntentId: session.payment_intent,
       stripeSessionId: session.id,
+      paymentDetails: receiptUrl
+        ? `Stripe session: ${session.id} | Receipt: ${receiptUrl}`
+        : `Stripe session: ${session.id}`,
       verified: false
     });
 
@@ -346,4 +369,52 @@ exports.testWebhook = async (req, res) => {
       hasWebhookSecret: !!process.env.STRIPE_WEBHOOK_SECRET
     }
   });
+};
+
+/**
+ * 🔎 Devuelve URL del recibo de Stripe para una Checkout Session
+ * Uso esperado: /stripe/checkout-receipt?session_id=cs_test_xxx
+ */
+exports.getCheckoutReceipt = async (req, res) => {
+  try {
+    const sessionId = (req.query.session_id || '').trim();
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'session_id es requerido'
+      });
+    }
+
+    const { receiptUrl, session } = await getReceiptDataFromSessionId(sessionId);
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Checkout session no encontrada'
+      });
+    }
+
+    const isPaid = session.payment_status === 'paid';
+
+    return res.json({
+      success: true,
+      sessionId: session.id,
+      paymentStatus: session.payment_status,
+      isPaid,
+      amountTotal: typeof session.amount_total === 'number' ? session.amount_total / 100 : null,
+      currency: session.currency || 'usd',
+      customerEmail: session.customer_email || session.customer_details?.email || null,
+      receiptUrl,
+      paymentType: session.metadata?.payment_type || null,
+      invoiceNumber: session.metadata?.invoice_number || null
+    });
+  } catch (error) {
+    console.error('❌ Error consultando recibo por checkout session:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'No se pudo obtener el recibo de Stripe',
+      error: error.message
+    });
+  }
 };

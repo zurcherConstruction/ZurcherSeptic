@@ -211,6 +211,19 @@ router.patch('/:idBudget/follow-up', verifyToken, allowRoles(['admin', 'owner', 
 // 🗄️ ARCHIVAR PRESUPUESTO
 router.patch('/:idBudget/archive', verifyToken, allowRoles(['admin', 'owner', 'follow-up', 'finance']), BudgetController.archiveBudget);
 
+// 💳 Obtener recibo Stripe asociado al budget (si existe)
+router.get(
+  '/:idBudget/stripe-receipt',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'staff', 'finance', 'follow-up']),
+  BudgetController.getStripeReceipt
+);
+
+router.get(
+  '/:idBudget/stripe-receipt/view',
+  BudgetController.viewStripeReceipt
+);
+
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
   router.get('/:idBudget', verifyToken, isStaff, BudgetController.getBudgetById); // Personal del hotel puede ver un presupuesto específico
 

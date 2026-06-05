@@ -97,7 +97,9 @@ app.use('/uploads/budgets', (req, res, next) => {
   }
   next();
 }, express.static(path.join(__dirname, '../uploads/budgets')));
-app.use(morgan('dev'));
+app.use(morgan('dev', {
+  skip: (req) => req.method === 'OPTIONS'
+}));
 app.use(passport.initialize());
 
 

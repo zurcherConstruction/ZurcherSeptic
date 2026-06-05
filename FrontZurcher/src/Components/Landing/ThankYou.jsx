@@ -1,10 +1,19 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FaPhone, FaWhatsapp } from 'react-icons/fa';
 import backgroundImage from '../../assets/landing/3.jpeg';
+import api from '../../utils/axios';
 
 function ThankYou() {
   // Estado para controlar el dropdown
   const [showDropdown, setShowDropdown] = useState(false);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+  const [receiptData, setReceiptData] = useState(null);
+
+  const sessionId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('session_id');
+  }, []);
 
   // Configuración de contacto
   const phone = "+1 (407) 419-4495";
@@ -104,6 +113,26 @@ function ThankYou() {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [showDropdown]);
 
+  React.useEffect(() => {
+    const loadReceipt = async () => {
+      if (!sessionId) return;
+
+      setReceiptLoading(true);
+      setReceiptError('');
+
+      try {
+        const response = await api.get(`/stripe/checkout-receipt?session_id=${encodeURIComponent(sessionId)}`);
+        setReceiptData(response.data || null);
+      } catch (error) {
+        setReceiptError(error?.response?.data?.message || 'We could not load your payment receipt.');
+      } finally {
+        setReceiptLoading(false);
+      }
+    };
+
+    loadReceipt();
+  }, [sessionId]);
+
   return (
     <div style={pageStyle}>
       <div style={overlayStyle}>
@@ -114,6 +143,55 @@ function ThankYou() {
         <p style={paragraphStyle}>
           If you have any questions or need support, feel free to reach out. We’re here to help.
         </p>
+
+        {sessionId && (
+          <div
+            style={{
+              marginBottom: '24px',
+              padding: '16px',
+              borderRadius: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.12)',
+              border: '1px solid rgba(255, 255, 255, 0.25)'
+            }}
+          >
+            <p style={{ margin: 0, fontSize: '1em', lineHeight: '1.5' }}>
+              Payment confirmation detected. You can view or download your receipt below.
+            </p>
+            {receiptLoading && (
+              <p style={{ marginTop: '8px', fontSize: '0.95em' }}>Loading receipt...</p>
+            )}
+            {!receiptLoading && receiptData?.receiptUrl && (
+              <a
+                href={receiptData.receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-block',
+                  marginTop: '12px',
+                  backgroundColor: '#1d4ed8',
+                  color: '#fff',
+                  padding: '10px 16px',
+                  borderRadius: '6px',
+                  fontWeight: '700',
+                  textDecoration: 'none'
+                }}
+              >
+                View / Download Receipt
+              </a>
+            )}
+            {!receiptLoading && !receiptData?.receiptUrl && !receiptError && (
+              <p style={{ marginTop: '8px', fontSize: '0.95em' }}>
+                Receipt is not available yet. Please check again in a moment.
+              </p>
+            )}
+            {receiptError && (
+              <p style={{ marginTop: '8px', fontSize: '0.95em', color: '#fecaca' }}>
+                {receiptError}
+              </p>
+            )}
+          </div>
+        )}
+
         <div style={{ position: 'relative', display: 'inline-block' }} className="dropdown-container">
           <button
             style={buttonStyle}

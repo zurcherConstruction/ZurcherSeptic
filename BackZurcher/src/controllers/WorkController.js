@@ -405,7 +405,9 @@ const getWorkById = async (req, res) => {
             'totalPrice', 
             'initialPaymentPercentage',
             'signatureMethod',
+            'signatureDocumentId',
             'signNowDocumentId',
+            'docusignEnvelopeId',
             'signedPdfPath',
             'manualSignedPdfPath',
             'manualSignedPdfPublicId'

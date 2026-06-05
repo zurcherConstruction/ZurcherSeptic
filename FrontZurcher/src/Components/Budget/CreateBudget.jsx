@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Viewer, Worker } from "@react-pdf-viewer/core";
@@ -508,17 +508,16 @@ const CreateBudget = () => {
             );
           }
           // Para INSPECTION: buscar por nombre y que la descripción contenga la palabra clave principal
-          // (ej: BD puede tener "FIRST INSPECTION" o "FIRST INSPECTION (IF NECESSARY)" - ambos válidos)
+          // (ej: BD puede tener "FIRST INSPECTION (IF NECESSARY)" o "FINAL INSPECTION (IF NECESSARY)")
           else if (itemDef.category === "INSPECTION") {
-            const descKeyword = itemDef.description
-              ? itemDef.description.toUpperCase().replace(/\s*\(IF NECESSARY\)\s*/i, '').trim()
-              : null;
+            const expectedName = (itemDef.name || '').toUpperCase().trim();
+            const expectedDescription = (itemDef.description || '').toUpperCase().trim();
             found = normalizedBudgetItemsCatalog.find(cat => {
               if (cat.category !== itemDef.category.toUpperCase()) return false;
-              if (cat.name !== itemDef.name.toUpperCase()) return false;
-              if (!descKeyword) return true;
-              const catDesc = (cat.description || '').toUpperCase();
-              return catDesc.includes(descKeyword);
+              if ((cat.name || '').toUpperCase().trim() !== expectedName) return false;
+              if (!expectedDescription) return true;
+              const catDesc = (cat.description || '').toUpperCase().trim();
+              return catDesc === expectedDescription;
             });
             if (found) {
               console.log(`✅ INSPECTION encontrada: "${found.description}" para búsqueda "${itemDef.description}"`);

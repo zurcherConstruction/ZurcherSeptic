@@ -27,10 +27,16 @@ import { parseISO, format } from "date-fns";
 import api from "../../utils/axios";
 import EditClientDataModal from './EditClientDataModal';
 
-const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
+const PdfModal = ({ isOpen, onClose, pdfUrl, title, fileType = 'pdf', downloadName, downloadUrl }) => {
   if (!isOpen || !pdfUrl) {
     return null;
   }
+
+  const getPdfPreviewSrc = () => {
+    const isBackendInlineRoute = /\/budgets\/.+\/payment-receipt\/view/i.test(pdfUrl);
+    if (isBackendInlineRoute) return pdfUrl;
+    return `https://docs.google.com/gview?url=${encodeURIComponent(pdfUrl)}&embedded=true`;
+  };
 
   // Detect device type with better breakpoints
   const screenWidth = window.innerWidth;
@@ -84,6 +90,16 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
             {title || "Vista Previa del PDF"}
           </h3>
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <a
+              href={downloadUrl || pdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              download={downloadName || undefined}
+              className="text-green-600 hover:text-green-800 text-xs sm:text-sm md:text-base underline whitespace-nowrap font-medium"
+              title="Descargar archivo"
+            >
+              Descargar
+            </a>
             {(isMobile || isTablet || isSmallIOS) && (
               <a
                 href={pdfUrl}
@@ -114,22 +130,66 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
             overflow: 'hidden'
           }}
         >
-          <iframe
-            src={pdfUrl}
-            title={title || "PDF Viewer"}
-            className="absolute top-0 left-0 w-full h-full border-none"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              border: 'none',
-              WebkitOverflowScrolling: "touch",
-              scrollbarWidth: "thin",
-              backgroundColor: 'white'
-            }}
-          />
+          {fileType === 'image' ? (
+            <div className="absolute top-0 left-0 w-full h-full overflow-auto bg-gray-100 flex items-center justify-center p-4">
+              <img
+                src={pdfUrl}
+                alt={title || 'Comprobante de pago'}
+                className="max-w-full max-h-full object-contain rounded shadow"
+              />
+            </div>
+          ) : fileType === 'html' ? (
+            <iframe
+              src={pdfUrl}
+              title={title || 'Vista de comprobante'}
+              className="absolute top-0 left-0 w-full h-full border-none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'thin',
+                backgroundColor: 'white'
+              }}
+            />
+          ) : fileType === 'pdf' ? (
+            <iframe
+              src={getPdfPreviewSrc()}
+              title={title || 'PDF Viewer'}
+              className="absolute top-0 left-0 w-full h-full border-none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'thin',
+                backgroundColor: 'white'
+              }}
+            />
+          ) : (
+            <iframe
+              src={pdfUrl}
+              title={title || "PDF Viewer"}
+              className="absolute top-0 left-0 w-full h-full border-none"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "thin",
+                backgroundColor: 'white'
+              }}
+            />
+          )}
         </div>
         
         {/* Footer para dispositivos móviles/tablet/iPad/iPhone */}
@@ -194,11 +254,15 @@ const BudgetList = () => {
 
   const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
   const [viewingPdfId, setViewingPdfId] = useState(null);
+  const [viewingStripeReceiptId, setViewingStripeReceiptId] = useState(null);
 
   // --- NUEVOS ESTADOS PARA EL MODAL DE PDF ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pdfUrlForModal, setPdfUrlForModal] = useState("");
   const [pdfTitleForModal, setPdfTitleForModal] = useState("");
+  const [modalFileType, setModalFileType] = useState('pdf');
+  const [modalDownloadName, setModalDownloadName] = useState('');
+  const [modalDownloadUrl, setModalDownloadUrl] = useState('');
   const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
 
   // --- ESTADOS PARA EDITAR DATOS DE CLIENTE ---
@@ -352,8 +416,10 @@ const BudgetList = () => {
         return; // ✅ El finally limpiará viewingPdfId
       }
       
-      // ✍️ CASO 2: Firma SignNow - Usar endpoint de visualización (no descarga)
-      if (budget && budget.signatureMethod === 'signnow' && budget.signNowDocumentId) {
+      // ✍️ CASO 2: Firma SignNow/DocuSign - Usar endpoint de visualización (no descarga)
+      const hasExternalSignatureDoc =
+        budget?.signNowDocumentId || budget?.docusignEnvelopeId || budget?.signatureDocumentId;
+      if (budget && (budget.signatureMethod === 'signnow' || budget.signatureMethod === 'docusign') && hasExternalSignatureDoc) {
         
         try {
           // Usar el endpoint de visualización que envía inline (no attachment)
@@ -366,12 +432,12 @@ const BudgetList = () => {
           const objectUrl = window.URL.createObjectURL(response.data);
           
           setPdfUrlForModal(objectUrl);
-          setPdfTitleForModal(`✍️ Presupuesto Firmado SignNow - ${budgetId}`);
+          setPdfTitleForModal(`✍️ Presupuesto Firmado ${budget.signatureMethod === 'docusign' ? 'DocuSign' : 'SignNow'} - ${budgetId}`);
           setIsModalOpen(true);
           return; // ✅ El finally limpiará viewingPdfId
-        } catch (signNowError) {
+        } catch (signatureError) {
           // Si falla (ej: documento aún no firmado), regenerar PDF sin firma
-          console.warn(`⚠️ SignNow PDF no disponible para budget ${budgetId}, regenerando...`, signNowError.response?.data);
+          console.warn(`⚠️ PDF firmado no disponible para budget ${budgetId}, regenerando...`, signatureError.response?.data);
           // Continuar al CASO 3 para regenerar
         }
       }
@@ -397,6 +463,46 @@ const BudgetList = () => {
       alert(errorMsg);
     } finally {
       setViewingPdfId(null); // Dejar de indicar carga
+    }
+  };
+
+  const handleViewPaymentReceipt = async (budget) => {
+    setViewingStripeReceiptId(budget.idBudget);
+    try {
+      // Si hay comprobante manual cargado, mostrarlo directamente
+      if (budget.paymentInvoice) {
+        const inferredType = budget.paymentProofType || (/\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(budget.paymentInvoice) ? 'image' : 'pdf');
+        const backendBaseUrl = (api.defaults.baseURL || '').replace(/\/$/, '');
+        setPdfUrlForModal(budget.paymentInvoice);
+        setPdfTitleForModal('Comprobante de Pago');
+        setModalFileType(inferredType);
+        setModalDownloadUrl(`${backendBaseUrl}/budgets/${budget.idBudget}/payment-receipt/download`);
+        setModalDownloadName(`payment_receipt_${budget.idBudget}`);
+        setIsModalOpen(true);
+        return;
+      }
+
+      // Si no, intentar obtener el recibo de Stripe
+      const response = await api.get(`/budget/${budget.idBudget}/stripe-receipt`);
+      const receiptUrl = response?.data?.receiptUrl;
+
+      if (!receiptUrl) {
+        alert('No hay comprobante de pago disponible para este presupuesto.');
+        return;
+      }
+
+      const backendBaseUrl = (api.defaults.baseURL || '').replace(/\/$/, '');
+      setPdfUrlForModal(`${backendBaseUrl}/budgets/${budget.idBudget}/stripe-receipt/view`);
+      setPdfTitleForModal('Recibo Stripe');
+      setModalFileType('html');
+      setModalDownloadUrl(`${backendBaseUrl}/budgets/${budget.idBudget}/payment-receipt/download`);
+      setModalDownloadName(`stripe_receipt_${budget.idBudget}`);
+      setIsModalOpen(true);
+    } catch (error) {
+      const message = error?.response?.data?.message || 'No hay comprobante de pago disponible para este presupuesto.';
+      alert(message);
+    } finally {
+      setViewingStripeReceiptId(null);
     }
   };
 
@@ -1145,6 +1251,9 @@ const BudgetList = () => {
     }
     setPdfUrlForModal("");
     setPdfTitleForModal("");
+    setModalFileType('pdf');
+    setModalDownloadName('');
+    setModalDownloadUrl('');
   };
 
   // --- HANDLERS PARA EDITAR DATOS DE CLIENTE ---
@@ -2111,6 +2220,24 @@ const BudgetList = () => {
                                       <DocumentArrowDownIcon className="h-3 w-3" />
                                     )}
                                   </button>
+
+                                  {['client_approved', 'sent_for_signature', 'signed', 'approved'].includes(budget.status) && (budget.paymentInvoice || true) && (
+                                  <button
+                                    onClick={() => handleViewPaymentReceipt(budget)}
+                                    disabled={viewingStripeReceiptId === budget.idBudget}
+                                    className="inline-flex items-center justify-center bg-cyan-600 text-white p-1 rounded hover:bg-cyan-700 disabled:opacity-50 shadow-sm"
+                                    title={budget.paymentInvoice ? 'Ver comprobante de pago' : 'Ver recibo de pago Stripe'}
+                                  >
+                                    {viewingStripeReceiptId === budget.idBudget ? (
+                                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                    ) : (
+                                      <span className="text-[10px]">💳</span>
+                                    )}
+                                  </button>
+                                  )}
                                 </>
                               )}
                               {/* Botones de PDF de permisos horizontalmente */}
@@ -3010,6 +3137,25 @@ const BudgetList = () => {
                                       )}
                                       Download
                                     </button>
+
+                                    {['client_approved', 'sent_for_signature', 'signed', 'approved'].includes(budget.status) && (
+                                    <button
+                                      onClick={() => handleViewPaymentReceipt(budget)}
+                                      disabled={viewingStripeReceiptId === budget.idBudget}
+                                      className="col-span-2 flex items-center justify-center bg-cyan-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-cyan-700 disabled:opacity-50 transition-colors"
+                                      title={budget.paymentInvoice ? 'Ver comprobante de pago' : 'Ver recibo Stripe'}
+                                    >
+                                      {viewingStripeReceiptId === budget.idBudget ? (
+                                        <svg className="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                      ) : (
+                                        <span className="mr-1">💳</span>
+                                      )}
+                                      {budget.paymentInvoice ? 'Ver Comprobante' : 'Stripe Receipt'}
+                                    </button>
+                                    )}
                                   </>
                                 )}
                                 
@@ -3399,6 +3545,9 @@ const BudgetList = () => {
               onClose={closeModal}
               pdfUrl={pdfUrlForModal}
               title={pdfTitleForModal}
+              fileType={modalFileType}
+              downloadName={modalDownloadName}
+              downloadUrl={modalDownloadUrl}
             />
 
             {/* Modal para editar datos de cliente */}

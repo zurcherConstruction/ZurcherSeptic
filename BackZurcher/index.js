@@ -1,6 +1,6 @@
 const { app, server } = require("./src/app.js"); // Importar tanto app como server
 const { conn } = require("./src/data");
-const { PORT } = require("./src/config/envs.js");
+const { PORT, DB_DEPLOY } = require("./src/config/envs.js");
 const { startSignatureCheckCron } = require("./src/services/checkPendingSignatures.js");
 const { startFixedExpensesCron } = require("./src/services/autoGenerateFixedExpenses.js");
 const { startBudgetRemindersCron } = require("./src/services/checkBudgetReminders.js");
@@ -10,9 +10,10 @@ const { startFleetExpiryRemindersCron } = require("./src/services/checkFleetExpi
 
 require("dotenv").config();
 
-// 🚀 OPTIMIZACIÓN: Solo hacer sync() si la variable ENABLE_DB_SYNC está en true
-// Esto acelera enormemente el arranque del servidor
-const shouldSync = process.env.ENABLE_DB_SYNC === 'true';
+// 🚀 Sync solo en entornos remotos y cuando está habilitado explícitamente.
+// En local se evita sync para no romper esquemas existentes con alter/constraints.
+const hasDeployDb = typeof DB_DEPLOY === 'string' && DB_DEPLOY.trim().startsWith('postgresql://');
+const shouldSync = process.env.ENABLE_DB_SYNC === 'true' && hasDeployDb;
 
 // 🔄 Función de reconexión automática
 const reconnectDatabase = async (retries = 5, delay = 5000) => {
@@ -44,7 +45,11 @@ if (shouldSync) {
     console.error('❌ Error al sincronizar la base de datos:', error);
     process.exit(1);
   });
-} else {
+} else {hasDeployDb
+  if (process.env.ENABLE_DB_SYNC === 'true' && !DB_DEPLOY) {
+    console.log('ℹ️ Sync deshabilitado en local para evitar conflictos de esquema; se validará solo la conexión');
+  }
+
   // 🚀 Inicio rápido: Solo verificar conexión sin sync (con reintentos automáticos)
   conn.authenticate()
     .then(() => {

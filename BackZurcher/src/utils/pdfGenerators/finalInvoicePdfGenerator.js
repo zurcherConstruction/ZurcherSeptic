@@ -350,6 +350,9 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
 
       if (invoiceStatus !== 'paid' && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
         try {
+          const frontendBaseUrl = (process.env.FRONTEND_URL || 'https://www.zurcherseptic.com').replace(/\/$/, '');
+          const thankYouUrl = `${frontendBaseUrl}/thank-you?session_id={CHECKOUT_SESSION_ID}&source=stripe`;
+
           // Crear producto y precio en Stripe
           const product = await stripe.products.create({
             name: `Final Invoice #${invoiceNumber} - ${clientName}`,
@@ -371,9 +374,20 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
           // Crear Payment Link (permite expiración > 24 horas)
           const paymentLink = await stripe.paymentLinks.create({
             line_items: [{ price: price.id, quantity: 1 }],
+            customer_creation: 'always',
             after_completion: {
               type: 'redirect',
-              redirect: { url: 'https://www.zurcherseptic.com/thank-you' }
+              redirect: { url: thankYouUrl }
+            },
+            payment_intent_data: {
+              description: `Final payment for Invoice #${invoiceNumber}`,
+              metadata: {
+                final_invoice_id: invoiceId,
+                work_id: workData?.idWork || null,
+                budget_id: budgetData?.idBudget || null,
+                payment_type: 'final_invoice_payment',
+                invoice_number: invoiceNumber
+              }
             },
             metadata: { 
               final_invoice_id: invoiceId,

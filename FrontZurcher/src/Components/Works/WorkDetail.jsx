@@ -836,8 +836,10 @@ const handleShowBudgetPdf = async () => {
       return;
     }
 
-    // CASO 2: Presupuesto firmado con SignNow
-    if (budget.signatureMethod === 'signnow' && budget.signNowDocumentId) {
+    // CASO 2: Presupuesto firmado con SignNow/DocuSign
+    const hasExternalSignatureDoc =
+      budget.signNowDocumentId || budget.docusignEnvelopeId || budget.signatureDocumentId;
+    if ((budget.signatureMethod === 'signnow' || budget.signatureMethod === 'docusign') && hasExternalSignatureDoc) {
       try {
         const response = await api.get(`/budget/${budget.idBudget}/view-signed`, {
           responseType: 'blob'
@@ -1279,6 +1281,7 @@ const handleUploadImage = async () => {
                       <div className="mt-3 p-3 bg-green-50 border-l-4 border-green-500 rounded">
                         <p className="text-sm font-semibold text-green-800">
                           {work.budget.signatureMethod === 'signnow' && '✍️ Firmado con SignNow'}
+                          {work.budget.signatureMethod === 'docusign' && '✍️ Firmado con DocuSign'}
                           {work.budget.signatureMethod === 'manual' && '📄 Firmado Manualmente'}
                           {work.budget.signatureMethod === 'legacy' && '🏷️ Presupuesto Legacy'}
                         </p>
@@ -1295,7 +1298,7 @@ const handleUploadImage = async () => {
     className="bg-blue-600 text-white px-3 py-2 rounded shadow hover:bg-blue-700 mt-4"
     onClick={handleShowBudgetPdf}
   >
-    {work.budget.signatureMethod === 'signnow' || work.budget.signatureMethod === 'manual' 
+    {work.budget.signatureMethod === 'signnow' || work.budget.signatureMethod === 'docusign' || work.budget.signatureMethod === 'manual' 
       ? 'Ver Presupuesto Firmado' 
       : 'Ver Presupuesto PDF'}
   </button>

@@ -13,7 +13,15 @@ const SignNowService = require('../services/ServiceSignNow');
 const DocuSignService = require('../services/ServiceDocuSign'); // 🆕 DOCUSIGN
 const { getNextInvoiceNumber } = require('../utils/invoiceNumberManager'); // 🆕 HELPER DE NUMERACIÓN UNIFICADA
 const ExcelJS = require('exceljs'); // 🆕 Para exportar a Excel
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 require('dotenv').config();
+
+const COMPANY_LOGO_URL = process.env.COMPANY_LOGO_URL || 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751206826/logo_zlxdhw.png';
+
+const BUDGET_DEBUG_LOGS = process.env.BUDGET_DEBUG_LOGS === 'true';
+const budgetDebugLog = (...args) => {
+  if (BUDGET_DEBUG_LOGS) console.log(...args);
+};
 
 // 🆕 Variable de configuración para elegir servicio de firma
 const USE_DOCUSIGN = process.env.USE_DOCUSIGN === 'true'; // true = DocuSign, false = SignNow
@@ -34,6 +42,274 @@ function getPublicPdfUrl(localPath, req) {
 
 
   return publicUrl;
+}
+
+function formatMoneyUSD(value) {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(amount);
+}
+
+function formatDateUS(dateValue = new Date()) {
+  const date = new Date(dateValue);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: '2-digit'
+  });
+}
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildInitialPaymentReceiptEmail({
+  clientName,
+  budgetId,
+  invoiceNumber,
+  propertyAddress,
+  amount,
+  paymentDate,
+  companyEmail,
+  companyPhone,
+  companyLicense,
+  logoUrl
+}) {
+  const safeClientName = escapeHtml(clientName || 'Valued Customer');
+  const safePropertyAddress = escapeHtml(propertyAddress || 'N/A');
+  const safeCompanyEmail = escapeHtml(companyEmail);
+  const safeCompanyPhone = escapeHtml(companyPhone);
+  const safeCompanyLicense = escapeHtml(companyLicense);
+  const safeLogoUrl = escapeHtml(logoUrl);
+  const amountText = formatMoneyUSD(amount);
+  const dateText = formatDateUS(paymentDate);
+  const receiptNumber = `RCPT-${budgetId}-${new Date(paymentDate || Date.now()).toISOString().slice(0, 10).replace(/-/g, '')}`;
+  const identifier = invoiceNumber ? `Invoice #${invoiceNumber}` : `Budget #${budgetId}`;
+
+  return {
+    subject: `Payment Receipt Confirmation - ${identifier}`,
+    text: `Dear ${clientName || 'Customer'},\n\n` +
+      `We have received your initial payment for ${identifier}.\n\n` +
+      `Receipt Number: ${receiptNumber}\n` +
+      `Property: ${propertyAddress || 'N/A'}\n` +
+      `Amount Received: ${amountText}\n` +
+      `Date Received: ${dateText}\n\n` +
+      `Thank you for your trust.\n\n` +
+      `Zurcher Septic\n` +
+      `${companyEmail} | ${companyPhone}`,
+    html: `
+      <div style="background:#f3f6fb;padding:24px 0;font-family:Arial,sans-serif;color:#1f2937;">
+        <div style="max-width:720px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+          <div style="padding:24px 28px;background:linear-gradient(135deg,#0f172a,#1e3a8a);color:#ffffff;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
+              <div>
+                <h1 style="margin:0;font-size:22px;line-height:1.2;">Payment Receipt Confirmation</h1>
+                <p style="margin:8px 0 0;font-size:13px;opacity:0.9;">We have successfully received your initial payment</p>
+              </div>
+              <img src="${safeLogoUrl}" alt="Zurcher Septic" style="height:56px;width:auto;background:#fff;padding:8px;border-radius:8px;" />
+            </div>
+          </div>
+
+          <div style="padding:24px 28px;">
+            <p style="margin:0 0 16px;font-size:15px;">Dear <strong>${safeClientName}</strong>,</p>
+            <p style="margin:0 0 18px;font-size:14px;line-height:1.6;">This is a confirmation that we received your payment. Thank you for your trust in our team.</p>
+
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+              <table style="width:100%;border-collapse:collapse;font-size:14px;">
+                <tr>
+                  <td style="padding:8px 0;color:#475569;"><strong>Receipt Number</strong></td>
+                  <td style="padding:8px 0;text-align:right;color:#0f172a;font-weight:700;">${receiptNumber}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;color:#475569;"><strong>Reference</strong></td>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;text-align:right;">${escapeHtml(identifier)}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;color:#475569;"><strong>Property</strong></td>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;text-align:right;">${safePropertyAddress}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;color:#475569;"><strong>Amount Received</strong></td>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;text-align:right;font-size:18px;color:#047857;font-weight:800;">${amountText}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;color:#475569;"><strong>Date Received</strong></td>
+                  <td style="padding:8px 0;border-top:1px solid #e2e8f0;text-align:right;">${dateText}</td>
+                </tr>
+              </table>
+            </div>
+
+            <p style="margin:18px 0 0;font-size:13px;color:#64748b;line-height:1.6;">Please keep this email as your receipt confirmation. If you have any questions, contact us and we will gladly assist you.</p>
+          </div>
+
+          <div style="padding:20px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;text-align:center;line-height:1.6;">
+            <div style="font-weight:700;color:#0f172a;">Zurcher Septic</div>
+            <div>Septic Tank Division - ${safeCompanyLicense}</div>
+            <div><a href="mailto:${safeCompanyEmail}" style="color:#1d4ed8;text-decoration:none;">${safeCompanyEmail}</a> | <a href="tel:+14074194495" style="color:#1d4ed8;text-decoration:none;">${safeCompanyPhone}</a></div>
+          </div>
+        </div>
+      </div>
+    `
+  };
+}
+
+async function resolveStripeReceiptForBudget(idBudget) {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return {
+      success: false,
+      message: 'Stripe no está configurado en el servidor'
+    };
+  }
+
+  const budget = await Budget.findByPk(idBudget, {
+    attributes: ['idBudget', 'invoiceNumber']
+  });
+
+  if (!budget) {
+    return {
+      success: false,
+      statusCode: 404,
+      message: 'Presupuesto no encontrado'
+    };
+  }
+
+  const incomeWhere = {
+    paymentMethod: 'Stripe',
+    typeIncome: 'Factura Pago Inicial Budget',
+    [Op.or]: [
+      { paymentDetails: { [Op.iLike]: `%budget_id:${idBudget}%` } },
+      { notes: { [Op.iLike]: `%Invoice #${idBudget}%` } }
+    ]
+  };
+
+  if (budget.invoiceNumber) {
+    incomeWhere[Op.or].push({
+      notes: { [Op.iLike]: `%Invoice #${budget.invoiceNumber}%` }
+    });
+  }
+
+  const income = await Income.findOne({
+    where: incomeWhere,
+    order: [['createdAt', 'DESC']],
+    attributes: ['idIncome', 'stripeSessionId', 'stripePaymentIntentId', 'paymentDetails', 'createdAt']
+  });
+
+  let receiptUrl = null;
+  let paymentStatus = null;
+  let customerEmail = null;
+  let resolvedSessionId = null;
+
+  if (income) {
+    if (income.paymentDetails) {
+      const match = income.paymentDetails.match(/Receipt:\s*(https?:\/\/[^\s|]+)/i);
+      if (match?.[1]) receiptUrl = match[1];
+    }
+
+    resolvedSessionId = income.stripeSessionId;
+
+    if (resolvedSessionId) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(resolvedSessionId, {
+          expand: ['payment_intent.latest_charge']
+        });
+        const latestCharge = session?.payment_intent?.latest_charge;
+        paymentStatus = session?.payment_status || null;
+        customerEmail = session?.customer_email || session?.customer_details?.email || null;
+        if (!receiptUrl) receiptUrl = latestCharge?.receipt_url || null;
+      } catch (stripeError) {
+        console.error('⚠️ Error consultando checkout session:', stripeError.message);
+      }
+    }
+  }
+
+  if (!receiptUrl && process.env.STRIPE_SECRET_KEY) {
+    try {
+      const searchQuery = `metadata['internal_budget_id']:'${idBudget}'`;
+      const piSearch = await stripe.paymentIntents.search({ query: searchQuery, limit: 5 });
+
+      for (const pi of piSearch.data || []) {
+        if (pi.status !== 'succeeded') continue;
+        try {
+          const charge = await stripe.charges.retrieve(pi.latest_charge);
+          if (charge?.receipt_url) {
+            receiptUrl = charge.receipt_url;
+            paymentStatus = 'paid';
+            customerEmail = charge.billing_details?.email || null;
+            break;
+          }
+        } catch (_) { /* ignore */ }
+      }
+    } catch (searchErr) {
+      console.error('⚠️ Stripe PaymentIntents search error:', searchErr.message);
+    }
+  }
+
+  return {
+    success: !!receiptUrl,
+    statusCode: receiptUrl ? 200 : 404,
+    budget,
+    income,
+    receiptUrl,
+    paymentStatus,
+    customerEmail,
+    resolvedSessionId,
+    message: receiptUrl ? null : 'No se encontró recibo Stripe para este presupuesto'
+  };
+}
+
+async function streamRemoteFileAsAttachment(res, fileUrl, filename, contentTypeFallback = 'application/octet-stream') {
+  const response = await fetch(fileUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+    }
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      statusCode: 502,
+      message: 'No se pudo descargar el comprobante'
+    };
+  }
+
+  const contentType = response.headers.get('content-type') || contentTypeFallback;
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(buffer);
+}
+
+async function streamRemoteFileInline(res, fileUrl, filename, contentTypeFallback = 'application/octet-stream') {
+  const response = await fetch(fileUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+    }
+  });
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      statusCode: 502,
+      message: 'No se pudo cargar el comprobante'
+    };
+  }
+
+  const contentType = response.headers.get('content-type') || contentTypeFallback;
+  const buffer = Buffer.from(await response.arrayBuffer());
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(buffer);
 }
 
 const BudgetController = {
@@ -1554,7 +1830,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
   async getBudgetById(req, res) {
     try {
       const { idBudget } = req.params;
-      console.log(`Buscando Budget con ID: ${idBudget}`);
+      budgetDebugLog(`Buscando Budget con ID: ${idBudget}`);
 
       const budget = await Budget.findByPk(idBudget, {
         include: [
@@ -2183,8 +2459,8 @@ async optionalDocs(req, res) {
     let generatedPdfPath = null;
 
     try {
-      console.log(`--- Iniciando actualización para Budget ID: ${idBudget} ---`);
-      console.log("Datos recibidos en req.body:", JSON.stringify(req.body, null, 2));
+      console.log(`🧾 Actualizando Budget ID ${idBudget}`);
+      budgetDebugLog("Datos recibidos en req.body:", JSON.stringify(req.body, null, 2));
 
       // --- 1. Buscar el Budget Existente ---
       const budget = await Budget.findByPk(idBudget, {
@@ -2206,7 +2482,7 @@ async optionalDocs(req, res) {
         console.error(`Error: Presupuesto ID ${idBudget} no encontrado.`);
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
-      console.log(`Presupuesto ID ${idBudget} encontrado.`);
+      budgetDebugLog(`Presupuesto ID ${idBudget} encontrado.`);
 
       // --- 2. Extraer Datos de la Solicitud ---
       const {
@@ -2251,7 +2527,7 @@ async optionalDocs(req, res) {
       }
 
       // --- 4. Actualizar Campos Generales del Budget ---
-      console.log("Actualizando campos generales...");
+      budgetDebugLog("Actualizando campos generales...");
       const generalUpdateData = {};
       if (date) generalUpdateData.date = date;
       // Manejar expirationDate: si no viene, no se cambia; si viene null/vacío, se pone null
@@ -2289,7 +2565,7 @@ async optionalDocs(req, res) {
             const salesRep = await Staff.findByPk(currentStaffId, { attributes: ['salesRepCommission'] });
             generalUpdateData.salesCommissionAmount = parseFloat(salesRep?.salesRepCommission) || 500;
           }
-          console.log(`💰 Comisión actualizada para Staff ${currentStaffId}: $${generalUpdateData.salesCommissionAmount}`);
+          budgetDebugLog(`💰 Comisión actualizada para Staff ${currentStaffId}: $${generalUpdateData.salesCommissionAmount}`);
         } else if (currentLeadSource === 'external_referral' && salesCommissionAmount !== undefined) {
           generalUpdateData.salesCommissionAmount = parseFloat(salesCommissionAmount) || 0;
         } else {
@@ -2311,14 +2587,14 @@ async optionalDocs(req, res) {
           }
         }
         generalUpdateData.initialPaymentPercentage = actualPercentageForUpdate; // Añadir al objeto de actualización
-        console.log(`Porcentaje de pago inicial para actualizar: ${actualPercentageForUpdate}%`);
+        budgetDebugLog(`Porcentaje de pago inicial para actualizar: ${actualPercentageForUpdate}%`);
       }
 
       // Aplicar actualizaciones generales al objeto budget en memoria (importante para cálculos posteriores)
       Object.assign(budget, generalUpdateData);
       // Guardar actualizaciones generales en la BD
       await budget.update(generalUpdateData, { transaction });
-      console.log(`Campos generales para Budget ID ${idBudget} actualizados en BD.`);
+      budgetDebugLog(`Campos generales para Budget ID ${idBudget} actualizados en BD.`);
 
       // --- 4.5. Actualizar Permit asociado si es necesario ---
       if (applicantName || applicantEmail || applicantPhone || propertyAddress) {
@@ -2339,7 +2615,7 @@ async optionalDocs(req, res) {
 
         if (budget.Permit && Object.keys(permitUpdateData).length > 0) {
           await budget.Permit.update(permitUpdateData, { transaction });
-          console.log(`✅ Permit ${budget.Permit.idPermit} actualizado desde updateBudget:`, permitUpdateData);
+          budgetDebugLog(`✅ Permit ${budget.Permit.idPermit} actualizado desde updateBudget:`, permitUpdateData);
         }
       }
 
@@ -2417,7 +2693,7 @@ async optionalDocs(req, res) {
         finalLineItemsForPdf = createdLineItems.map(item => item.toJSON());
       } else {
         // ✅ CORRECCIÓN: Si no hay cambios en items, calcular desde items existentes
-        console.log("No hay cambios en items, calculando subtotal desde items existentes...");
+        budgetDebugLog("No hay cambios en items, calculando subtotal desde items existentes...");
         const existingLineItems = await BudgetLineItem.findAll({
           where: { budgetId: idBudget },
           transaction
@@ -2428,11 +2704,11 @@ async optionalDocs(req, res) {
         }, 0);
 
         finalLineItemsForPdf = existingLineItems.map(item => item.toJSON());
-        console.log(`Subtotal calculado desde ${existingLineItems.length} items existentes: ${calculatedSubtotal}`);
+        budgetDebugLog(`Subtotal calculado desde ${existingLineItems.length} items existentes: ${calculatedSubtotal}`);
       }
 
       // --- 6. Recalcular y Actualizar Totales Finales y Pago Inicial en el Budget ---
-      console.log("Recalculando totales finales...");
+      budgetDebugLog("Recalculando totales finales...");
       // Usar los valores actualizados en el objeto 'budget' en memoria
       const finalDiscount = parseFloat(budget.discountAmount) || 0;
       
@@ -2442,12 +2718,12 @@ async optionalDocs(req, res) {
       if (currentLeadSource === 'sales_rep' && budget.createdByStaffId) {
         // Usar el salesCommissionAmount ya guardado en el budget (incluye override manual)
         commission = parseFloat(budget.salesCommissionAmount) || 500;
-        console.log(`💰 Comisión de Sales Rep: $${commission} (Staff ID: ${budget.createdByStaffId})`);
+        budgetDebugLog(`💰 Comisión de Sales Rep: $${commission} (Staff ID: ${budget.createdByStaffId})`);
       } else if (currentLeadSource === 'external_referral' && budget.salesCommissionAmount) {
         commission = parseFloat(budget.salesCommissionAmount) || 0;
-        console.log(`💰 Comisión de Referido Externo: $${commission}`);
+        budgetDebugLog(`💰 Comisión de Referido Externo: $${commission}`);
       } else {
-        console.log(`💰 Sin comisión (Lead Source: ${currentLeadSource})`);
+        budgetDebugLog(`💰 Sin comisión (Lead Source: ${currentLeadSource})`);
       }
       
       const finalTotal = calculatedSubtotal - finalDiscount + commission;
@@ -2473,7 +2749,7 @@ async optionalDocs(req, res) {
         initialPayment: calculatedInitialPayment,
         commissionAmount: commission // 🆕 Guardar comisión en BD
       }, { transaction });
-      console.log(`Totales finales para Budget ID ${idBudget} actualizados: Subtotal=${calculatedSubtotal}, Total=${finalTotal}, InitialPayment=${calculatedInitialPayment}`);
+      console.log(`💰 Totales Budget ${idBudget}: subtotal=${calculatedSubtotal}, total=${finalTotal}`);
 
       // --- 7. Lógica Condicional por Estado ---
       // --- NUEVO: 7. Generar/Regenerar PDF SIEMPRE que haya cambios ---
@@ -2482,7 +2758,7 @@ async optionalDocs(req, res) {
       // Verificamos si la única clave presente es 'generalNotes'.
       const isOnlyGeneralNotesUpdate = updateKeys.length === 1 && updateKeys[0] === 'generalNotes';
       if ((hasGeneralUpdates || hasLineItemUpdates) && !isOnlyGeneralNotesUpdate) {
-        console.log("Detectados cambios (no solo notas). Regenerando PDF...");
+        console.log(`📄 Regenerando PDF para Budget ${idBudget}`);
         try {
           const budgetDataForPdf = {
             ...budget.toJSON(), // Usar datos actualizados en memoria
@@ -2490,18 +2766,18 @@ async optionalDocs(req, res) {
             lineItems: finalLineItemsForPdf
           };
 
-          console.log("Datos para PDF:", JSON.stringify(budgetDataForPdf, null, 2));
+          budgetDebugLog("Datos para PDF:", JSON.stringify(budgetDataForPdf, null, 2));
           generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
 
           // ✅ CONVERTIR RUTA LOCAL A URL PÚBLICA
           const pdfPublicUrl = getPublicPdfUrl(generatedPdfPath, req);
 
-          console.log(`PDF regenerado en ruta local: ${generatedPdfPath}`);
-          console.log(`PDF regenerado y ruta actualizada en BD para Budget ID ${idBudget}: ${pdfPublicUrl}`);
+          budgetDebugLog(`PDF regenerado en ruta local: ${generatedPdfPath}`);
+          console.log(`✅ PDF actualizado para Budget ${idBudget}`);
 
           // Actualizar la ruta del PDF en la BD DENTRO de la transacción
           await budget.update({ pdfPath: pdfPublicUrl }, { transaction });
-          console.log(`PDF regenerado y ruta actualizada en BD para Budget ID ${idBudget}: ${generatedPdfPath}`);
+          budgetDebugLog(`PDF regenerado y ruta actualizada en BD para Budget ID ${idBudget}: ${generatedPdfPath}`);
 
         } catch (pdfError) {
           console.error(`Error CRÍTICO al regenerar PDF para Budget ID ${idBudget}:`, pdfError);
@@ -2510,11 +2786,11 @@ async optionalDocs(req, res) {
         }
       } else if (isOnlyGeneralNotesUpdate) {
         // Si solo cambiaron las notas, no regeneramos PDF y mantenemos la ruta existente.
-        console.log("Solo se actualizaron las notas generales. Omitiendo regeneración de PDF.");
+        budgetDebugLog("Solo se actualizaron las notas generales. Omitiendo regeneración de PDF.");
         generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       } else {
         // Si no hubo ningún cambio detectado (ni general ni items)
-        console.log("No hubo cambios relevantes, no se regenera el PDF.");
+        budgetDebugLog("No hubo cambios relevantes, no se regenera el PDF.");
         generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       }
 
@@ -2939,7 +3215,7 @@ async optionalDocs(req, res) {
       }
       // --- 8. Confirmar Transacción ---
       await transaction.commit();
-      console.log(`--- Transacción para Budget ID: ${idBudget} confirmada exitosamente. ---`);
+      console.log(`✅ Budget ${idBudget} actualizado correctamente`);
 
       // --- 9. Responder al Frontend ---
       // Volver a buscar el budget fuera de la transacción para obtener el estado final MÁS actualizado
@@ -2968,7 +3244,7 @@ async optionalDocs(req, res) {
         responseData.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${idBudget}/pdf`; // Asegúrate que la ruta /budgets/:id/pdf exista y sirva el archivo
       }
 
-      console.log(`Enviando respuesta exitosa para Budget ID: ${idBudget}`);
+      budgetDebugLog(`Enviando respuesta exitosa para Budget ID: ${idBudget}`);
       res.status(200).json(responseData);
 
     } catch (error) {
@@ -3268,6 +3544,36 @@ async optionalDocs(req, res) {
       }
 
       await transaction.commit();
+
+      // 📧 Enviar recibo de confirmación de pago al cliente (sin bloquear el flujo)
+      const clientEmail = budget.Permit?.applicantEmail;
+      if (clientEmail && clientEmail.includes('@')) {
+        const amountForReceipt = parsedUploadedAmount ?? budget.paymentProofAmount ?? budget.initialPayment ?? 0;
+        const emailPayload = buildInitialPaymentReceiptEmail({
+          clientName: budget.Permit?.applicantName || budget.applicantName || 'Valued Customer',
+          budgetId: budget.idBudget,
+          invoiceNumber: budget.invoiceNumber,
+          propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
+          amount: amountForReceipt,
+          paymentDate: new Date(),
+          companyEmail: 'admin@zurcherseptic.com',
+          companyPhone: '+1 (407) 419-4495',
+          companyLicense: 'CFC1433240',
+          logoUrl: COMPANY_LOGO_URL
+        });
+
+        try {
+          await sendEmail({
+            to: clientEmail,
+            subject: emailPayload.subject,
+            text: emailPayload.text,
+            html: emailPayload.html
+          });
+          console.log(`✅ Recibo de pago enviado al cliente: ${clientEmail} (Budget #${budget.idBudget})`);
+        } catch (emailError) {
+          console.error(`⚠️ No se pudo enviar recibo de pago al cliente ${clientEmail}:`, emailError.message);
+        }
+      }
 
       res.status(200).json({
         message: 'Comprobante de pago cargado exitosamente',
@@ -6880,6 +7186,163 @@ async optionalDocs(req, res) {
         error: 'Error al obtener budgets archivados',
         details: error.message
       });
+    }
+  },
+
+  // 💳 Obtener recibo de Stripe asociado a un Budget (pago inicial)
+  async getStripeReceipt(req, res) {
+    try {
+      const { idBudget } = req.params;
+      const receiptData = await resolveStripeReceiptForBudget(idBudget);
+
+      if (!receiptData.success) {
+        return res.status(404).json({
+          success: false,
+          message: receiptData.message || 'No se encontró recibo Stripe para este presupuesto',
+          incomeId: receiptData.income?.idIncome || null,
+          stripeSessionId: receiptData.resolvedSessionId || null
+        });
+      }
+
+      return res.json({
+        success: true,
+        budgetId: receiptData.budget.idBudget,
+        invoiceNumber: receiptData.budget.invoiceNumber || null,
+        incomeId: receiptData.income?.idIncome || null,
+        stripeSessionId: receiptData.resolvedSessionId || null,
+        stripePaymentIntentId: receiptData.income?.stripePaymentIntentId || null,
+        paymentStatus: receiptData.paymentStatus,
+        customerEmail: receiptData.customerEmail,
+        receiptUrl: receiptData.receiptUrl
+      });
+    } catch (error) {
+      console.error('❌ Error obteniendo recibo Stripe por budget:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error al obtener recibo de Stripe',
+        error: error.message
+      });
+    }
+  },
+
+  // 🌐 Proxya el HTML del recibo Stripe para poder mostrarlo dentro de un iframe/modal
+  async viewStripeReceipt(req, res) {
+    try {
+      const { idBudget } = req.params;
+
+      const receiptData = await resolveStripeReceiptForBudget(idBudget);
+
+      if (!receiptData.success || !receiptData.receiptUrl) {
+        return res.status(404).send('No se encontró el recibo Stripe');
+      }
+
+      const response = await fetch(receiptData.receiptUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+        }
+      });
+
+      if (!response.ok) {
+        return res.status(502).send('No se pudo cargar el recibo Stripe');
+      }
+
+      const html = await response.text();
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(html);
+    } catch (error) {
+      console.error('❌ Error mostrando recibo Stripe en modal:', error);
+      return res.status(500).send('No se pudo visualizar el recibo Stripe');
+    }
+  },
+
+  // 📥 Descargar comprobante de pago (manual o Stripe) sin exponer Cloudinary directamente
+  async downloadPaymentReceipt(req, res) {
+    try {
+      const { idBudget } = req.params;
+      const budget = await Budget.findByPk(idBudget, {
+        attributes: ['idBudget', 'paymentInvoice', 'paymentProofType']
+      });
+
+      if (!budget) {
+        return res.status(404).send('Presupuesto no encontrado');
+      }
+
+      if (budget.paymentInvoice) {
+        const isImage = budget.paymentProofType === 'image' || /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(budget.paymentInvoice);
+        const extension = isImage ? 'png' : 'pdf';
+        const filename = `payment_receipt_${idBudget}.${extension}`;
+        const result = await streamRemoteFileAsAttachment(
+          res,
+          budget.paymentInvoice,
+          filename,
+          isImage ? 'image/*' : 'application/pdf'
+        );
+
+        if (result?.ok === false) {
+          return res.status(result.statusCode || 502).send(result.message || 'No se pudo descargar el comprobante');
+        }
+
+        return result;
+      }
+
+      const receiptData = await resolveStripeReceiptForBudget(idBudget);
+      if (!receiptData.success || !receiptData.receiptUrl) {
+        return res.status(404).send('No se encontró el recibo Stripe');
+      }
+
+      const response = await fetch(receiptData.receiptUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+        }
+      });
+
+      if (!response.ok) {
+        return res.status(502).send('No se pudo descargar el recibo Stripe');
+      }
+
+      const html = await response.text();
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="stripe_receipt_${idBudget}.html"`);
+      res.setHeader('Cache-Control', 'no-store');
+      return res.send(html);
+    } catch (error) {
+      console.error('❌ Error descargando comprobante de pago:', error);
+      return res.status(500).send('No se pudo descargar el comprobante');
+    }
+  },
+
+  // 👁️ Vista pública del comprobante de pago manual para modal/iframe
+  async viewPaymentReceipt(req, res) {
+    try {
+      const { idBudget } = req.params;
+      const budget = await Budget.findByPk(idBudget, {
+        attributes: ['idBudget', 'paymentInvoice', 'paymentProofType']
+      });
+
+      if (!budget || !budget.paymentInvoice) {
+        return res.status(404).send('No se encontró comprobante de pago');
+      }
+
+      const isImage = budget.paymentProofType === 'image' || /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(budget.paymentInvoice);
+      const extension = isImage ? 'png' : 'pdf';
+      const filename = `payment_receipt_${idBudget}.${extension}`;
+      const result = await streamRemoteFileInline(
+        res,
+        budget.paymentInvoice,
+        filename,
+        isImage ? 'image/*' : 'application/pdf'
+      );
+
+      if (result?.ok === false) {
+        return res.status(result.statusCode || 502).send(result.message || 'No se pudo cargar el comprobante');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('❌ Error mostrando comprobante de pago manual:', error);
+      return res.status(500).send('No se pudo visualizar el comprobante');
     }
   }
 

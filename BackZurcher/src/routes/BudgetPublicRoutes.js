@@ -52,4 +52,29 @@ router.get(
   BudgetController.getSigningLinkAndRedirect
 );
 
+/**
+ * Ver recibo Stripe renderizado dentro del modal/iframe.
+ * Público para que el navegador pueda cargarlo sin enviar Authorization header.
+ */
+router.get(
+  '/:idBudget/stripe-receipt/view',
+  BudgetController.viewStripeReceipt
+);
+
+/**
+ * Descargar comprobante de pago (manual o Stripe) sin usar Cloudinary directamente.
+ */
+router.get(
+  '/:idBudget/payment-receipt/download',
+  BudgetController.downloadPaymentReceipt
+);
+
+/**
+ * Ver comprobante manual de pago en el modal/iframe sin forzar descarga.
+ */
+router.get(
+  '/:idBudget/payment-receipt/view',
+  BudgetController.viewPaymentReceipt
+);
+
 module.exports = router;
