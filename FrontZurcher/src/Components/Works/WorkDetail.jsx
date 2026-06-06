@@ -10,16 +10,14 @@ import {
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
 import { useParams, useNavigate } from "react-router-dom";
 //import api from "../../utils/axios";
-import FinalInvoice from "../Budget/FinalInvoice"
-import InspectionFlowManager from "./InspectionFlowManager";
-import FinalInspectionFlowManager from "./FinalInspectionFlowManager"
-import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; 
-import CreateChangeOrderModal from './CreateChangeOrderModal'; 
-import ManualApprovalModal from './ManualApprovalModal'; 
+import FinalInvoice from "../Budget/FinalInvoice";
+import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
+import CreateChangeOrderModal from './CreateChangeOrderModal';
+import ManualApprovalModal from './ManualApprovalModal';
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
 import PdfModal from "../Budget/PdfModal"; 
-import { fetchInspectionsByWork, registerQuickInspectionResult } from '../../Redux/Actions/inspectionActions';
+import { fetchInspectionsByWork, registerQuickInspectionResult, saveQuickInspectionFollowUp } from '../../Redux/Actions/inspectionActions';
 import WorkNotesModal from './WorkNotesModal';
 import NoticeToOwnerCard from './NoticeToOwnerCard';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
@@ -29,6 +27,7 @@ import WorkChecklistModal from './WorkChecklistModal'; // 📋 Modal de checklis
 import { fetchChecklistByWorkId } from '../../Redux/Actions/checklistActions'; // 📋 Action de checklist
 import FinalDocumentsSection from './FinalDocumentsSection'; // 🆕 Sección de documentos finales
 import ClientPortalLink from './ClientPortalLink'; // 🆕 Portal de cliente
+import { getInspectionFollowUp, formatDateShort } from '../../utils/inspectionTracking';
   // --- Estado para modal de resultado rápido de inspección ---
   
 // Asegúrate de que esta ruta sea correcta
@@ -344,15 +343,25 @@ const WorkDetail = () => {
   
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
-  const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
+  const [openSections, setOpenSections] = useState({ inspectionHistory: false, quickInspectionFollowUp: false }); // Secciones cerradas por defecto
   const [showFinalInvoice, setShowFinalInvoice] = useState(false);
-  const [selectedInstalledImage, setSelectedInstalledImage] = useState(null);
+  const [showUploadFinalInspectionImage, setShowUploadFinalInspectionImage] = useState(false);
   const [showQuickInspectionModal, setShowQuickInspectionModal] = useState(false);
   const [quickInspectionType, setQuickInspectionType] = useState('initial');
   const [quickInspectionStatus, setQuickInspectionStatus] = useState('approved');
   const [quickInspectionFile, setQuickInspectionFile] = useState(null);
   const [quickInspectionNotes, setQuickInspectionNotes] = useState('');
   const [quickInspectionLoading, setQuickInspectionLoading] = useState(false);
+  const [quickFollowUpEmail, setQuickFollowUpEmail] = useState('');
+  const [quickFollowUpRequestedDate, setQuickFollowUpRequestedDate] = useState('');
+  const [quickFollowUpScheduledDate, setQuickFollowUpScheduledDate] = useState('');
+  const [quickFollowUpNotes, setQuickFollowUpNotes] = useState('');
+  const [quickFollowUpSaving, setQuickFollowUpSaving] = useState(false);
+  const [finalFollowUpEmail, setFinalFollowUpEmail] = useState('');
+  const [finalFollowUpRequestedDate, setFinalFollowUpRequestedDate] = useState('');
+  const [finalFollowUpScheduledDate, setFinalFollowUpScheduledDate] = useState('');
+  const [finalFollowUpNotes, setFinalFollowUpNotes] = useState('');
+  const [finalFollowUpSaving, setFinalFollowUpSaving] = useState(false);
   const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
   
   // 📋 Estados para modal de comprobantes de inspección
@@ -401,7 +410,7 @@ const WorkDetail = () => {
   // ℹ️ Obtener historial de inspecciones para mostrar
   const initialInspectionsHistory = useMemo(() => {
     const history = inspectionsByWork
-      .filter(insp => insp.type === 'initial' && insp.finalStatus)
+      .filter(insp => insp.type === 'initial' && ['approved', 'rejected'].includes(insp.finalStatus))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     console.log('📋 [Inspecciones Iniciales] Historia:', history);
     return history;
@@ -409,11 +418,52 @@ const WorkDetail = () => {
 
   const finalInspectionsHistory = useMemo(() => {
     const history = inspectionsByWork
-      .filter(insp => insp.type === 'final' && insp.finalStatus)
+      .filter(insp => insp.type === 'final' && ['approved', 'rejected'].includes(insp.finalStatus))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     console.log('📋 [Inspecciones Finales] Historia:', history);
     return history;
   }, [inspectionsByWork]);
+
+  const initialInspectionFollowUp = useMemo(() => {
+    return getInspectionFollowUp(work, inspectionsByWork, 'initial');
+  }, [work, inspectionsByWork]);
+
+  const finalInspectionFollowUp = useMemo(() => {
+    return getInspectionFollowUp(work, inspectionsByWork, 'final');
+  }, [work, inspectionsByWork]);
+
+  const toInputDate = (value) => {
+    if (!value) return '';
+    const match = String(value).match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().slice(0, 10);
+  };
+
+  useEffect(() => {
+    const latestInitialInspection = initialInspectionFollowUp?.latestInspection;
+    if (!latestInitialInspection) return;
+
+    const notesText = String(latestInitialInspection.notes || '');
+    const emailMatch = notesText.match(/Inspector:\s*([^\s|]+)/i) || notesText.match(/Email inspector:\s*([^\s|]+)/i);
+
+    setQuickFollowUpEmail(emailMatch?.[1] || '');
+    setQuickFollowUpRequestedDate(toInputDate(latestInitialInspection.dateRequestedToInspectors));
+    setQuickFollowUpScheduledDate(toInputDate(latestInitialInspection.inspectorScheduledDate));
+  }, [initialInspectionFollowUp]);
+
+  useEffect(() => {
+    const latestFinalInspection = finalInspectionFollowUp?.latestInspection;
+    if (!latestFinalInspection) return;
+
+    const notesText = String(latestFinalInspection.notes || '');
+    const emailMatch = notesText.match(/Inspector:\s*([^\s|]+)/i) || notesText.match(/Email inspector:\s*([^\s|]+)/i);
+
+    setFinalFollowUpEmail(emailMatch?.[1] || '');
+    setFinalFollowUpRequestedDate(toInputDate(latestFinalInspection.dateRequestedToInspectors));
+    setFinalFollowUpScheduledDate(toInputDate(latestFinalInspection.inspectorScheduledDate));
+  }, [finalInspectionFollowUp]);
 
   // ✅ Permissions based on user role (already declared at top)
   const canUploadImages = ['owner', 'admin', 'worker'].includes(userRole);
@@ -430,7 +480,6 @@ const WorkDetail = () => {
   const [pdfUrlCo, setPdfUrlCo] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState('');
-  const [showUploadFinalInspectionImage, setShowUploadFinalInspectionImage] = useState(false);
   const [finalInspectionImageFile, setFinalInspectionImageFile] = useState(null);
   const [uploadingFinalImage, setUploadingFinalImage] = useState(false);
   const [showUploadInstalledImage, setShowUploadInstalledImage] = useState(false);
@@ -766,37 +815,6 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
       setUploadingFinalImage(false);
     }
   };
-
-   // Lógica para determinar qué gestor de flujo mostrar
-  const showInitialInspectionManager = useMemo(() => {
-    if (!work?.status) return false;
-    // Estados de la OBRA en los que se muestra el gestor de inspección INICIAL
-    const initialWorkStates = [
-      'installed',              // Listo para solicitar inspección inicial
-      'firstInspectionPending', // Inspección inicial en curso
-      'rejectedInspection',     // Inspección inicial rechazada (para gestionar reinspección)
-    ];
-    return initialWorkStates.includes(work.status);
-  }, [work?.status]);
-
-  const showFinalInspectionManager = useMemo(() => {
-    if (!work?.status) return false;
-    // Estados de la OBRA en los que se muestra el gestor de inspección FINAL
-    const finalWorkStates = [
-      'approvedInspection',     // Inspección inicial aprobada, listo para flujo final
-      'coverPending',           // Si el flujo final puede comenzar o continuar aquí
-      'covered',                // Si el flujo final puede comenzar o continuar aquí
-      'invoiceFinal',           // Si el flujo final puede comenzar o continuar aquí
-      'paymentReceived',        // Si el flujo final puede comenzar o continuar aquí
-      'finalInspectionPending', // Inspección final en curso
-      'finalRejected',          // Inspección final rechazada (para gestionar nueva solicitud/reinspección final)
-      // Los siguientes estados indican que el flujo final ha concluido o está en su etapa final.
-      // El FinalInspectionFlowManager puede mostrar un estado de "completado".
-      'finalApproved',          // Inspección final aprobada (estado de obra)
-      'maintenance',            // Obra en mantenimiento post-aprobación final
-    ];
-    return finalWorkStates.includes(work.status);
-  }, [work?.status]);
 
   const toggleSection = (section) => {
     setOpenSections((prev) => ({
@@ -2018,143 +2036,284 @@ const handleUploadInstalledImage = async () => {
                 })}
             </div>
 
-            {canSelectInspectionImageStates.includes(work?.status) && installedImages.length > 0 && (
-              <div className="my-6 p-4 border rounded-lg shadow-sm bg-white">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
-                  Seleccionar Imagen de Referencia para Inspección
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-72 overflow-y-auto p-2 border rounded-md">
-                  {installedImages.map(image => (
-                    <div
-                      key={image.id}
-                      className={`cursor-pointer border-2 p-1 rounded-md hover:border-green-500 transition-all ${selectedInstalledImage?.id === image.id ? 'border-green-600 ring-2 ring-green-500' : 'border-gray-200'}`}
-                      onClick={() => setSelectedInstalledImage(image)}
-                    >
-                      <img
-                        src={image.imageUrl}
-                        alt={`Sistema Instalado - ${image.id}`}
-                        className="w-full h-28 object-cover rounded"
-                      />
-                      <p className="text-xs text-center mt-1 truncate" title={`ID: ${image.id}`}>ID: {image.id}</p>
-                    </div>
-                  ))}
-                </div>
-                {selectedInstalledImage && (
-                  <p className="text-sm text-green-700 mt-2">
-                    Imagen de referencia seleccionada: ID {selectedInstalledImage.id}
-                  </p>
-                )}
-                {!selectedInstalledImage && installedImages.length > 0 && (
-                  <p className="text-sm text-yellow-600 mt-2">
-                    Por favor, selecciona una imagen de "sistema instalado" como referencia para la inspección.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {(work?.status === 'paymentReceived' || work?.status === 'finalRejected' || work?.status === 'finalInspectionPending') && (
-              <div className="my-6 p-4 border rounded-lg shadow-sm bg-white">
-                <h3 className="text-lg font-semibold mb-3 text-gray-700">
-                  Seleccionar Imagen para Inspección Final
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-72 overflow-y-auto p-2 border rounded-md">
-                  {(groupedImages['inspeccion final'] || []).map(image => (
-                    <div
-                      key={image.id}
-                      className={`cursor-pointer border-2 p-1 rounded-md hover:border-green-500 transition-all ${selectedInstalledImage?.id === image.id ? 'border-green-600 ring-2 ring-green-500' : 'border-gray-200'}`}
-                      onClick={() => setSelectedInstalledImage(image)}
-                    >
-                      <img
-                        src={image.imageUrl}
-                        alt={`Inspección Final - ${image.id}`}
-                        className="w-full h-28 object-cover rounded"
-                      />
-                      <p className="text-xs text-center mt-1 truncate" title={`ID: ${image.id}`}>ID: {image.id}</p>
-                    </div>
-                  ))}
-                  {(groupedImages['inspeccion final'] === undefined || groupedImages['inspeccion final'].length === 0) && (
-                    <p className="col-span-full text-center text-sm text-gray-500 py-4">
-                      No hay imágenes cargadas para la etapa 'inspección final'.
-                      Puedes subir una usando el botón de arriba.
-                    </p>
-                  )}
-                </div>
-                {selectedInstalledImage && groupedImages['inspeccion final']?.some(img => img.id === selectedInstalledImage.id) && (
-                  <p className="text-sm text-green-700 mt-2">
-                    Imagen para inspección final seleccionada: ID {selectedInstalledImage.id}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Pasar la imagen seleccionada (o su ID) a InspectionFlowManager */}
+            {/* Seguimiento de inspección rápida */}
             {work && (
-              <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500">
-                <h2
-                  className="text-xl font-semibold p-6 cursor-pointer flex justify-between items-center"
-                  onClick={() => toggleSection("inspectionFlow")}
+              <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500 p-6">
+                <button
+                  type="button"
+                  onClick={() => toggleSection('quickInspectionFollowUp')}
+                  className="w-full flex items-center justify-between text-left"
                 >
-                  <span>Gestión de Inspección</span>
-                  <span className="text-gray-600 transform transition-transform duration-200">
-                    {openSections.inspectionFlow ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                      </svg>
-                    )}
-                  </span>
-                  {work?.status === 'approvedInspection' ? (
-                    <span className="ml-4 px-3 py-2 rounded shadow text-sm font-bold bg-green-200 text-green-800">
-                      Inspección APROBADA
-                      {work?.updatedAt && (
-                        <span className="block text-xs font-normal text-gray-500 mt-1">{`Fecha: ${new Date(work.updatedAt).toLocaleString()}`}</span>
-                      )}
-                    </span>
-                  ) : (
-                    <>
-                      {work?.status === 'rejectedInspection' && (
-                        <span className="ml-4 px-3 py-2 rounded shadow text-sm font-bold bg-red-200 text-red-800">
-                          Inspección RECHAZADA
-                          {work?.updatedAt && (
-                            <span className="block text-xs font-normal text-gray-500 mt-1">{`Fecha: ${new Date(work.updatedAt).toLocaleString()}`}</span>
-                          )}
-                        </span>
-                      )}
-                      {/* ✅ Deshabilitar botón solo si ambas inspecciones están APROBADAS o si es finance (solo vista) */}
-                      {!isViewOnly && (
-                        <>
-                          <button
-                            className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
-                            onClick={e => {
-                              e.stopPropagation();
-                              if (!hasApprovedInitialInspection) {
-                                setQuickInspectionType('initial');
-                              } else if (!hasApprovedFinalInspection) {
-                                setQuickInspectionType('final');
-                              }
-                              setShowQuickInspectionModal(true);
-                            }}
-                          >
-                            Registrar / Reemplazar resultado
-                          </button>
-                        </>
-                      )}
-                    </>
+                  <h2 className="text-xl font-semibold text-gray-800">Seguimiento de inspección</h2>
+                  <svg
+                    className={`w-5 h-5 transform transition-transform ${openSections.quickInspectionFollowUp ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {openSections.quickInspectionFollowUp && (
+                <>
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-4 mt-3">
+                  <div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Solo usamos el flujo de resultado rápido. El seguimiento se mantiene hasta cargar la aprobación o rechazo.
+                    </p>
+                  </div>
+                  {!isViewOnly && (
+                    <button
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm font-semibold"
+                      onClick={() => {
+                        if (!hasApprovedInitialInspection) {
+                          setQuickInspectionType('initial');
+                        } else if (!hasApprovedFinalInspection) {
+                          setQuickInspectionType('final');
+                        }
+                        setShowQuickInspectionModal(true);
+                      }}
+                    >
+                      Registrar resultado
+                    </button>
                   )}
-                </h2>
-                
-                {/* Renderizado condicional del gestor de flujo apropiado */}
-                {showInitialInspectionManager && (
-                  <InspectionFlowManager
-                    work={work}
-                    selectedWorkImageId={selectedInstalledImage?.id || null}
-                    isVisible={openSections.inspectionFlow}
-                  />
+                </div>
+
+                <div className={`rounded-lg border p-4 ${initialInspectionFollowUp.state === 'overdue' ? 'bg-red-50 border-red-300 text-red-900' : initialInspectionFollowUp.state === 'requested' ? 'bg-blue-50 border-blue-300 text-blue-900' : initialInspectionFollowUp.state === 'completed' ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                    <p className="font-semibold text-sm uppercase tracking-wide">
+                      {initialInspectionFollowUp.state === 'overdue'
+                        ? 'Inspection follow-up overdue'
+                        : initialInspectionFollowUp.state === 'requested'
+                          ? 'Inspection requested'
+                          : initialInspectionFollowUp.state === 'completed'
+                            ? 'Inspection result received'
+                            : 'Inspection request pending'}
+                    </p>
+                    {initialInspectionFollowUp.isOverdue && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-600 text-white">
+                        Follow-up required
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm leading-relaxed mb-3">
+                    {initialInspectionFollowUp.state === 'overdue'
+                      ? 'More than 3 days have passed since the inspection request and no result has been loaded yet.'
+                      : initialInspectionFollowUp.state === 'requested'
+                        ? 'The inspection was requested and is now under follow-up.'
+                        : initialInspectionFollowUp.state === 'completed'
+                          ? (initialInspectionFollowUp.resultStatus === 'approved' ? 'The initial inspection was approved.' : 'The initial inspection was rejected.')
+                          : 'The project is installed, but the inspection request still needs to be logged.'}
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                    <div><span className="font-semibold">Requested:</span> {initialInspectionFollowUp.requestedDate ? formatDateShort(initialInspectionFollowUp.requestedDate) : 'Not defined'}</div>
+                    <div><span className="font-semibold">Due:</span> {initialInspectionFollowUp.dueDate ? formatDateShort(initialInspectionFollowUp.dueDate) : 'Not defined'}</div>
+                    <div><span className="font-semibold">Scheduled:</span> {initialInspectionFollowUp.scheduledDate ? formatDateShort(initialInspectionFollowUp.scheduledDate) : 'Not defined'}</div>
+                    {initialInspectionFollowUp.inspectorContact && (
+                      <div className="sm:col-span-2"><span className="font-semibold">With:</span> {initialInspectionFollowUp.inspectorContact}</div>
+                    )}
+                  </div>
+                </div>
+
+                {!isViewOnly && !hasApprovedInitialInspection && (
+                  <div className="mt-4 rounded-lg border border-slate-200 p-4 bg-slate-50">
+                    <h3 className="text-sm font-bold text-slate-700 mb-3">Cargar seguimiento manual de inspeccion</h3>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Email inspector</label>
+                        <input
+                          type="email"
+                          value={quickFollowUpEmail}
+                          onChange={(e) => setQuickFollowUpEmail(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                          placeholder="inspector@email.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha solicitada</label>
+                        <input
+                          type="date"
+                          value={quickFollowUpRequestedDate}
+                          onChange={(e) => setQuickFollowUpRequestedDate(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha programada (opcional)</label>
+                        <input
+                          type="date"
+                          value={quickFollowUpScheduledDate}
+                          onChange={(e) => setQuickFollowUpScheduledDate(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Notas (opcional)</label>
+                        <input
+                          type="text"
+                          value={quickFollowUpNotes}
+                          onChange={(e) => setQuickFollowUpNotes(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                          placeholder="Detalle adicional"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={quickFollowUpSaving}
+                        onClick={async () => {
+                          if (!quickFollowUpEmail.trim()) {
+                            alert('El email del inspector es obligatorio.');
+                            return;
+                          }
+                          if (!quickFollowUpRequestedDate) {
+                            alert('La fecha solicitada es obligatoria.');
+                            return;
+                          }
+
+                          setQuickFollowUpSaving(true);
+                          try {
+                            await dispatch(saveQuickInspectionFollowUp(work.idWork, {
+                              inspectorEmail: quickFollowUpEmail.trim(),
+                              dateRequestedToInspectors: quickFollowUpRequestedDate,
+                              inspectorScheduledDate: quickFollowUpScheduledDate || null,
+                              notes: quickFollowUpNotes || null,
+                            }));
+
+                            await Promise.all([
+                              refreshWorkData({ inspectionsOnly: true }),
+                              refreshWorkData({ workOnly: true }),
+                            ]);
+                          } catch (error) {
+                            console.error('Error guardando seguimiento rapido:', error);
+                          } finally {
+                            setQuickFollowUpSaving(false);
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-semibold disabled:bg-gray-400"
+                      >
+                        {quickFollowUpSaving ? 'Guardando...' : 'Guardar seguimiento'}
+                      </button>
+                    </div>
+                  </div>
                 )}
-                
+
+                <div className={`mt-4 rounded-lg border p-4 ${finalInspectionFollowUp.state === 'overdue' ? 'bg-red-50 border-red-300 text-red-900' : finalInspectionFollowUp.state === 'requested' ? 'bg-blue-50 border-blue-300 text-blue-900' : finalInspectionFollowUp.state === 'completed' ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                  <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                    <p className="font-semibold text-sm uppercase tracking-wide">
+                      {finalInspectionFollowUp.state === 'overdue'
+                        ? 'Final inspection follow-up overdue'
+                        : finalInspectionFollowUp.state === 'requested'
+                          ? 'Final inspection requested'
+                          : finalInspectionFollowUp.state === 'completed'
+                            ? 'Final inspection approved'
+                            : 'Final inspection request pending'}
+                    </p>
+                    {finalInspectionFollowUp.isOverdue && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-600 text-white">
+                        Follow-up required
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2 text-sm">
+                    <div><span className="font-semibold">Requested:</span> {finalInspectionFollowUp.requestedDate ? formatDateShort(finalInspectionFollowUp.requestedDate) : 'Not defined'}</div>
+                    <div><span className="font-semibold">Scheduled:</span> {finalInspectionFollowUp.scheduledDate ? formatDateShort(finalInspectionFollowUp.scheduledDate) : 'Not defined'}</div>
+                    {finalInspectionFollowUp.inspectorContact && (
+                      <div className="sm:col-span-2"><span className="font-semibold">With:</span> {finalInspectionFollowUp.inspectorContact}</div>
+                    )}
+                  </div>
+                </div>
+
+                {!isViewOnly && !hasApprovedFinalInspection && (
+                  <div className="mt-4 rounded-lg border border-slate-200 p-4 bg-slate-50">
+                    <h3 className="text-sm font-bold text-slate-700 mb-3">Cargar seguimiento manual de inspeccion final</h3>
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Email inspector</label>
+                        <input
+                          type="email"
+                          value={finalFollowUpEmail}
+                          onChange={(e) => setFinalFollowUpEmail(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                          placeholder="inspector@email.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha solicitada</label>
+                        <input
+                          type="date"
+                          value={finalFollowUpRequestedDate}
+                          onChange={(e) => setFinalFollowUpRequestedDate(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Fecha programada (opcional)</label>
+                        <input
+                          type="date"
+                          value={finalFollowUpScheduledDate}
+                          onChange={(e) => setFinalFollowUpScheduledDate(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">Notas (opcional)</label>
+                        <input
+                          type="text"
+                          value={finalFollowUpNotes}
+                          onChange={(e) => setFinalFollowUpNotes(e.target.value)}
+                          className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+                          placeholder="Detalle adicional"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={finalFollowUpSaving}
+                        onClick={async () => {
+                          if (!finalFollowUpEmail.trim()) {
+                            alert('El email del inspector es obligatorio.');
+                            return;
+                          }
+                          if (!finalFollowUpRequestedDate) {
+                            alert('La fecha solicitada es obligatoria.');
+                            return;
+                          }
+
+                          setFinalFollowUpSaving(true);
+                          try {
+                            await dispatch(saveQuickInspectionFollowUp(work.idWork, {
+                              inspectionType: 'final',
+                              inspectorEmail: finalFollowUpEmail.trim(),
+                              dateRequestedToInspectors: finalFollowUpRequestedDate,
+                              inspectorScheduledDate: finalFollowUpScheduledDate || null,
+                              notes: finalFollowUpNotes || null,
+                            }));
+
+                            await Promise.all([
+                              refreshWorkData({ inspectionsOnly: true }),
+                              refreshWorkData({ workOnly: true }),
+                            ]);
+                          } catch (error) {
+                            console.error('Error guardando seguimiento final:', error);
+                          } finally {
+                            setFinalFollowUpSaving(false);
+                          }
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-semibold disabled:bg-gray-400"
+                      >
+                        {finalFollowUpSaving ? 'Guardando...' : 'Guardar seguimiento final'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                </>
+                )}
+
                 {/* 📋 Historial de Inspecciones Rápidas - Sección expandible */}
                 {(initialInspectionsHistory.length > 0 || finalInspectionsHistory.length > 0) && (
                   <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -2167,9 +2326,6 @@ const handleUploadInstalledImage = async () => {
                         <h3 className="text-md font-semibold text-gray-800">
                           Historial de Inspecciones
                         </h3>
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
-                          {initialInspectionsHistory.length + finalInspectionsHistory.length}
-                        </span>
                       </div>
                       <svg 
                         className={`w-5 h-5 transform transition-transform ${openSections.inspectionHistory ? 'rotate-180' : ''}`}
@@ -2736,12 +2892,6 @@ const handleUploadInstalledImage = async () => {
               </div>
             )}
 
-                {showFinalInspectionManager && !showInitialInspectionManager && (
-                  <FinalInspectionFlowManager
-                    work={work}
-                    isVisible={openSections.inspectionFlow}
-                  />
-                )}
               </div>
             )}
           </div>

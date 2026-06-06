@@ -21,6 +21,7 @@ import {
 import BudgetNotesModal from './BudgetNotesModal';
 import NotesAlertBadge from '../Common/NotesAlertBadge';
 import api from '../../utils/axios';
+import { formatDateTimeInDisplayTz } from '../../utils/timezoneDisplay';
 
 const STATUS_LABELS = {
   draft:              'Borrador',
@@ -122,7 +123,7 @@ const FollowUpBudgets = () => {
     }
   };
 
-  // 🔔 Cargar budgets con recordatorios próximos (próximos 7 días)
+  // 🔔 Cargar budgets con recordatorios activos (vencidos + próximos)
   const loadUpcomingAlerts = async () => {
     try {
       setLoadingUpcomingAlerts(true);
@@ -398,7 +399,7 @@ const FollowUpBudgets = () => {
         </div>
       )}
 
-      {/* 🔔 Banner de Recordatorios Próximos */}
+      {/* 🔔 Banner de Recordatorios Activos */}
       {upcomingAlertBudgets.length > 0 && (
         <div className="bg-gradient-to-r from-orange-50 to-yellow-50 border border-orange-300 rounded-lg shadow-md mb-6 overflow-hidden">
           <div 
@@ -409,10 +410,10 @@ const FollowUpBudgets = () => {
               <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
               </svg>
-              🔔 Budgets con Recordatorios Próximos ({upcomingAlertBudgets.length})
+              🔔 Budgets con Recordatorios Activos ({upcomingAlertBudgets.length})
             </h3>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-orange-600 font-medium">Próximos 7 días</span>
+              <span className="text-sm text-orange-600 font-medium">Se mantienen hasta completar</span>
               <svg 
                 className={`w-5 h-5 text-orange-600 transition-transform ${alertsCollapsed ? '' : 'rotate-180'}`}
                 fill="none" 
@@ -434,7 +435,9 @@ const FollowUpBudgets = () => {
                   <div
                     key={budget.idBudget}
                     className={`border-l-4 rounded-lg p-4 ${
-                      alert.isToday 
+                      alert.isOverdue
+                        ? 'bg-red-100 border-red-700'
+                        : alert.isToday 
                         ? 'bg-red-50 border-red-600' 
                         : alert.isUrgent 
                           ? 'bg-orange-50 border-orange-500' 
@@ -450,6 +453,11 @@ const FollowUpBudgets = () => {
                         <div className="flex items-center gap-3 mb-2">
                           <span className="font-bold text-gray-900">#{budget.idBudget}</span>
                           <span className="text-sm font-medium text-gray-700">{budget.propertyAddress}</span>
+                          {alert.isOverdue && (
+                            <span className="px-2 py-1 bg-red-700 text-white text-xs font-bold rounded-full">
+                              VENCIDO
+                            </span>
+                          )}
                           {alert.isToday && (
                             <span className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse">
                               ¡HOY!
@@ -459,12 +467,24 @@ const FollowUpBudgets = () => {
                         <p className="text-sm text-gray-600 mb-2">{alert.message}</p>
                         <div className="flex items-center gap-4 text-xs">
                           <span className="text-gray-500">
-                            📅 {new Date(alert.reminderDate).toLocaleDateString('es-ES')}
+                            📅 {formatDateTimeInDisplayTz(alert.reminderDate, {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
                           </span>
                           <span className={`px-2 py-1 rounded-full ${
-                            alert.isUrgent ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                            alert.isOverdue
+                              ? 'bg-red-100 text-red-700'
+                              : alert.isUrgent
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-100 text-blue-700'
                           }`}>
-                            {alert.daysRemaining} {alert.daysRemaining === 1 ? 'día' : 'días'} restantes
+                            {alert.isOverdue
+                              ? `${Math.abs(alert.daysRemaining)} ${Math.abs(alert.daysRemaining) === 1 ? 'día vencido' : 'días vencidos'}`
+                              : `${alert.daysRemaining} ${alert.daysRemaining === 1 ? 'día restante' : 'días restantes'}`}
                           </span>
                         </div>
                       </div>

@@ -6,6 +6,9 @@ const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper'
 const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService');
 const { sendEmail } = require('../utils/notifications/emailService');
 
+const ORLANDO_TIMEZONE = 'America/New_York';
+const formatOrlandoDateTime = () => new Date().toLocaleString('es-US', { timeZone: ORLANDO_TIMEZONE });
+
 const sendClientPortalLinkOnInProgress = async (workId, propertyAddress = 'tu proyecto') => {
   try {
     const existingPortalLinkNote = await WorkNote.findOne({
@@ -77,7 +80,7 @@ const sendClientPortalLinkOnInProgress = async (workId, propertyAddress = 'tu pr
     await WorkNote.create({
       workId,
       staffId: null,
-      message: `Enlace del Portal de Seguimiento enviado automaticamente al cliente (${portalInfo.clientEmail}) al pasar a inProgress - ${new Date().toLocaleString('es-ES')}`,
+      message: `Enlace del Portal de Seguimiento enviado automaticamente al cliente (${portalInfo.clientEmail}) al pasar a inProgress - ${formatOrlandoDateTime()}`,
       noteType: 'client_contact',
       priority: 'medium',
       relatedStatus: 'inProgress',

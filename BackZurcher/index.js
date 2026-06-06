@@ -1,3 +1,5 @@
+process.env.TZ = process.env.TZ || 'America/New_York';
+
 const { app, server } = require("./src/app.js"); // Importar tanto app como server
 const { conn } = require("./src/data");
 const { PORT, DB_DEPLOY } = require("./src/config/envs.js");

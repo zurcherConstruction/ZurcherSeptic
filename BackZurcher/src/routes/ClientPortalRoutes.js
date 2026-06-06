@@ -1,5 +1,5 @@
 const express = require('express');
-const { Budget, Work, WorkNote, BudgetItem, Image, Receipt, Permit } = require('../data');
+const { Budget, Work, WorkNote, BudgetItem, Image, Receipt, Permit, WorkStateHistory } = require('../data');
 const { Op } = require('sequelize');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -283,9 +283,48 @@ router.get('/:token/works', async (req, res) => {
       order: [['startDate', 'DESC']]
     });
 
+    const workIds = works.map(w => w.idWork);
+    const assignedDateByWorkId = new Map();
+    const installedDateByWorkId = new Map();
+
+    if (workIds.length > 0) {
+      const stateChanges = await WorkStateHistory.findAll({
+        where: {
+          workId: { [Op.in]: workIds },
+          toStatus: { [Op.in]: ['assigned', 'installed', 'firstInspectionPending'] }
+        },
+        attributes: ['workId', 'toStatus', 'changedAt'],
+        order: [['changedAt', 'DESC']]
+      });
+
+      for (const change of stateChanges) {
+        const workId = change.workId;
+
+        if (change.toStatus === 'assigned' && !assignedDateByWorkId.has(workId)) {
+          assignedDateByWorkId.set(workId, change.changedAt);
+        }
+
+        if ((change.toStatus === 'firstInspectionPending' || change.toStatus === 'installed') && !installedDateByWorkId.has(workId)) {
+          installedDateByWorkId.set(workId, change.changedAt);
+        }
+      }
+    }
+
+    const worksWithMilestones = works.map((work) => {
+      const plainWork = work.get({ plain: true });
+      const assignedDate = assignedDateByWorkId.get(plainWork.idWork) || plainWork.startDate || null;
+      const installedDate = installedDateByWorkId.get(plainWork.idWork) || plainWork.installationStartDate || null;
+
+      return {
+        ...plainWork,
+        assignedDate,
+        installedDate
+      };
+    });
+
     res.status(200).json({
       success: true,
-      data: works
+      data: worksWithMilestones
     });
 
   } catch (error) {

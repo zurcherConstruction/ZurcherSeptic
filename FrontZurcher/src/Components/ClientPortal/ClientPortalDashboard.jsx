@@ -9,6 +9,7 @@ import {
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import SEOHelmet from '../SEO/SEOHelmet';
 import PdfModal from '../Budget/PdfModal';
+import { getInspectionFollowUp } from '../../utils/inspectionTracking';
 
 // URL de la API desde variables de entorno
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -507,11 +508,39 @@ const ClientPortalDashboard = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Not defined';
+
+    // Keep DATEONLY values (YYYY-MM-DD) stable and avoid timezone day shifts.
+    const dateOnlyMatch = String(dateString).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnlyMatch) {
+      const [, year, month, day] = dateOnlyMatch;
+      const stableDate = new Date(Number(year), Number(month) - 1, Number(day));
+
+      return stableDate.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long', 
       day: 'numeric'
     });
+  };
+
+  const renderInspectionFollowUp = (work) => {
+    const followUp = getInspectionFollowUp(work);
+
+    if (followUp.state === 'idle') return null;
+
+    return (
+      <div className="mt-3 rounded-xl border p-4 bg-blue-50 border-blue-300 text-blue-900">
+        <div className="flex flex-col gap-2">
+          <p className="font-semibold text-sm uppercase tracking-wide">Inspection requested</p>
+        </div>
+      </div>
+    );
   };
 
   const getProgressPercentage = (status) => {
@@ -880,12 +909,13 @@ const ClientPortalDashboard = () => {
                               <p className="font-semibold text-slate-800 text-lg">{latestWork.propertyAddress}</p>
                               <p className="text-slate-600">{statusInfo.label}</p>
                             </div>
-                            {latestWork.startDate && (
+                            {(latestWork.assignedDate || latestWork.startDate) && (
                               <p className="text-sm text-slate-500">
-                                Started: {formatDate(latestWork.startDate)}
+                                Started: {formatDate(latestWork.assignedDate || latestWork.startDate)}
                               </p>
                             )}
                           </div>
+                          {renderInspectionFollowUp(latestWork)}
                           <ProgressTracker currentStatus={latestWork.status} />
                         </div>
                       );
@@ -978,16 +1008,16 @@ const ClientPortalDashboard = () => {
                               </div>
                               <p className="text-slate-600 font-medium text-sm lg:text-base">{statusInfo.label}</p>
                               <div className="mt-2 space-y-1 text-xs lg:text-sm text-slate-500">
-                                {work.startDate && (
+                                {(work.assignedDate || work.startDate) && (
                                   <p className="flex items-center gap-1">
                                     <FaCalendarAlt className="text-blue-500" />
-                                    Started: {formatDate(work.startDate)}
+                                    Started: {formatDate(work.assignedDate || work.startDate)}
                                   </p>
                                 )}
-                                {work.installationStartDate && (
+                                {(work.installedDate || work.installationStartDate) && (
                                   <p className="flex items-center gap-1">
                                     <FaTools className="text-green-500" />
-                                    Installation: {formatDate(work.installationStartDate)}
+                                    Installation: {formatDate(work.installedDate || work.installationStartDate)}
                                   </p>
                                 )}
                                 {work.budget?.applicantName && (
@@ -995,6 +1025,7 @@ const ClientPortalDashboard = () => {
                                     Client: {work.budget.applicantName}
                                   </p>
                                 )}
+                                {renderInspectionFollowUp(work)}
                               </div>
                             </div>
                           </div>

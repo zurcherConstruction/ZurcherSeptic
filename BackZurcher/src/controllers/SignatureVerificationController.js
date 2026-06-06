@@ -21,7 +21,6 @@ const verifyPendingSignatures = async (req, res) => {
 
     const recentSignatureActivityWhere = {
       [Op.or]: [
-        { sentForSignatureAt: { [Op.gte]: thirtyDaysAgo } },
         { sentForReviewAt: { [Op.gte]: thirtyDaysAgo } },
         { updatedAt: { [Op.gte]: thirtyDaysAgo } }
       ]
@@ -32,13 +31,7 @@ const verifyPendingSignatures = async (req, res) => {
       where: {
         signNowDocumentId: { [Op.ne]: null },
         status: 'sent_for_signature',
-        ...recentSignatureActivityWhere,
-        [Op.or]: [
-          { signatureMethod: 'signnow' },
-          { signatureMethod: null },
-          { signatureMethod: '' },
-          { signatureMethod: 'none' }
-        ]
+        ...recentSignatureActivityWhere
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }],
       limit: 25,
@@ -50,13 +43,7 @@ const verifyPendingSignatures = async (req, res) => {
       where: {
         docusignEnvelopeId: { [Op.ne]: null },
         status: 'sent_for_signature',
-        ...recentSignatureActivityWhere,
-        [Op.or]: [
-          { signatureMethod: 'docusign' },
-          { signatureMethod: null },
-          { signatureMethod: '' },
-          { signatureMethod: 'none' }
-        ]
+        ...recentSignatureActivityWhere
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }],
       limit: 25,
@@ -199,7 +186,7 @@ const verifyPendingSignatures = async (req, res) => {
               context: {
                 invoice: budget.idBudget.toString(),
                 property: budget.Permit?.propertyAddress || budget.propertyAddress,
-                signed_at: envelopeStatus.completedDateTime || new Date().toISOString(),
+                signed_at: signatureStatus.completedDateTime || new Date().toISOString(),
                 signature_method: 'docusign'
               }
             });
@@ -243,7 +230,7 @@ const verifyPendingSignatures = async (req, res) => {
           results.push({
             idBudget: budget.idBudget,
             propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
-            status: envelopeStatus.status,
+            status: signatureStatus.status || 'pending',
             completedDateTime: signatureStatus.completedDateTime,
             method: 'DocuSign'
           });

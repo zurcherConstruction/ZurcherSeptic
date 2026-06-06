@@ -17,6 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import MentionTextarea from '../Common/MentionTextarea';
 import MessageWithMentions from '../Common/MessageWithMentions';
+import { formatDateTimeInDisplayTz } from '../../utils/timezoneDisplay';
 
 // 📋 Tipos de nota con iconos y colores
 const noteTypes = {
@@ -135,14 +136,7 @@ const WorkNotesModal = ({ work, onClose }) => {
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('es-ES', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatDateTimeInDisplayTz(dateString);
   };
 
   return (

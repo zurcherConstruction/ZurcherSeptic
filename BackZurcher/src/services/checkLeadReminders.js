@@ -2,6 +2,15 @@ const cron = require('node-cron');
 const { LeadNote, SalesLead, Staff } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
 const { Op } = require('sequelize');
+const { sequelize } = require('../data');
+
+const ORLANDO_TZ = 'America/New_York';
+const getDateOnlyInOrlando = (date = new Date()) => new Intl.DateTimeFormat('en-CA', {
+  timeZone: ORLANDO_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+}).format(date);
 
 /**
  * 🔔 Servicio para verificar recordatorios de notas de Sales Leads
@@ -13,26 +22,20 @@ const checkLeadReminders = async () => {
   try {
     console.log('\n🔍 [CRON - LEAD REMINDERS] Verificando recordatorios de leads...');
 
-    // Obtener fecha de MAÑANA (24 horas antes del recordatorio)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(0, 0, 0, 0);
+    // Obtener fecha de MAÑANA en zona Orlando
+    const tomorrowOrlando = getDateOnlyInOrlando(new Date(Date.now() + 24 * 60 * 60 * 1000));
 
-    const dayAfterTomorrow = new Date(tomorrow);
-    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
-
-    console.log(`📅 Buscando recordatorios para: ${tomorrow.toLocaleDateString('es-ES')} (24hs antes)`);
+    console.log(`📅 Buscando recordatorios para: ${tomorrowOrlando} (24hs antes, Orlando)`);
 
     // Buscar notas con recordatorios activos para mañana que NO hayan recibido email aún
     const reminders = await LeadNote.findAll({
       where: {
         isReminderActive: true,
-        reminderDate: {
-          [Op.gte]: tomorrow,
-          [Op.lt]: dayAfterTomorrow
-        },
         reminderCompletedAt: null,
-        reminderEmailSentAt: null
+        reminderEmailSentAt: null,
+        [Op.and]: [
+          sequelize.literal(`DATE("reminderDate" AT TIME ZONE '${ORLANDO_TZ}') = DATE '${tomorrowOrlando}'`)
+        ]
       },
       include: [
         {
@@ -136,7 +139,7 @@ const checkLeadReminders = async () => {
 
               <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0;">
                 <p style="margin: 0; color: #92400e; font-weight: bold;">
-                  ⏰ This reminder is due tomorrow (${new Date(reminder.reminderDate).toLocaleDateString('en-US')})
+                  ⏰ This reminder is due tomorrow (${new Date(reminder.reminderDate).toLocaleDateString('en-US', { timeZone: ORLANDO_TZ })})
                 </p>
               </div>
 

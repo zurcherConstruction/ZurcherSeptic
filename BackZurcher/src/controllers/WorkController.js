@@ -15,6 +15,10 @@ const { sequelize } = require('../data');
 const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService'); // 🆕 Portal de cliente 
 const { sendEmail } = require('../utils/notifications/emailService');
 
+const ORLANDO_TIMEZONE = 'America/New_York';
+const formatOrlandoDateTime = () => new Date().toLocaleString('es-US', { timeZone: ORLANDO_TIMEZONE });
+const formatOrlandoDate = () => new Date().toLocaleDateString('es-US', { timeZone: ORLANDO_TIMEZONE });
+
 const { 
   STATUS_ORDER,
   STATE_DEPENDENCIES,
@@ -125,7 +129,7 @@ const sendClientPortalLinkOnInProgress = async (workId, propertyAddress = 'tu pr
     await WorkNote.create({
       workId,
       staffId: null,
-      message: `Enlace del Portal de Seguimiento enviado automáticamente al cliente (${portalInfo.clientEmail}) al pasar a inProgress - ${new Date().toLocaleString('es-ES')}`,
+      message: `Enlace del Portal de Seguimiento enviado automáticamente al cliente (${portalInfo.clientEmail}) al pasar a inProgress - ${formatOrlandoDateTime()}`,
       noteType: 'client_contact',
       priority: 'medium',
       relatedStatus: 'inProgress',
@@ -256,6 +260,22 @@ const getWorks = async (req, res) => {
           as: 'maintenanceVisits',
           required: false,
           attributes: ['id', 'visitNumber', 'scheduledDate', 'actualVisitDate', 'status', 'createdAt']
+        },
+        {
+          model: Inspection,
+          as: 'inspections',
+          required: false,
+          attributes: [
+            'idInspection',
+            'type',
+            'processStatus',
+            'finalStatus',
+            'dateRequestedToInspectors',
+            'inspectorScheduledDate',
+            'dateResultReceived',
+            'notes',
+            'createdAt'
+          ]
         }
         // ❌ Removido: Expense y Receipt de la consulta principal
         // ✅ Se cargarán después en consultas separadas (más eficiente)
@@ -1993,13 +2013,7 @@ const uploadMaintenanceService = async (req, res) => {
     await work.save();
 
     // Crear nota automática
-    const noteMessage = `🔧 Servicio de Mantenimiento subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`;
+    const noteMessage = `🔧 Servicio de Mantenimiento subido al sistema - ${formatOrlandoDate()}`;
 
     await WorkNote.create({
       workId: idWork,
@@ -2085,13 +2099,7 @@ const uploadExtraDocument = async (req, res) => {
     await work.save();
 
     // Crear nota automática
-    const noteMessage = `📎 Documento Extra subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`;
+    const noteMessage = `📎 Documento Extra subido al sistema - ${formatOrlandoDate()}`;
 
     await WorkNote.create({
       workId: idWork,
@@ -2177,13 +2185,7 @@ const uploadNoticeToOwner = async (req, res) => {
     await work.save();
 
     // Crear nota automática
-    const noteMessage = `📋 Notice to Owner subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`;
+    const noteMessage = `📋 Notice to Owner subido al sistema - ${formatOrlandoDate()}`;
 
     await WorkNote.create({
       workId: idWork,
@@ -2269,13 +2271,7 @@ const uploadLien = async (req, res) => {
     await work.save();
 
     // Crear nota automática
-    const noteMessage = `🔗 Lien subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`;
+    const noteMessage = `🔗 Lien subido al sistema - ${formatOrlandoDate()}`;
 
     await WorkNote.create({
       workId: idWork,
@@ -2416,13 +2412,7 @@ const replaceOperatingPermit = async (req, res) => {
     await work.save();
 
     // Crear nota automática
-    const noteMessage = `🔄 Permiso de Operación reemplazado - ${new Date().toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`;
+    const noteMessage = `🔄 Permiso de Operación reemplazado - ${formatOrlandoDate()}`;
 
     await WorkNote.create({
       workId: idWork,
@@ -2527,13 +2517,7 @@ const replaceMaintenanceService = async (req, res) => {
     await work.save();
 
     // Crear nota automática
-    const noteMessage = `🔄 Servicio de Mantenimiento reemplazado - ${new Date().toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`;
+    const noteMessage = `🔄 Servicio de Mantenimiento reemplazado - ${formatOrlandoDate()}`;
 
     await WorkNote.create({
       workId: idWork,
@@ -2638,13 +2622,7 @@ const replaceExtraDocument = async (req, res) => {
     await work.save();
 
     // Crear nota automática
-    const noteMessage = `🔄 Documento Extra reemplazado - ${new Date().toLocaleDateString('es-ES', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`;
+    const noteMessage = `🔄 Documento Extra reemplazado - ${formatOrlandoDate()}`;
 
     await WorkNote.create({
       workId: idWork,

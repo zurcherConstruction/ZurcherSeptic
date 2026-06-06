@@ -342,4 +342,22 @@ export const registerQuickInspectionResult = (workId, formData) => async (dispat
   }
 };
 
+export const saveQuickInspectionFollowUp = (workId, payload) => async (dispatch) => {
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.put(`/inspection/${workId}/quick-follow-up`, payload);
+    dispatch(upsertInspectionSuccess(response.data));
+    if (response.data.workStatus && workId) {
+      dispatch(fetchWorkById(workId));
+    }
+    toast.success(response.data.message || 'Seguimiento de inspeccion guardado.');
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al guardar seguimiento de inspeccion.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
 // --- FIN: ACCIONES PARA EL FLUJO DE INSPECCIÓN FINAL ---

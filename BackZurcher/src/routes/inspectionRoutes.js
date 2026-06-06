@@ -122,6 +122,12 @@ router.post(
   InspectionController.registerQuickInspectionResult
 );
 
+router.put(
+  '/:workId/quick-follow-up',
+  verifyToken, allowRoles(['admin', 'recept', 'owner']),
+  InspectionController.saveQuickInspectionFollowUp
+);
+
 
 // --- FIN: RUTAS PARA EL FLUJO DE INSPECCIÓN FINAL ---
 
