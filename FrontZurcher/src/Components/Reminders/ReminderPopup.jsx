@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyReminders, toggleComplete } from '../../Redux/Actions/reminderActions';
 import { FaBell, FaTimes, FaCheck, FaCalendarAlt, FaExternalLinkAlt, FaHardHat, FaFileAlt } from 'react-icons/fa';
+import { formatDateOnlyInDisplayTz, isDateOnlyOverdueInDisplayTz } from '../../utils/timezoneDisplay';
 
 const POPUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const getPopupKey = (staffId) => `reminder_popup_last_shown_${staffId}`;
@@ -82,7 +83,7 @@ export default function ReminderPopup() {
 
   if (!visible || pendingReminders.length === 0) return null;
 
-  const isOverdue = (r) => r.dueDate && new Date(r.dueDate) < new Date();
+  const isOverdue = (r) => r.dueDate && isDateOnlyOverdueInDisplayTz(r.dueDate);
 
   const urgentCount = pendingReminders.filter(r => r.priority === 'urgent').length;
   const overdueCount = pendingReminders.filter(r => isOverdue(r)).length;
@@ -164,7 +165,7 @@ export default function ReminderPopup() {
                       }`}>
                         <FaCalendarAlt className="w-3 h-3" />
                         {overdue && 'Vencido · '}
-                        {new Date(r.dueDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        {formatDateOnlyInDisplayTz(r.dueDate, { day: 'numeric', month: 'short' })}
                       </span>
                     )}
                     {r.linkedEntityType && r.linkedEntityId && (

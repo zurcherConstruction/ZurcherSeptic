@@ -16,6 +16,22 @@ const formatActionDate = (date = new Date()) => {
   });
 };
 
+const formatDateOnlyLabel = (dateValue) => {
+  if (!dateValue) return null;
+  const match = String(dateValue).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
+
 // Función para comprimir PDF si es necesario
 const compressPdfIfNeeded = async (buffer, filename = 'PDF') => {
   const originalSize = buffer.length;
@@ -114,6 +130,20 @@ const registerQuickInspectionResult = async (req, res) => {
         finalStatus: 'rejected'
       }
     });
+
+    const latestInspectionOfType = await Inspection.findOne({
+      where: {
+        workId,
+        type,
+      },
+      order: [['createdAt', 'DESC']]
+    });
+
+    const canUpdatePendingTracking = Boolean(
+      type === 'initial' &&
+      latestInspectionOfType &&
+      (latestInspectionOfType.finalStatus === null || latestInspectionOfType.finalStatus === 'pending')
+    );
     
     if (rejectedCount > 0) {
       console.log(`[InspectionController - Quick] Esta será la inspección ${type} intento #${rejectedCount + 1} para work ${workId} (anteriores rechazadas: ${rejectedCount})`);
@@ -195,17 +225,30 @@ const registerQuickInspectionResult = async (req, res) => {
 
     await sequelize.transaction(async (t) => {
       // Crear la inspección dentro de la transacción
-      inspection = await Inspection.create({
-        workId,
-        type,
-        processStatus: finalStatus === 'approved' ? 'result_approved' : 'result_rejected',
-        finalStatus,
-        dateInspectionPerformed: dateInspectionPerformed || new Date(),
-        dateResultReceived: new Date(),
-        resultDocumentUrl: cloudinaryResult.secure_url,
-        resultDocumentPublicId: cloudinaryResult.public_id,
-        notes,
-      }, { transaction: t });
+      if (canUpdatePendingTracking) {
+        inspection = latestInspectionOfType;
+        await inspection.update({
+          processStatus: finalStatus === 'approved' ? 'result_approved' : 'result_rejected',
+          finalStatus,
+          dateInspectionPerformed: dateInspectionPerformed || new Date(),
+          dateResultReceived: new Date(),
+          resultDocumentUrl: cloudinaryResult.secure_url,
+          resultDocumentPublicId: cloudinaryResult.public_id,
+          notes: notes ?? inspection.notes,
+        }, { transaction: t });
+      } else {
+        inspection = await Inspection.create({
+          workId,
+          type,
+          processStatus: finalStatus === 'approved' ? 'result_approved' : 'result_rejected',
+          finalStatus,
+          dateInspectionPerformed: dateInspectionPerformed || new Date(),
+          dateResultReceived: new Date(),
+          resultDocumentUrl: cloudinaryResult.secure_url,
+          resultDocumentPublicId: cloudinaryResult.public_id,
+          notes,
+        }, { transaction: t });
+      }
 
       // Determinar nuevo status del work
       if (type === 'initial') {
@@ -292,6 +335,123 @@ const registerQuickInspectionResult = async (req, res) => {
   } catch (error) {
     console.error('Error en registerQuickInspectionResult:', error);
     res.status(500).json({ error: true, message: 'Error interno al registrar resultado rápido de inspección.' });
+  }
+};
+
+const saveQuickInspectionFollowUp = async (req, res) => {
+  try {
+    const { workId } = req.params;
+    const {
+      inspectionType = 'initial',
+      inspectorEmail,
+      dateRequestedToInspectors,
+      inspectorScheduledDate,
+      notes,
+    } = req.body;
+
+    if (!['initial', 'final'].includes(inspectionType)) {
+      return res.status(400).json({ error: true, message: 'El tipo de inspeccion es invalido.' });
+    }
+
+    if (!inspectorEmail || !String(inspectorEmail).trim()) {
+      return res.status(400).json({ error: true, message: 'El email del inspector es requerido.' });
+    }
+
+    if (!dateRequestedToInspectors) {
+      return res.status(400).json({ error: true, message: 'La fecha en que se pidio al inspector es requerida.' });
+    }
+
+    const work = await Work.findByPk(workId);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
+    }
+
+    const latestInspection = await Inspection.findOne({
+      where: {
+        workId,
+        type: inspectionType,
+      },
+      order: [['createdAt', 'DESC']]
+    });
+
+    const reusablePendingInspection =
+      latestInspection &&
+      (latestInspection.finalStatus === null || latestInspection.finalStatus === 'pending')
+        ? latestInspection
+        : null;
+
+    const normalizedRequestedDate = String(dateRequestedToInspectors).slice(0, 10);
+    const normalizedScheduledDate = inspectorScheduledDate ? String(inspectorScheduledDate).slice(0, 10) : null;
+
+    const normalizedNotes = [
+      `Inspector: ${String(inspectorEmail).trim()}`,
+      notes ? String(notes).trim() : null,
+    ].filter(Boolean).join(' | ');
+
+    const processStatus = inspectionType === 'final' ? 'final_requested_to_inspector' : 'requested_to_inspectors';
+    const inspectionLabel = inspectionType === 'final' ? 'final' : 'inicial';
+
+    let inspection;
+
+    await sequelize.transaction(async (t) => {
+      if (reusablePendingInspection) {
+        inspection = reusablePendingInspection;
+        await inspection.update({
+          processStatus,
+          finalStatus: 'pending',
+          dateRequestedToInspectors: normalizedRequestedDate,
+          inspectorScheduledDate: normalizedScheduledDate,
+          notes: normalizedNotes,
+        }, { transaction: t });
+      } else {
+        inspection = await Inspection.create({
+          workId,
+          type: inspectionType,
+          processStatus,
+          finalStatus: 'pending',
+          dateRequestedToInspectors: normalizedRequestedDate,
+          inspectorScheduledDate: normalizedScheduledDate,
+          notes: normalizedNotes,
+        }, { transaction: t });
+      }
+
+      if (inspectionType === 'initial' && work.status === 'installed') {
+        work.status = 'firstInspectionPending';
+        await work.save({ transaction: t });
+      } else if (inspectionType === 'final' && ['paymentReceived', 'covered', 'invoiceFinal'].includes(work.status)) {
+        work.status = 'finalInspectionPending';
+        await work.save({ transaction: t });
+      }
+    });
+
+    try {
+      const requestedLabel = formatDateOnlyLabel(normalizedRequestedDate) || normalizedRequestedDate;
+      const scheduledLabel = normalizedScheduledDate
+        ? (formatDateOnlyLabel(normalizedScheduledDate) || normalizedScheduledDate)
+        : 'sin fecha programada';
+
+      await WorkNote.create({
+        workId,
+        staffId: req.user?.id || null,
+        message: `Inspeccion ${inspectionLabel} pedida el ${requestedLabel}, con inspector ${String(inspectorEmail).trim()}, programada para ${scheduledLabel}.`,
+        noteType: 'progress',
+        priority: 'high',
+        relatedStatus: work.status,
+        isResolved: false,
+        mentionedStaffIds: [],
+      });
+    } catch (noteError) {
+      console.warn('⚠️ No se pudo crear WorkNote para seguimiento rapido de inspeccion:', noteError.message);
+    }
+
+    return res.status(200).json({
+      message: `Seguimiento de inspeccion ${inspectionLabel} guardado correctamente.`,
+      inspection,
+      workStatus: work.status,
+    });
+  } catch (error) {
+    console.error('Error en saveQuickInspectionFollowUp:', error);
+    return res.status(500).json({ error: true, message: 'Error interno al guardar seguimiento de inspeccion.' });
   }
 };
 
@@ -1544,5 +1704,6 @@ module.exports = {
   confirmClientPaymentForFinal,
   notifyInspectorPaymentForFinal,
   registerQuickInspectionResult,
+  saveQuickInspectionFollowUp,
  
 };

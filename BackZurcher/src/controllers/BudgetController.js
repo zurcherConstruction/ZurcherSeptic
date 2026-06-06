@@ -113,7 +113,6 @@ function buildInitialPaymentReceiptEmail({
                 <h1 style="margin:0;font-size:22px;line-height:1.2;">Payment Receipt Confirmation</h1>
                 <p style="margin:8px 0 0;font-size:13px;opacity:0.9;">We have successfully received your initial payment</p>
               </div>
-              <img src="${safeLogoUrl}" alt="Zurcher Septic" style="height:56px;width:auto;background:#fff;padding:8px;border-radius:8px;" />
             </div>
           </div>
 
@@ -6683,9 +6682,9 @@ async optionalDocs(req, res) {
    */
   async getBudgetsWithUpcomingAlerts(req, res) {
     try {
-      const { days = 7 } = req.query; // Por defecto, próximos 7 días
+      const { days = 7 } = req.query; // Se usa para marcar urgencia en próximos N días
 
-      // Calcular rango de fechas
+      // Fechas de referencia
       const now = new Date();
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + parseInt(days));
@@ -6693,7 +6692,7 @@ async optionalDocs(req, res) {
       // Importar BudgetNote si no está ya importado
       const { BudgetNote } = require('../data');
 
-      // Buscar notas con recordatorios activos en el rango
+      // Buscar notas con recordatorios activos (incluye vencidos y próximos)
       const budgetsWithAlerts = await Budget.findAll({
         where: {
           status: { [Op.notIn]: ['archived', 'legacy_maintenance'] } // ✅ Excluir archivados
@@ -6705,10 +6704,7 @@ async optionalDocs(req, res) {
             required: true, // INNER JOIN - solo budgets con notas
             where: {
               isReminderActive: true,
-              reminderDate: {
-                [Op.gte]: now,
-                [Op.lte]: futureDate
-              },
+              reminderDate: { [Op.not]: null },
               reminderCompletedAt: null
             },
             attributes: ['id', 'message', 'noteType', 'priority', 'reminderDate', 'createdAt'],
@@ -6757,11 +6753,18 @@ async optionalDocs(req, res) {
           nearestAlert: {
             ...nearestAlert,
             daysRemaining,
+            isOverdue: daysRemaining < 0,
             isToday: daysRemaining === 0,
-            isUrgent: daysRemaining <= 2
+            isUrgent: daysRemaining > 0 && daysRemaining <= 2,
+            isUpcoming: daysRemaining > 0
           },
           alertCount: budgetData.notes.length
         };
+      }).sort((a, b) => {
+        // Priorizar vencidos -> hoy -> próximos
+        const aDays = a.nearestAlert?.daysRemaining ?? 99999;
+        const bDays = b.nearestAlert?.daysRemaining ?? 99999;
+        return aDays - bDays;
       });
 
       res.status(200).json({

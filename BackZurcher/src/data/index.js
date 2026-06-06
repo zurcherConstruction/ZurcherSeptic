@@ -38,7 +38,8 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
         connectTimeout: 30000,     // ⏰ 30 segundos para conectar (Railway cold start)
         statement_timeout: 60000,  // ⏰ 60 segundos para queries pesadas
         keepAlive: true,           // 🆕 Mantener conexiones vivas
-        keepAliveInitialDelayMillis: 10000  // 🆕 Enviar keepalive cada 10s
+        keepAliveInitialDelayMillis: 10000,  // 🆕 Enviar keepalive cada 10s
+        options: '-c timezone=America/New_York' // Forzar timezone de sesión en Postgres
       }
     })
   : new Sequelize(
@@ -46,6 +47,7 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
       {
         logging: false,
         native: false,
+        timezone: 'America/New_York',
         pool: {
           max: 50,
           min: 10,
@@ -56,6 +58,7 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
         },
         dialectOptions: {
           statement_timeout: 30000,
+          options: '-c timezone=America/New_York'
         }
       }
     );

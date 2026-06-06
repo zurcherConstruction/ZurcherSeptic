@@ -21,6 +21,7 @@ import {
   FaExternalLinkAlt, FaSearch, FaHardHat, FaFileAlt, FaTimesCircle, FaBook
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import { formatDateOnlyInDisplayTz, formatDateInDisplayTz, isDateOnlyOverdueInDisplayTz } from '../../utils/timezoneDisplay';
 
 const PRIORITY_CONFIG = {
   low:    { label: 'Baja',    pill: 'bg-slate-100 text-slate-500',          border: 'border-l-slate-300',   dot: 'bg-slate-400' },
@@ -736,7 +737,7 @@ function ReminderCard({
         return false;
       })();
 
-  const isOverdue = r.dueDate && !isCompleted && new Date(r.dueDate) < new Date();
+  const isOverdue = r.dueDate && !isCompleted && isDateOnlyOverdueInDisplayTz(r.dueDate);
 
   return (
     <div className={`bg-white rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-200 ${
@@ -843,7 +844,7 @@ function ReminderCard({
                 }`}>
                   <FaCalendarAlt className="w-3 h-3" />
                   {isOverdue && 'Vencido · '}
-                  {new Date(r.dueDate + 'T12:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {formatDateOnlyInDisplayTz(r.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
               )}
               {r.linkedEntityType && r.linkedEntityId && (
@@ -943,7 +944,7 @@ function ReminderCard({
                   <div className="flex-1 bg-slate-50 rounded-xl px-3.5 py-2.5 text-sm">
                     <span className="font-semibold text-slate-600 text-xs">{c.author?.name || 'Staff'} </span>
                     <span className="text-xs text-slate-400 mr-2">
-                      {new Date(c.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      {formatDateInDisplayTz(c.createdAt, { day: 'numeric', month: 'short' })}
                     </span>
                     <p className="text-slate-700 mt-0.5">{c.message}</p>
                   </div>
