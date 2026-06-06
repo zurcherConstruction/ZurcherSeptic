@@ -1,8 +1,95 @@
-const { Expense, Staff, Receipt, Work, SupplierInvoiceExpense, sequelize } = require('../data');
+const { Expense, Staff, Receipt, Work, SupplierInvoiceExpense, WorkNote, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
 const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
+const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService');
+const { sendEmail } = require('../utils/notifications/emailService');
+
+const sendClientPortalLinkOnInProgress = async (workId, propertyAddress = 'tu proyecto') => {
+  try {
+    const existingPortalLinkNote = await WorkNote.findOne({
+      where: {
+        workId,
+        noteType: 'client_contact',
+        relatedStatus: 'inProgress',
+        message: {
+          [Op.iLike]: 'Enlace del Portal de Seguimiento enviado automáticamente%'
+        }
+      },
+      attributes: ['id']
+    });
+
+    if (existingPortalLinkNote) {
+      return;
+    }
+
+    let portalInfo = await getPortalInfoForWork(workId);
+
+    if (!portalInfo?.hasPortal) {
+      const workForToken = await Work.findByPk(workId, {
+        attributes: ['idWork', 'idBudget']
+      });
+
+      if (workForToken?.idBudget) {
+        await autoGenerateTokenForWork({
+          idWork: workForToken.idWork,
+          idBudget: workForToken.idBudget,
+        });
+      }
+
+      portalInfo = await getPortalInfoForWork(workId);
+    }
+
+    if (!portalInfo?.hasPortal || !portalInfo?.portalUrl || !portalInfo?.clientEmail) {
+      console.warn(`[ExpenseController] Portal link email skipped for work ${workId}: missing portal URL or client email`);
+      return;
+    }
+
+    const subject = 'Your project is now in progress | Zurcher Septic';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #1f2937;">
+        <h2 style="margin-bottom: 8px; color: #0f4c81;">Your project is in progress</h2>
+        <p style="margin-top: 0;">Hi ${portalInfo.clientName || 'there'},</p>
+        <p>
+          Your project at <strong>${propertyAddress || 'your address'}</strong> has moved to
+          <strong>In Progress</strong>.
+        </p>
+        <p>You can track progress, documents, and photos in your portal:</p>
+        <p style="margin: 18px 0;">
+          <a href="${portalInfo.portalUrl}" style="background: #0f4c81; color: #ffffff; padding: 10px 16px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Open Tracking Portal
+          </a>
+        </p>
+        <p style="font-size: 13px; color: #6b7280;">
+          If the button does not work, copy and paste this link in your browser:<br />
+          <a href="${portalInfo.portalUrl}">${portalInfo.portalUrl}</a>
+        </p>
+      </div>
+    `;
+
+    await sendEmail({
+      to: portalInfo.clientEmail,
+      subject,
+      html,
+    });
+
+    await WorkNote.create({
+      workId,
+      staffId: null,
+      message: `Enlace del Portal de Seguimiento enviado automaticamente al cliente (${portalInfo.clientEmail}) al pasar a inProgress - ${new Date().toLocaleString('es-ES')}`,
+      noteType: 'client_contact',
+      priority: 'medium',
+      relatedStatus: 'inProgress',
+      isResolved: true,
+      mentionedStaffIds: [],
+    });
+
+    console.log(`[ExpenseController] Client portal link email sent for work ${workId} to ${portalInfo.clientEmail}`);
+  } catch (error) {
+    console.error(`[ExpenseController] Error sending client portal link email for work ${workId}:`, error.message);
+  }
+};
 
 // 🔧 Helper: Normalizar fecha de ISO a YYYY-MM-DD (acepta ambos formatos)
 const normalizeDateToLocal = (dateInput) => {
@@ -33,6 +120,8 @@ const normalizeDateToLocal = (dateInput) => {
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
   let { date, amount, typeExpense, notes, workId, simpleWorkId, staffId, paymentMethod, paymentDetails, verified, fixedExpenseId } = req.body;
+  let shouldSendPortalLinkEmail = false;
+  let workPropertyAddressForPortal = null;
   
   // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
   date = normalizeDateToLocal(date);
@@ -113,6 +202,8 @@ const createExpense = async (req, res) => {
         const work = await Work.findByPk(workId, { transaction });
         if (work && work.status === 'assigned') {
           await work.update({ status: 'inProgress' }, { transaction });
+          shouldSendPortalLinkEmail = true;
+          workPropertyAddressForPortal = work.propertyAddress;
           console.log(`✅ Trabajo ${workId.slice(0, 8)} cambiado de 'assigned' a 'inProgress' automáticamente`);
         } else if (work) {
           console.log(`ℹ️  Trabajo ${workId.slice(0, 8)} no cambió de estado. Status actual: ${work.status}`);
@@ -179,6 +270,10 @@ const createExpense = async (req, res) => {
     } catch (notificationError) {
       console.error('❌ Error enviando notificación de gasto:', notificationError.message);
       // No fallar la creación del gasto por error de notificación
+    }
+
+    if (shouldSendPortalLinkEmail && workId) {
+      await sendClientPortalLinkOnInProgress(workId, workPropertyAddressForPortal);
     }
 
     // Devolver ambos si corresponde

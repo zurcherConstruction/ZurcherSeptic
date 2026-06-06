@@ -678,6 +678,9 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   if (!isDraft && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
+      const frontendBaseUrl = (process.env.FRONTEND_URL || 'https://www.zurcherseptic.com').replace(/\/$/, '');
+      const thankYouUrl = `${frontendBaseUrl}/thank-you?session_id={CHECKOUT_SESSION_ID}&source=stripe`;
+
       // Crear producto y precio en Stripe
       const product = await stripe.products.create({
         name: `Invoice #${budgetData.invoiceNumber || budgetData.idBudget} - ${budgetData.applicantName}`,
@@ -697,9 +700,18 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       // Crear Payment Link (permite expiración > 24 horas)
       const paymentLink = await stripe.paymentLinks.create({
         line_items: [{ price: price.id, quantity: 1 }],
+        customer_creation: 'always',
         after_completion: {
           type: 'redirect',
-          redirect: { url: 'https://www.zurcherseptic.com/thank-you' }
+          redirect: { url: thankYouUrl }
+        },
+        payment_intent_data: {
+          description: `Initial payment for Invoice #${budgetData.invoiceNumber || budgetData.idBudget}`,
+          metadata: {
+            internal_budget_id: budgetData.idBudget.toString(),
+            payment_type: 'invoice_payment',
+            invoice_number: budgetData.invoiceNumber || budgetData.idBudget.toString()
+          }
         },
         metadata: { 
           internal_budget_id: budgetData.idBudget.toString(), 

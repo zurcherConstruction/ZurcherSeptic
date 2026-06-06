@@ -239,7 +239,7 @@ const WorkDetail = () => {
       }
       
       // Solo cargar si hay URL o publicId (no legacy BLOB)
-      if (!work?.Permit?.idPermit || !(work.Permit?.permitPdfUrl || work.Permit?.permitPdfPublicId)) {
+      if (!work?.Permit?.idPermit || !(work?.Permit?.permitPdfUrl || work?.Permit?.permitPdfPublicId)) {
         setPermitPdfBlob(null);
         return;
       }
@@ -293,7 +293,7 @@ const WorkDetail = () => {
       }
       
       // Solo cargar si hay URL o publicId (no legacy BLOB)
-      if (!work?.Permit?.idPermit || !(work.Permit?.optionalDocsUrl || work.Permit?.optionalDocsPublicId)) {
+      if (!work?.Permit?.idPermit || !(work?.Permit?.optionalDocsUrl || work?.Permit?.optionalDocsPublicId)) {
         setOptionalDocsBlob(null);
         return;
       }
@@ -332,23 +332,12 @@ const WorkDetail = () => {
     };
   }, [work?.Permit?.idPermit, workLoading]);
 
-  // Mostrar error si falla después de reintentos
-  if (initialError && initialRetryCount >= 3) {
-    return (
-      <WorkDetailError 
-        error={initialError?.message || "Error al cargar los datos de la obra"}
-        onRetry={retryInitialData}
-        retryCount={initialRetryCount}
-      />
-    );
-  }
+  const hasFatalInitialError = initialError && initialRetryCount >= 3;
 
   // ✅ Update workRef when work changes
   useEffect(() => {
     if (workRef.current !== work) {
       workRef.current = work;
-    } else {
-     
     }
   }, [work]);
 
@@ -370,6 +359,8 @@ const WorkDetail = () => {
   const [showInspectionDocModal, setShowInspectionDocModal] = useState(false);
   const [inspectionDocUrl, setInspectionDocUrl] = useState(null);
   const [inspectionDocTitle, setInspectionDocTitle] = useState('');
+  const [showReceiptPreviewModal, setShowReceiptPreviewModal] = useState(false);
+  const [selectedReceiptPreview, setSelectedReceiptPreview] = useState(null);
   
   // 🆕 Estados para documentos finales
   const [operatingPermitFile, setOperatingPermitFile] = useState(null);
@@ -378,6 +369,9 @@ const WorkDetail = () => {
   const [uploadingOperatingPermit, setUploadingOperatingPermit] = useState(false);
   const [uploadingMaintenanceService, setUploadingMaintenanceService] = useState(false);
   const [uploadingExtraDocument, setUploadingExtraDocument] = useState(false);
+  const [manualSystemType, setManualSystemType] = useState('');
+  const [savingManualSystemType, setSavingManualSystemType] = useState(false);
+  const [manualSystemTypeMessage, setManualSystemTypeMessage] = useState('');
   
   const {
     incomes,
@@ -453,6 +447,13 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
   const [uploadImageComment, setUploadImageComment] = useState('');
   const [truckCount, setTruckCount] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  useEffect(() => {
+    if (work?.Permit?.systemType || work?.systemType || work?.Permit?.isPBTS) {
+      setManualSystemType('');
+      setManualSystemTypeMessage('');
+    }
+  }, [work?.Permit?.systemType, work?.systemType, work?.Permit?.isPBTS]);
  
   // --- 1. CALCULAR TOTALES Y BALANCE ---
   const { totalIncome, totalExpense, balance } = useMemo(() => {
@@ -534,7 +535,17 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     // Opcional: Ordenar por fecha si los recibos tienen createdAt/updatedAt
     consolidated.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
-    return consolidated;
+    // Evitar duplicados visuales (ej: comprobante inicial añadido manualmente y también desde Income)
+    const seenByFileUrl = new Set();
+    const deduped = consolidated.filter((receipt) => {
+      const key = (receipt.fileUrl || '').trim();
+      if (!key) return true;
+      if (seenByFileUrl.has(key)) return false;
+      seenByFileUrl.add(key);
+      return true;
+    });
+
+    return deduped;
   }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress]); // Dependencias
 
   // ❌ ELIMINADO: useEffect duplicado para fetchWorkById (ahora en loadInitialData consolidado)
@@ -610,6 +621,21 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     return Array.isArray(work?.images)
       ? work.images.filter(img => img.stage === 'sistema instalado')
       : [];
+  }, [work?.images]);
+
+  const groupedImages = useMemo(() => {
+    if (!Array.isArray(work?.images)) {
+      return {};
+    }
+
+    return work.images.reduce((acc, image) => {
+      const stage = image?.stage || 'sin etapa';
+      if (!acc[stage]) {
+        acc[stage] = [];
+      }
+      acc[stage].push(image);
+      return acc;
+    }, {});
   }, [work?.images]);
 
    // Define los estados en los que se debe poder seleccionar una imagen para inspección/reinspección
@@ -779,9 +805,168 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     }));
   };
 
+  const getReceiptPreviewType = (receipt) => {
+    const mimeType = (receipt?.mimeType || '').toLowerCase();
+    const fileUrl = receipt?.fileUrl || '';
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.includes('pdf')) return 'pdf';
+    if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?|$)/i.test(fileUrl)) return 'image';
+    if (/\.(pdf)(\?|$)/i.test(fileUrl)) return 'pdf';
+    return 'file';
+  };
+
+  const getReceiptThumbnailUrl = (receipt) => {
+    const previewType = getReceiptPreviewType(receipt);
+    const fileUrl = receipt?.fileUrl || '';
+
+    if (!fileUrl) return null;
+    if (previewType === 'image') return fileUrl;
+    if (previewType !== 'pdf') return null;
+
+    // Cloudinary thumbnail for PDF first page
+    const match = fileUrl.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+)\/(image|raw)\/upload\/(.+)$/i);
+    if (!match) return null;
+
+    const base = match[1];
+    const rest = match[3].split('?')[0];
+    return `${base}/image/upload/pg_1,w_220,h_140,c_fill,f_jpg,q_auto/${rest}`;
+  };
+
+  const handleOpenReceiptPreview = async (receipt) => {
+    if (!receipt?.fileUrl) return;
+
+    let previewUrl = receipt.fileUrl;
+    let previewType = getReceiptPreviewType(receipt);
+    let isBlobUrl = false;
+
+    // Para comprobante inicial del budget, usar endpoint de vista inline del backend
+    if (
+      typeof receipt.idReceipt === 'string' &&
+      receipt.idReceipt.startsWith('budget-') &&
+      work?.budget?.idBudget
+    ) {
+      try {
+        const response = await api.get(`/budgets/${work.budget.idBudget}/payment-receipt/view`, {
+          responseType: 'blob',
+        });
+        const mimeType = response?.headers?.['content-type'] || receipt?.mimeType || 'application/octet-stream';
+        const blob = new Blob([response.data], { type: mimeType });
+        previewUrl = URL.createObjectURL(blob);
+        previewType = mimeType.startsWith('image/') ? 'image' : mimeType.includes('pdf') ? 'pdf' : previewType;
+        isBlobUrl = true;
+      } catch (error) {
+        console.error('Error cargando comprobante inicial para vista previa:', error);
+        previewUrl = `${API_URL}/budgets/${work.budget.idBudget}/payment-receipt/view`;
+      }
+    }
+
+    // Solucion robusta: cualquier PDF se transforma a Blob para evitar descargas forzadas por headers
+    if (previewType === 'pdf' && !isBlobUrl) {
+      try {
+        let pdfBlob;
+
+        if (/^https?:\/\//i.test(previewUrl)) {
+          const response = await fetch(previewUrl, { method: 'GET' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          pdfBlob = await response.blob();
+        } else {
+          const response = await api.get(previewUrl, { responseType: 'blob' });
+          pdfBlob = response.data;
+        }
+
+        previewUrl = URL.createObjectURL(
+          pdfBlob.type ? pdfBlob : new Blob([pdfBlob], { type: 'application/pdf' })
+        );
+        isBlobUrl = true;
+      } catch (error) {
+        console.error('Error convirtiendo PDF a blob para vista previa:', error);
+      }
+    }
+
+    setSelectedReceiptPreview({
+      url: previewUrl,
+      title: receipt.originalName || receipt.type || 'Comprobante',
+      previewType,
+      isBlobUrl,
+    });
+    setShowReceiptPreviewModal(true);
+  };
+
+  const handleShowPermitPreview = () => {
+    if (!pdfUrl) return;
+    setSelectedReceiptPreview({
+      url: pdfUrl,
+      title: 'Permit',
+      previewType: 'pdf',
+    });
+    setShowReceiptPreviewModal(true);
+  };
+
+  const handleShowSitePlanPreview = () => {
+    if (!optionalDocs) return;
+    setSelectedReceiptPreview({
+      url: optionalDocs,
+      title: 'Site Plan',
+      previewType: 'pdf',
+    });
+    setShowReceiptPreviewModal(true);
+  };
+
   const handleInstalledImageChange = (event) => {
   if (event.target.files && event.target.files[0]) {
     setInstalledImageFile(event.target.files[0]);
+  }
+};
+
+const handleImageFileChange = (event) => {
+  if (event.target.files && event.target.files[0]) {
+    setUploadImageFile(event.target.files[0]);
+  }
+};
+
+const handleUploadImage = async () => {
+  if (!uploadImageFile || !selectedStage || !work?.idWork) {
+    alert("Por favor, selecciona etapa e imagen, y asegúrate de que la obra esté cargada.");
+    return;
+  }
+
+  if (
+    (selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra') &&
+    (!truckCount || Number(truckCount) <= 0)
+  ) {
+    alert("Ingresa el total de camiones para esta etapa.");
+    return;
+  }
+
+  setUploadingImage(true);
+  const formData = new FormData();
+  formData.append("imageFile", uploadImageFile);
+  formData.append("stage", selectedStage);
+  formData.append("comment", uploadImageComment || "Imagen subida manualmente desde administración");
+  formData.append("dateTime", new Date().toISOString());
+
+  if (selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra') {
+    formData.append("truckCount", String(truckCount));
+  }
+
+  try {
+    const result = await dispatch(addImagesToWork(work.idWork, formData));
+    if (result && !result.error) {
+      alert("Imagen subida correctamente.");
+      setShowUploadImageModal(false);
+      setUploadImageFile(null);
+      setUploadImageComment('');
+      setSelectedStage('');
+      setTruckCount('');
+      await refreshWorkData({ workOnly: true });
+    } else {
+      alert(result?.message || "Error al subir la imagen.");
+    }
+  } catch (error) {
+    console.error("Error al subir imagen:", error);
+    alert(error?.response?.data?.error || "Error al subir la imagen.");
+  } finally {
+    setUploadingImage(false);
   }
 };
 
@@ -797,7 +982,6 @@ const handleUploadInstalledImage = async () => {
   formData.append("stage", "sistema instalado");
   formData.append("comment", installedImageComment || "Imagen del sistema instalado subida manualmente desde administración");
   formData.append("dateTime", new Date().toISOString());
-
   try {
     const result = await dispatch(addImagesToWork(work.idWork, formData));
     if (result && !result.error) {
@@ -808,162 +992,19 @@ const handleUploadInstalledImage = async () => {
       // ✅ Refrescar solo datos de obra (optimizado)
       await refreshWorkData({ workOnly: true });
     } else {
-      alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
+      alert(result?.message || "Error al subir la imagen del sistema instalado.");
     }
   } catch (error) {
-    alert(`Error al subir la imagen: ${error.message}`);
+    console.error("Error al subir imagen de sistema instalado:", error);
+    alert(error?.response?.data?.error || "Error al subir imagen del sistema instalado.");
   } finally {
     setUploadingInstalledImage(false);
   }
 };
 
-const handleShowBudgetPdf = async () => {
-  try {
-    const budget = work?.budget;
-    if (!budget?.idBudget) {
-      alert('No se encontró información del presupuesto');
-      return;
-    }
-
-    // CASO 1: Presupuesto firmado manualmente
-    if (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath) {
-      const response = await api.get(`/budget/${budget.idBudget}/view-manual-signed`, {
-        responseType: 'blob'
-      });
-      const objectUrl = window.URL.createObjectURL(response.data);
-      setBudgetPdfUrl(objectUrl);
-      setShowBudgetPdfModal(true);
-      return;
-    }
-
-    // CASO 2: Presupuesto firmado con SignNow
-    if (budget.signatureMethod === 'signnow' && budget.signNowDocumentId) {
-      try {
-        const response = await api.get(`/budget/${budget.idBudget}/view-signed`, {
-          responseType: 'blob'
-        });
-        const objectUrl = window.URL.createObjectURL(response.data);
-        setBudgetPdfUrl(objectUrl);
-        setShowBudgetPdfModal(true);
-        return;
-      } catch (signNowError) {
-        // Si falla SignNow, continuar al CASO 3
-      }
-    }
-
-    // CASO 3: Regenerar PDF sin firma
-    const response = await api.get(`/budget/${budget.idBudget}/preview`, { 
-      responseType: 'blob' 
-    });
-    const objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-    setBudgetPdfUrl(objectUrl);
-    setShowBudgetPdfModal(true);
-  } catch (e) {
-    alert('No se pudo cargar el PDF del presupuesto');
-  }
-};
-
-// ✅ NEW: General image upload function with stage selection
-const handleImageFileChange = (event) => {
-  if (event.target.files && event.target.files[0]) {
-    setUploadImageFile(event.target.files[0]);
-  }
-};
-
-const handleUploadImage = async () => {
-  if (!uploadImageFile || !work?.idWork || !selectedStage) {
-    alert("Por favor, selecciona un archivo y una etapa.");
-    return;
-  }
-
-  // Validation for truck stages
-  const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
-  if (isTruckStage && (!truckCount || parseInt(truckCount) <= 0)) {
-    alert("Por favor, ingresa un número válido de camiones.");
-    return;
-  }
-
-  setUploadingImage(true);
-  const formData = new FormData();
-  formData.append("imageFile", uploadImageFile);
-  formData.append("stage", selectedStage);
-  formData.append("comment", uploadImageComment || `Imagen de ${selectedStage} subida desde administración`);
-  formData.append("dateTime", new Date().toISOString());
-  
-  if (isTruckStage) {
-    formData.append("truckCount", parseInt(truckCount));
-  }
-
-  try {
-    const result = await dispatch(addImagesToWork(work.idWork, formData));
-    if (result && !result.error) {
-      alert(`Imagen de "${selectedStage}" subida correctamente.`);
-      // Reset form
-      setUploadImageFile(null);
-      setUploadImageComment('');
-      setTruckCount('');
-      setSelectedStage('');
-      setShowUploadImageModal(false);
-      // ✅ Refrescar solo datos de obra (optimizado)
-      await refreshWorkData({ workOnly: true });
-    } else {
-      alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
-    }
-  } catch (error) {
-    alert(`Error al subir la imagen: ${error.message}`);
-  } finally {
-    setUploadingImage(false);
-  }
-};
-
-
-
-  if (workLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex justify-center items-center h-screen">
-          <p className="text-xl text-gray-700">Cargando detalles de la obra...</p>
-        </div>
-      </div>
-    );
-
-  } // probando spiner
-  
-
-  if (workError) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-xl font-semibold text-red-500">Error: {workError}</p>
-      </div>
-    );
-  }
-
-  // ✅ Mostrar loading mientras se carga el work (evita mostrar "No se encontró la obra" prematuramente)
-  if (initialLoading || workLoading || !work) {
-    if (!work) {
-      return (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-lg font-medium text-gray-600">Cargando información de la obra...</p>
-          </div>
-        </div>
-      );
-    }
-  }
-
-  const groupedImages = Array.isArray(work.images)
-    ? work.images.reduce((acc, image) => {
-      if (!acc[image.stage]) acc[image.stage] = [];
-      acc[image.stage].push(image);
-      return acc;
-    }, {})
-    : {};
-
-  // ✅ Usar blob URLs cargados mediante fetch (con autenticación) o fallback a BLOB legacy
   const pdfUrl = permitPdfBlob
     ? permitPdfBlob
-    : work.Permit?.pdfData 
+    : work?.Permit?.pdfData
       ? URL.createObjectURL(
           new Blob([new Uint8Array(work.Permit.pdfData.data)], {
             type: "application/pdf",
@@ -973,7 +1014,7 @@ const handleUploadImage = async () => {
 
   const optionalDocs = optionalDocsBlob
     ? optionalDocsBlob
-    : work.Permit?.optionalDocs 
+    : work?.Permit?.optionalDocs 
       ? URL.createObjectURL(
           new Blob([new Uint8Array(work.Permit.optionalDocs.data)], {
             type: "application/pdf",
@@ -1003,7 +1044,47 @@ const handleUploadImage = async () => {
     'maintenance',
   ];
 
-  const canShowFinalInvoiceSection = finalInvoiceVisibleStates.includes(work.status);
+  const canShowFinalInvoiceSection = finalInvoiceVisibleStates.includes(work?.status);
+
+  const finalPaidWorkStates = ['paymentReceived', 'finalInspectionPending', 'finalRejected', 'finalApproved', 'maintenance'];
+  const hasFinalInvoicePaymentReceipt = allReceipts?.some((receipt) => receipt?.relatedModel === 'FinalInvoice');
+  const finalInvoicePaid = work?.finalInvoice?.status === 'paid' || finalPaidWorkStates.includes(work?.status);
+  const shouldShowNoticeToOwner = !!work?.installationStartDate && !finalInvoicePaid && !hasFinalInvoicePaymentReceipt;
+  const permitSystemType = (work?.Permit?.systemType || work?.systemType || '').trim();
+  const permitIsPBTS = !!work?.Permit?.isPBTS;
+  const hasPersistedSystemType = permitSystemType.length > 0 || permitIsPBTS;
+  const selectedSystemType = hasPersistedSystemType ? permitSystemType : manualSystemType;
+  const normalizedSystemType = selectedSystemType.toUpperCase();
+  const isPBTSSystem = permitIsPBTS || manualSystemType === 'ATU_PBTS';
+  const isATUSystem = normalizedSystemType.includes('ATU') || isPBTSSystem;
+
+  const handleSaveManualSystemType = async () => {
+    if (!manualSystemType || !work?.Permit?.idPermit) {
+      return;
+    }
+
+    setSavingManualSystemType(true);
+    setManualSystemTypeMessage('');
+
+    try {
+      const payloadByType = {
+        ATU: { systemType: 'ATU', isPBTS: false },
+        ATU_PBTS: { systemType: 'ATU', isPBTS: true },
+        'SISTEMA REGULAR': { systemType: 'SISTEMA REGULAR', isPBTS: false },
+      };
+
+      await api.put(`/permit/${work.Permit.idPermit}`, payloadByType[manualSystemType] || {
+        systemType: manualSystemType,
+      });
+
+      setManualSystemTypeMessage('Tipo de sistema guardado correctamente.');
+      await dispatch(fetchWorkById(idWork));
+    } catch {
+      setManualSystemTypeMessage('No se pudo guardar el tipo de sistema. Intenta nuevamente.');
+    } finally {
+      setSavingManualSystemType(false);
+    }
+  };
 
 
   const handlePreviewPdf = async (coId) => {
@@ -1051,6 +1132,100 @@ const handleUploadImage = async () => {
     }
   };
 
+  const handleShowBudgetPdf = async () => {
+    if (!work?.budget?.idBudget) {
+      alert('No hay presupuesto disponible para esta obra.');
+      return;
+    }
+
+    try {
+      if (budgetPdfUrl && budgetPdfUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(budgetPdfUrl);
+      }
+
+      const id = work.budget.idBudget;
+      const signatureMethod = work?.budget?.signatureMethod;
+      const isExternalSignatureMethod = signatureMethod === 'signnow' || signatureMethod === 'docusign';
+      const hasManualSignedSource = !!work?.budget?.manualSignedPdfPath;
+      const hasLegacySignedSource = !!work?.budget?.legacySignedPdfUrl;
+
+      // Priority: manually-uploaded signed PDF first (most authoritative),
+      // then external signature service, then legacy, then unsigned preview.
+      const endpointsToTry = [];
+
+      // 1. Manual upload always wins if it exists
+      if (hasManualSignedSource) {
+        endpointsToTry.push(`/budget/${id}/view-manual-signed`);
+      }
+
+      // 2. Explicit manual method (no external doc ID)
+      if (signatureMethod === 'manual' && !hasManualSignedSource) {
+        endpointsToTry.push(`/budget/${id}/view-manual-signed`);
+      }
+
+      // 3. External signature service
+      if (isExternalSignatureMethod) {
+        endpointsToTry.push(`/budget/${id}/view-signed`);
+      }
+
+      // 4. Legacy
+      if (signatureMethod === 'legacy' || hasLegacySignedSource) {
+        endpointsToTry.push(`/budget/${id}/legacy-budget-pdf`);
+      }
+
+      // 5. Unsigned fallbacks
+      endpointsToTry.push(`/budget/${id}/preview`);
+      endpointsToTry.push(`/budget/${id}/view/pdf`);
+
+      let response = null;
+      let lastError = null;
+
+      for (const endpoint of endpointsToTry) {
+        try {
+          response = await api.get(endpoint, { responseType: 'blob' });
+          break;
+        } catch (err) {
+          lastError = err;
+        }
+      }
+
+      if (!response) {
+        throw lastError || new Error('No se pudo obtener el PDF del presupuesto');
+      }
+
+      const mimeType = response?.headers?.['content-type'] || 'application/pdf';
+      const blob = new Blob([response.data], { type: mimeType });
+      const objectUrl = URL.createObjectURL(blob);
+
+      setBudgetPdfUrl(objectUrl);
+      setShowBudgetPdfModal(true);
+    } catch (error) {
+      console.error('Error al abrir el presupuesto en PDF:', error);
+      alert('No se pudo cargar el PDF del presupuesto.');
+    }
+  };
+
+  if (hasFatalInitialError) {
+    return (
+      <WorkDetailError
+        error={initialError?.message || "Error al cargar los datos de la obra"}
+        onRetry={retryInitialData}
+        retryCount={initialRetryCount}
+      />
+    );
+  }
+
+  if (!work) {
+    return (
+      <div className="p-4 md:p-6 bg-gray-100 min-h-screen">
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-white rounded-lg shadow-md p-6 text-gray-600">
+            Cargando detalles de la obra...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 bg-gray-100 min-h-screen">
@@ -1165,56 +1340,80 @@ const handleUploadImage = async () => {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <p><strong>Aplicante:</strong> {work.budget?.applicantName || "No disponible"}</p>
-                    <p><strong>Permit N°:</strong> {work.Permit?.permitNumber || "No disponible"}</p>
-                    <p className="sm:col-span-2"><strong>Aplicante Email:</strong> {work.Permit?.applicantEmail || "No disponible"}</p>
+                    <p><strong>Permit N°:</strong> {work?.Permit?.permitNumber || "No disponible"}</p>
+                    <p className="sm:col-span-2"><strong>Aplicante Email:</strong> {work?.Permit?.applicantEmail || "No disponible"}</p>
                   </div>
 
                   {pdfUrl && (
-                    <div className="mt-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-lg font-semibold">Permit</h3>
-                        <a
-                          href={pdfUrl}
-                          download={`Permit_${work.propertyAddress?.replace(/[^a-z0-9]/gi, '_') || 'documento'}.pdf`}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors flex items-center gap-1"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          Descargar
-                        </a>
+                    <div className="mt-4 border rounded-lg p-3 bg-gray-50">
+                      <div className="flex gap-3 items-center">
+                        <div className="w-28 h-20 flex-shrink-0 rounded overflow-hidden border bg-white flex items-center justify-center">
+                          {getReceiptThumbnailUrl({ mimeType: 'application/pdf', fileUrl: pdfUrl }) ? (
+                            <img
+                              src={getReceiptThumbnailUrl({ mimeType: 'application/pdf', fileUrl: pdfUrl })}
+                              alt="Miniatura Permit"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold text-gray-600">PDF</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-lg font-semibold">Permit</h3>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              onClick={handleShowPermitPreview}
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors"
+                            >
+                              Ver en Modal
+                            </button>
+                            <a
+                              href={pdfUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors"
+                            >
+                              Abrir en Pestaña
+                            </a>
+                          </div>
+                        </div>
                       </div>
-                      <iframe
-                        src={pdfUrl}
-                        width="100%"
-                        height="250px"
-                        title="Vista previa del PDF"
-                        className="rounded"
-                      ></iframe>
                     </div>
                   )}
                   {optionalDocs && (
-                    <div className="mt-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="text-lg font-semibold">Optional Docs</h3>
-                        <a
-                          href={optionalDocs}
-                          download={`OptionalDocs_${work.propertyAddress?.replace(/[^a-z0-9]/gi, '_') || 'documento'}.pdf`}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors flex items-center gap-1"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          Descargar
-                        </a>
+                    <div className="mt-4 border rounded-lg p-3 bg-gray-50">
+                      <div className="flex gap-3 items-center">
+                        <div className="w-28 h-20 flex-shrink-0 rounded overflow-hidden border bg-white flex items-center justify-center">
+                          {getReceiptThumbnailUrl({ mimeType: 'application/pdf', fileUrl: optionalDocs }) ? (
+                            <img
+                              src={getReceiptThumbnailUrl({ mimeType: 'application/pdf', fileUrl: optionalDocs })}
+                              alt="Miniatura Site Plan"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs font-semibold text-gray-600">PDF</span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-lg font-semibold">Site Plan</h3>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              onClick={handleShowSitePlanPreview}
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors"
+                            >
+                              Ver en Modal
+                            </button>
+                            <a
+                              href={optionalDocs}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors"
+                            >
+                              Abrir en Pestaña
+                            </a>
+                          </div>
+                        </div>
                       </div>
-                      <iframe
-                        src={optionalDocs}
-                        width="100%"
-                        height="250px"
-                        title="Vista previa del PDF"
-                        className="rounded"
-                      ></iframe>
                     </div>
                   )}
                 </>
@@ -1279,6 +1478,7 @@ const handleUploadImage = async () => {
                       <div className="mt-3 p-3 bg-green-50 border-l-4 border-green-500 rounded">
                         <p className="text-sm font-semibold text-green-800">
                           {work.budget.signatureMethod === 'signnow' && '✍️ Firmado con SignNow'}
+                          {work.budget.signatureMethod === 'docusign' && '✍️ Firmado con DocuSign'}
                           {work.budget.signatureMethod === 'manual' && '📄 Firmado Manualmente'}
                           {work.budget.signatureMethod === 'legacy' && '🏷️ Presupuesto Legacy'}
                         </p>
@@ -1295,7 +1495,7 @@ const handleUploadImage = async () => {
     className="bg-blue-600 text-white px-3 py-2 rounded shadow hover:bg-blue-700 mt-4"
     onClick={handleShowBudgetPdf}
   >
-    {work.budget.signatureMethod === 'signnow' || work.budget.signatureMethod === 'manual' 
+    {work.budget.signatureMethod === 'signnow' || work.budget.signatureMethod === 'docusign' || work.budget.signatureMethod === 'manual' 
       ? 'Ver Presupuesto Firmado' 
       : 'Ver Presupuesto PDF'}
   </button>
@@ -1319,44 +1519,42 @@ const handleUploadImage = async () => {
                           key={receipt.idReceipt}
                           className="border p-4 rounded shadow bg-gray-50"
                         >
-                          <p className="text-sm font-medium text-blue-700 mb-1">
-                            Asociado a: {receipt.relatedRecordType} ({receipt.relatedRecordDesc})
-                          </p>
-                          <p><strong>Tipo (Recibo):</strong> {receipt.type}</p>
-                          <p><strong>Notas:</strong> {receipt.notes || "Sin notas"}</p>
-                          {receipt.fileUrl && receipt.mimeType ? (
-                            <div className="mt-2">
-                              {receipt.mimeType.startsWith('image/') ? (
+                          <div className="flex gap-3">
+                            <div className="w-28 h-20 flex-shrink-0 rounded overflow-hidden border bg-white flex items-center justify-center">
+                              {getReceiptThumbnailUrl(receipt) ? (
                                 <img
-                                  src={receipt.fileUrl}
-                                  alt={`Comprobante ${receipt.originalName || receipt.type}`}
-                                  className="rounded w-full h-auto object-contain max-h-[200px] border"
-                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                  src={getReceiptThumbnailUrl(receipt)}
+                                  alt="Miniatura comprobante"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
                                 />
-                              ) : receipt.mimeType === 'application/pdf' ? (
-                                <iframe
-                                  src={`https://docs.google.com/gview?url=${encodeURIComponent(receipt.fileUrl)}&embedded=true`}
-                                  width="100%"
-                                  height="200px"
-                                  title={`Vista previa de ${receipt.originalName || receipt.type}`}
-                                  className="rounded border"
-                                  onError={(e) => { e.target.outerHTML = '<p class="text-red-500 text-xs">No se pudo cargar la vista previa.</p>'; }}
-                                ></iframe>
                               ) : (
-                                <p className="text-gray-600 text-xs">Archivo no previsualizable.</p>
+                                <span className="text-xs font-semibold text-gray-600">PDF</span>
                               )}
-                              <a
-                                href={receipt.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 hover:text-blue-700 underline text-xs mt-1 block"
-                              >
-                                Ver/Descargar {receipt.originalName || receipt.type}
-                              </a>
                             </div>
-                          ) : (
-                            <p className="text-gray-500 text-xs mt-1">Info de archivo incompleta.</p>
-                          )}
+
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-blue-700 mb-1">
+                                Asociado a: {receipt.relatedRecordType} ({receipt.relatedRecordDesc})
+                              </p>
+                              <p><strong>Tipo (Recibo):</strong> {receipt.type}</p>
+                              <p><strong>Notas:</strong> {receipt.notes || "Sin notas"}</p>
+                              {receipt.fileUrl ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <button
+                                    onClick={() => handleOpenReceiptPreview(receipt)}
+                                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors"
+                                  >
+                                    Ver Comprobante
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="text-gray-500 text-xs mt-1">Info de archivo incompleta.</p>
+                              )}
+                            </div>
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -1474,28 +1672,114 @@ const handleUploadImage = async () => {
               </div>
             )}
 
-            {/* 🆕 SECCIÓN DE DOCUMENTOS FINALES */}
-            <FinalDocumentsSection
-              work={work}
-              idWork={idWork}
-              isOpen={openSections.finalDocuments}
-              toggleSection={toggleSection}
-              formatDateSafe={formatDateSafe}
-              isViewOnly={isViewOnly}
-              operatingPermitFile={operatingPermitFile}
-              setOperatingPermitFile={setOperatingPermitFile}
-              uploadingOperatingPermit={uploadingOperatingPermit}
-              setUploadingOperatingPermit={setUploadingOperatingPermit}
-              maintenanceServiceFile={maintenanceServiceFile}
-              setMaintenanceServiceFile={setMaintenanceServiceFile}
-              uploadingMaintenanceService={uploadingMaintenanceService}
-              setUploadingMaintenanceService={setUploadingMaintenanceService}
-              extraDocumentFile={extraDocumentFile}
-              setExtraDocumentFile={setExtraDocumentFile}
-              uploadingExtraDocument={uploadingExtraDocument}
-              setUploadingExtraDocument={setUploadingExtraDocument}
-              onDocumentUploaded={() => dispatch(fetchWorkById(idWork))}
-            />
+            {/* 🆕 SECCIÓN DE DOCUMENTOS FINALES (solo ATU) */}
+            {!hasPersistedSystemType ? (
+              <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-amber-500">
+                <h2
+                  className="text-lg md:text-xl font-semibold mb-2 cursor-pointer flex justify-between items-center"
+                  onClick={() => toggleSection('finalDocuments')}
+                >
+                  <span>Documentos Finales</span>
+                  <span>{openSections.finalDocuments ? '▲' : '▼'}</span>
+                </h2>
+
+                {openSections.finalDocuments && (
+                  <div className="mt-2 p-3 rounded bg-amber-50 border border-amber-200">
+                    <p className="text-sm font-semibold text-amber-900">Tipo de sistema no definido</p>
+                    <p className="text-sm text-amber-800 mt-1">
+                      Selecciona el tipo de sistema para habilitar el flujo correcto de documentos finales.
+                    </p>
+
+                    <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                      <select
+                        value={manualSystemType}
+                        onChange={(e) => setManualSystemType(e.target.value)}
+                        disabled={savingManualSystemType || isViewOnly}
+                        className="border rounded px-3 py-2 text-sm"
+                      >
+                        <option value="">Seleccionar tipo...</option>
+                        <option value="ATU">ATU</option>
+                        <option value="ATU_PBTS">ATU + PBTS</option>
+                        <option value="SISTEMA REGULAR">SISTEMA REGULAR</option>
+                      </select>
+
+                      {!isViewOnly && (
+                        <button
+                          type="button"
+                          onClick={handleSaveManualSystemType}
+                          disabled={!manualSystemType || savingManualSystemType}
+                          className="px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded"
+                        >
+                          {savingManualSystemType ? 'Guardando...' : 'Guardar tipo de sistema'}
+                        </button>
+                      )}
+                    </div>
+
+                    {!!manualSystemTypeMessage && (
+                      <p className="mt-2 text-sm text-gray-700">{manualSystemTypeMessage}</p>
+                    )}
+
+                    {manualSystemType === 'ATU_PBTS' && (
+                      <div className="mt-3 p-3 rounded bg-green-50 border border-green-200">
+                        <p className="text-sm font-semibold text-green-800">ATU + PBTS</p>
+                        <p className="text-sm text-green-700 mt-1">
+                          Se habilita carga de documentos finales para este sistema.
+                        </p>
+                      </div>
+                    )}
+
+                    {manualSystemType === 'SISTEMA REGULAR' && (
+                      <div className="mt-3 p-3 rounded bg-gray-50 border border-gray-200">
+                        <p className="text-sm font-semibold text-gray-800">Sistema Regular</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Esta obra no requiere carga de documentos finales en esta sección.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : isATUSystem ? (
+              <FinalDocumentsSection
+                work={work}
+                idWork={idWork}
+                isOpen={openSections.finalDocuments}
+                toggleSection={toggleSection}
+                formatDateSafe={formatDateSafe}
+                isViewOnly={isViewOnly}
+                operatingPermitFile={operatingPermitFile}
+                setOperatingPermitFile={setOperatingPermitFile}
+                uploadingOperatingPermit={uploadingOperatingPermit}
+                setUploadingOperatingPermit={setUploadingOperatingPermit}
+                maintenanceServiceFile={maintenanceServiceFile}
+                setMaintenanceServiceFile={setMaintenanceServiceFile}
+                uploadingMaintenanceService={uploadingMaintenanceService}
+                setUploadingMaintenanceService={setUploadingMaintenanceService}
+                extraDocumentFile={extraDocumentFile}
+                setExtraDocumentFile={setExtraDocumentFile}
+                uploadingExtraDocument={uploadingExtraDocument}
+                setUploadingExtraDocument={setUploadingExtraDocument}
+                onDocumentUploaded={() => dispatch(fetchWorkById(idWork))}
+              />
+            ) : (
+              <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-gray-400">
+                <h2
+                  className="text-lg md:text-xl font-semibold mb-2 cursor-pointer flex justify-between items-center"
+                  onClick={() => toggleSection('finalDocuments')}
+                >
+                  <span>Documentos Finales</span>
+                  <span>{openSections.finalDocuments ? '▲' : '▼'}</span>
+                </h2>
+                {openSections.finalDocuments && (
+                  <div className="mt-2 p-3 rounded bg-gray-50 border border-gray-200">
+                    <p className="text-sm font-semibold text-gray-800">Sistema Regular</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Sistema regular no necesita documentos finales.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Tarjeta: Imágenes */}
             <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-yellow-500">              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 space-y-2 sm:space-y-0">
@@ -1804,7 +2088,7 @@ const handleUploadImage = async () => {
             )}
 
             {/* Pasar la imagen seleccionada (o su ID) a InspectionFlowManager */}
-            {work && (showInitialInspectionManager || showFinalInspectionManager) && (
+            {work && (
               <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500">
                 <h2
                   className="text-xl font-semibold p-6 cursor-pointer flex justify-between items-center"
@@ -1842,27 +2126,20 @@ const handleUploadImage = async () => {
                       {/* ✅ Deshabilitar botón solo si ambas inspecciones están APROBADAS o si es finance (solo vista) */}
                       {!isViewOnly && (
                         <>
-                          {(!hasApprovedInitialInspection || !hasApprovedFinalInspection) ? (
-                            <button
-                              className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
-                              onClick={e => { 
-                                e.stopPropagation(); 
-                                // ✅ Establecer el tipo de inspección por defecto según cuál no está aprobada
-                                if (!hasApprovedInitialInspection) {
-                                  setQuickInspectionType('initial');
-                                } else if (!hasApprovedFinalInspection) {
-                                  setQuickInspectionType('final');
-                                }
-                                setShowQuickInspectionModal(true); 
-                              }}
-                            >
-                              Registrar resultado rápido
-                            </button>
-                          ) : (
-                            <span className="ml-4 px-3 py-2 rounded shadow text-sm font-medium bg-gray-300 text-gray-600 cursor-not-allowed">
-                              ✅ Todas las inspecciones procesadas
-                            </span>
-                          )}
+                          <button
+                            className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (!hasApprovedInitialInspection) {
+                                setQuickInspectionType('initial');
+                              } else if (!hasApprovedFinalInspection) {
+                                setQuickInspectionType('final');
+                              }
+                              setShowQuickInspectionModal(true);
+                            }}
+                          >
+                            Registrar / Reemplazar resultado
+                          </button>
                         </>
                       )}
                     </>
@@ -2110,6 +2387,21 @@ const handleUploadImage = async () => {
                 <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto">
                   <button className="absolute top-2 right-2 text-gray-500 hover:text-red-600" onClick={() => setShowQuickInspectionModal(false)}>&#10005;</button>
                   <h3 className="text-lg font-bold mb-4 text-gray-800">Registrar resultado rápido de inspección</h3>
+                  {(() => {
+                    const replacingApproved =
+                      (quickInspectionType === 'initial' && hasApprovedInitialInspection) ||
+                      (quickInspectionType === 'final' && hasApprovedFinalInspection);
+
+                    if (!replacingApproved) return null;
+
+                    return (
+                      <div className="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg">
+                        <p className="text-sm text-amber-800 font-medium">
+                          Se reemplazara el comprobante de la inspeccion {quickInspectionType === 'initial' ? 'inicial' : 'final'} aprobada existente.
+                        </p>
+                      </div>
+                    );
+                  })()}
                   
                   {/* ✅ BANNER DE ESTADO ACTUAL - Más prominente */}
                   <div className="mb-4 grid grid-cols-2 gap-2">
@@ -2305,28 +2597,9 @@ const handleUploadImage = async () => {
                         return;
                       }
                       
-                      // ✅ Validación previa: verificar si el tipo seleccionado ya está aprobado
-                      if (quickInspectionType === 'initial' && hasApprovedInitialInspection) {
-                        const approvedInsp = initialInspectionsHistory.find(i => i.finalStatus === 'approved');
-                        const approvedDate = approvedInsp 
-                          ? new Date(approvedInsp.dateResultReceived || approvedInsp.createdAt).toLocaleString('es-ES')
-                          : 'fecha desconocida';
-                        
-                        alert(`⚠️ ATENCIÓN: Ya existe una inspección inicial APROBADA para esta obra.\n\nFecha de aprobación: ${approvedDate}\n\nNo puedes crear más inspecciones del mismo tipo una vez aprobada. La inspección está finalizada.`);
-                        setQuickInspectionLoading(false);
-                        return;
-                      }
-                      
-                      if (quickInspectionType === 'final' && hasApprovedFinalInspection) {
-                        const approvedInsp = finalInspectionsHistory.find(i => i.finalStatus === 'approved');
-                        const approvedDate = approvedInsp 
-                          ? new Date(approvedInsp.dateResultReceived || approvedInsp.createdAt).toLocaleString('es-ES')
-                          : 'fecha desconocida';
-                        
-                        alert(`⚠️ ATENCIÓN: Ya existe una inspección final APROBADA para esta obra.\n\nFecha de aprobación: ${approvedDate}\n\nNo puedes crear más inspecciones del mismo tipo una vez aprobada. La inspección está finalizada.`);
-                        setQuickInspectionLoading(false);
-                        return;
-                      }
+                      const replacingApproved =
+                        (quickInspectionType === 'initial' && hasApprovedInitialInspection) ||
+                        (quickInspectionType === 'final' && hasApprovedFinalInspection);
                       
                       // ✅ Validación: No permitir inspección final si no hay pago del Final Invoice
                       if (quickInspectionType === 'final') {
@@ -2357,6 +2630,7 @@ const handleUploadImage = async () => {
                         formData.append('type', quickInspectionType);
                         formData.append('finalStatus', quickInspectionStatus);
                         formData.append('resultDocumentFile', quickInspectionFile);
+                        if (replacingApproved) formData.append('allowReplaceApproved', 'true');
                         if (quickInspectionNotes) formData.append('notes', quickInspectionNotes);
                         await dispatch(registerQuickInspectionResult(work.idWork, formData));
                         
@@ -2365,11 +2639,18 @@ const handleUploadImage = async () => {
                         setQuickInspectionNotes('');
                         setQuickInspectionLoading(false);
                         
-                        // ✅ Recargar datos de la obra e inspecciones (optimizado - paralelo)
-                        await refreshWorkData({ fullRefresh: true });
+                        // ✅ Refresco inmediato de la sección de inspecciones y estado de obra
+                        // Evita depender del loader cacheado para ver el comprobante actualizado al instante.
+                        await Promise.all([
+                          refreshWorkData({ inspectionsOnly: true }),
+                          refreshWorkData({ workOnly: true }),
+                        ]);
                         
                         // ✅ Mensaje de éxito sin cerrar modal
-                        alert('✅ Resultado de inspección registrado exitosamente.\n\nPuedes ver el registro actualizado en el historial arriba. El modal permanecerá abierto para que puedas registrar otro resultado si es necesario.');
+                        alert(replacingApproved
+                          ? '✅ Comprobante reemplazado exitosamente.\n\nPuedes ver el registro actualizado en el historial arriba.'
+                          : '✅ Resultado de inspección registrado exitosamente.\n\nPuedes ver el registro actualizado en el historial arriba. El modal permanecerá abierto para que puedas registrar otro resultado si es necesario.'
+                        );
                       } catch (err) {
                         console.error('Error al registrar resultado rápido:', err);
                         const errorData = err.response?.data;
@@ -2397,17 +2678,17 @@ const handleUploadImage = async () => {
                         onChange={e => setQuickInspectionType(e.target.value)} 
                         className="w-full border rounded px-2 py-1"
                       >
-                        <option value="initial" disabled={hasApprovedInitialInspection}>
-                          Inicial {hasApprovedInitialInspection ? '(✓ Aprobada - Finalizada)' : initialInspectionsHistory.length > 0 ? `(${initialInspectionsHistory.length} intento${initialInspectionsHistory.length > 1 ? 's' : ''})` : ''}
+                        <option value="initial">
+                          Inicial {hasApprovedInitialInspection ? '(✓ Aprobada - Se puede reemplazar comprobante)' : initialInspectionsHistory.length > 0 ? `(${initialInspectionsHistory.length} intento${initialInspectionsHistory.length > 1 ? 's' : ''})` : ''}
                         </option>
-                        <option value="final" disabled={hasApprovedFinalInspection}>
-                          Final {hasApprovedFinalInspection ? '(✓ Aprobada - Finalizada)' : finalInspectionsHistory.length > 0 ? `(${finalInspectionsHistory.length} intento${finalInspectionsHistory.length > 1 ? 's' : ''})` : ''}
+                        <option value="final">
+                          Final {hasApprovedFinalInspection ? '(✓ Aprobada - Se puede reemplazar comprobante)' : finalInspectionsHistory.length > 0 ? `(${finalInspectionsHistory.length} intento${finalInspectionsHistory.length > 1 ? 's' : ''})` : ''}
                         </option>
                       </select>
                       {((quickInspectionType === 'initial' && hasApprovedInitialInspection) || 
                         (quickInspectionType === 'final' && hasApprovedFinalInspection)) && (
-                        <p className="text-xs text-red-600 mt-1">
-                          ⚠️ Esta inspección ya fue APROBADA y está finalizada. No se pueden agregar más resultados.
+                        <p className="text-xs text-amber-700 mt-1">
+                          ℹ️ Ya existe una inspección aprobada para este tipo. Al guardar, se reemplazara su comprobante.
                         </p>
                       )}
                       {quickInspectionType === 'initial' && !hasApprovedInitialInspection && initialInspectionsHistory.some(i => i.finalStatus === 'rejected') && (
@@ -2441,13 +2722,13 @@ const handleUploadImage = async () => {
                       <button 
                         type="submit" 
                         className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed" 
-                        disabled={
-                          quickInspectionLoading || 
-                          (quickInspectionType === 'initial' && hasApprovedInitialInspection) ||
-                          (quickInspectionType === 'final' && hasApprovedFinalInspection)
-                        }
+                        disabled={quickInspectionLoading}
                       >
-                        {quickInspectionLoading ? 'Guardando...' : 'Registrar'}
+                        {quickInspectionLoading
+                          ? 'Guardando...'
+                          : ((quickInspectionType === 'initial' && hasApprovedInitialInspection) || (quickInspectionType === 'final' && hasApprovedFinalInspection))
+                          ? 'Reemplazar comprobante'
+                          : 'Registrar'}
                       </button>
                     </div>
                   </form>
@@ -2468,7 +2749,7 @@ const handleUploadImage = async () => {
           {/* Columna derecha: Tarjetas de gastos e ingresos */}
           <div className="space-y-6">
             {/* Notice to Owner & Lien Card */}
-            {work && work.installationStartDate && (
+            {shouldShowNoticeToOwner && (
               <NoticeToOwnerCard 
                 work={work}
                 isOpen={openSections.noticeToOwner}
@@ -2497,35 +2778,43 @@ const handleUploadImage = async () => {
               ${balance < 0 ? 'bg-red-100 border-red-500' : ''}
               ${balance === 0 ? 'bg-gray-100 border-gray-500' : ''}
             `}>
-              <h2 className="text-xl md:text-2xl font-bold mb-3 text-center text-gray-800">
-                Balance de la Obra
+              <h2
+                className="text-xl md:text-2xl font-bold text-center text-gray-800 cursor-pointer flex justify-between items-center"
+                onClick={() => toggleSection("balance")}
+              >
+                <span>Balance de la Obra</span>
+                <span>{openSections.balance ? "▲" : "▼"}</span>
               </h2>
-              <div className="text-center">
-                <p className={`text-3xl md:text-4xl font-extrabold mb-1
-                  ${balance > 0 ? 'text-green-700' : ''}
-                  ${balance < 0 ? 'text-red-700' : ''}
-                  ${balance === 0 ? 'text-gray-700' : ''}
-                `}>
-                  ${balance.toFixed(2)}
-                </p>
-                <p className={`text-lg font-semibold
-                  ${balance > 0 ? 'text-green-600' : ''}
-                  ${balance < 0 ? 'text-red-600' : ''}
-                  ${balance === 0 ? 'text-gray-600' : ''}
-                `}>
-                  {balance > 0 ? 'Ganancia' : (balance < 0 ? 'Pérdida' : 'Equilibrio')}
-                </p>
-              </div>
-              <div className="mt-4 pt-3 border-t border-gray-300 flex justify-around text-sm">
-                <div className="text-center">
-                  <p className="font-semibold text-green-600">Ingresos Totales</p>
-                  <p className="text-gray-700">${totalIncome.toFixed(2)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-semibold text-red-600">Gastos Totales</p>
-                  <p className="text-gray-700">${totalExpense.toFixed(2)}</p>
-                </div>
-              </div>
+              {openSections.balance && (
+                <>
+                  <div className="text-center mt-3">
+                    <p className={`text-3xl md:text-4xl font-extrabold mb-1
+                      ${balance > 0 ? 'text-green-700' : ''}
+                      ${balance < 0 ? 'text-red-700' : ''}
+                      ${balance === 0 ? 'text-gray-700' : ''}
+                    `}>
+                      ${balance.toFixed(2)}
+                    </p>
+                    <p className={`text-lg font-semibold
+                      ${balance > 0 ? 'text-green-600' : ''}
+                      ${balance < 0 ? 'text-red-600' : ''}
+                      ${balance === 0 ? 'text-gray-600' : ''}
+                    `}>
+                      {balance > 0 ? 'Ganancia' : (balance < 0 ? 'Pérdida' : 'Equilibrio')}
+                    </p>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-300 flex justify-around text-sm">
+                    <div className="text-center">
+                      <p className="font-semibold text-green-600">Ingresos Totales</p>
+                      <p className="text-gray-700">${totalIncome.toFixed(2)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-semibold text-red-600">Gastos Totales</p>
+                      <p className="text-gray-700">${totalExpense.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Tarjeta: Gastos */}
@@ -2534,22 +2823,23 @@ const handleUploadImage = async () => {
                 className="text-xl font-bold mb-4 cursor-pointer flex justify-between items-center"
                 onClick={() => toggleSection("expenses")}
               >
-                Gastos
-                <span className="text-red-700 font-semibold">
-                  {expenses && expenses.length > 0
-                    ? `$${expenses
-                      .reduce(
-                        (total, expense) =>
-                          total + parseFloat(expense.amount || 0),
-                        0
-                      )
-                      .toFixed(2)}`
-                    : "$0.00"}
-                </span>
+                <span>Gastos</span>
                 <span>{openSections.expenses ? "▲" : "▼"}</span>
               </h2>
               {openSections.expenses && (
                 <>
+                  <p className="text-red-700 font-semibold mb-3">
+                    Total Gastos: ${
+                      expenses && expenses.length > 0
+                        ? expenses
+                            .reduce(
+                              (total, expense) => total + parseFloat(expense.amount || 0),
+                              0
+                            )
+                            .toFixed(2)
+                        : "0.00"
+                    }
+                  </p>
                   {balanceLoading && <p>Cargando gastos...</p>}
                   {balanceError && (
                     <p className="text-red-500">
@@ -2604,22 +2894,23 @@ const handleUploadImage = async () => {
                 className="text-xl font-bold mb-4 cursor-pointer flex justify-between items-center"
                 onClick={() => toggleSection("incomes")}
               >
-                Ingresos
-                <span className="text-green-700 font-semibold">
-                  {incomes && incomes.length > 0
-                    ? `$${incomes
-                      .reduce(
-                        (total, income) =>
-                          total + parseFloat(income.amount || 0),
-                        0
-                      )
-                      .toFixed(2)}`
-                    : "$0.00"}
-                </span>
+                <span>Ingresos</span>
                 <span>{openSections.incomes ? "▲" : "▼"}</span>
               </h2>
               {openSections.incomes && (
                 <>
+                  <p className="text-green-700 font-semibold mb-3">
+                    Total Ingresos: ${
+                      incomes && incomes.length > 0
+                        ? incomes
+                            .reduce(
+                              (total, income) => total + parseFloat(income.amount || 0),
+                              0
+                            )
+                            .toFixed(2)
+                        : "0.00"
+                    }
+                  </p>
                   {balanceLoading && <p>Cargando ingresos...</p>}
                   {balanceError && (
                     <p className="text-red-500">
@@ -3037,6 +3328,20 @@ const handleUploadImage = async () => {
             </div>
           </div>
         )}
+
+        <PdfModal
+          isOpen={showReceiptPreviewModal && !!selectedReceiptPreview?.url}
+          onClose={() => {
+            if (selectedReceiptPreview?.isBlobUrl && selectedReceiptPreview?.url) {
+              URL.revokeObjectURL(selectedReceiptPreview.url);
+            }
+            setShowReceiptPreviewModal(false);
+            setSelectedReceiptPreview(null);
+          }}
+          pdfUrl={selectedReceiptPreview?.url || ''}
+          title={selectedReceiptPreview?.title || 'Comprobante'}
+          contentType={selectedReceiptPreview?.previewType === 'image' ? 'image' : 'pdf'}
+        />
       </div>
       <PdfModal
   isOpen={showBudgetPdfModal}

@@ -13,6 +13,7 @@ const { Op, literal} = require('sequelize');
 const {scheduleInitialMaintenanceVisits} = require('./MaintenanceController'); // Asegúrate de importar la función de programación de mantenimientos iniciales
 const { sequelize } = require('../data'); 
 const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService'); // 🆕 Portal de cliente 
+const { sendEmail } = require('../utils/notifications/emailService');
 
 const { 
   STATUS_ORDER,
@@ -49,6 +50,92 @@ const withRetry = async (queryFn, maxRetries = 3, delayMs = 1000) => {
       }
       throw error;
     }
+  }
+};
+
+const sendClientPortalLinkOnInProgress = async (workId, propertyAddress = 'tu proyecto') => {
+  try {
+    const existingPortalLinkNote = await WorkNote.findOne({
+      where: {
+        workId,
+        noteType: 'client_contact',
+        relatedStatus: 'inProgress',
+        message: {
+          [Op.iLike]: 'Enlace del Portal de Seguimiento enviado automáticamente%'
+        }
+      },
+      attributes: ['id', 'createdAt']
+    });
+
+    if (existingPortalLinkNote) {
+      console.log(`[WorkController] Portal link email already sent once for work ${workId} (note ${existingPortalLinkNote.id})`);
+      return;
+    }
+
+    let portalInfo = await getPortalInfoForWork(workId);
+
+    if (!portalInfo?.hasPortal) {
+      const workForToken = await Work.findByPk(workId, {
+        attributes: ['idWork', 'idBudget']
+      });
+
+      if (workForToken?.idBudget) {
+        await autoGenerateTokenForWork({
+          idWork: workForToken.idWork,
+          idBudget: workForToken.idBudget,
+        });
+      }
+
+      portalInfo = await getPortalInfoForWork(workId);
+    }
+
+    if (!portalInfo?.hasPortal || !portalInfo?.portalUrl || !portalInfo?.clientEmail) {
+      console.warn(`[WorkController] Portal link email skipped for work ${workId}: missing portal URL or client email`);
+      return;
+    }
+
+    const subject = 'Your project is now in progress | Zurcher Septic';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #1f2937;">
+        <h2 style="margin-bottom: 8px; color: #0f4c81;">Your project is in progress</h2>
+        <p style="margin-top: 0;">Hi ${portalInfo.clientName || 'there'},</p>
+        <p>
+          Your project at <strong>${propertyAddress || 'your address'}</strong> has moved to
+          <strong>In Progress</strong>.
+        </p>
+        <p>You can track progress, documents, and photos in your portal:</p>
+        <p style="margin: 18px 0;">
+          <a href="${portalInfo.portalUrl}" style="background: #0f4c81; color: #ffffff; padding: 10px 16px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Open Tracking Portal
+          </a>
+        </p>
+        <p style="font-size: 13px; color: #6b7280;">
+          If the button does not work, copy and paste this link in your browser:<br />
+          <a href="${portalInfo.portalUrl}">${portalInfo.portalUrl}</a>
+        </p>
+      </div>
+    `;
+
+    await sendEmail({
+      to: portalInfo.clientEmail,
+      subject,
+      html,
+    });
+
+    await WorkNote.create({
+      workId,
+      staffId: null,
+      message: `Enlace del Portal de Seguimiento enviado automáticamente al cliente (${portalInfo.clientEmail}) al pasar a inProgress - ${new Date().toLocaleString('es-ES')}`,
+      noteType: 'client_contact',
+      priority: 'medium',
+      relatedStatus: 'inProgress',
+      isResolved: true,
+      mentionedStaffIds: [],
+    });
+
+    console.log(`[WorkController] Client portal link email sent for work ${workId} to ${portalInfo.clientEmail}`);
+  } catch (error) {
+    console.error(`[WorkController] Error sending client portal link email for work ${workId}:`, error.message);
   }
 };
 
@@ -363,7 +450,7 @@ const getWorkById = async (req, res) => {
             },
             {
               model: Permit,
-              attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate'],
+              attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'systemType', 'isPBTS'],
               required: false
             },
             {
@@ -405,7 +492,9 @@ const getWorkById = async (req, res) => {
             'totalPrice', 
             'initialPaymentPercentage',
             'signatureMethod',
+            'signatureDocumentId',
             'signNowDocumentId',
+            'docusignEnvelopeId',
             'signedPdfPath',
             'manualSignedPdfPath',
             'manualSignedPdfPublicId'
@@ -419,6 +508,8 @@ const getWorkById = async (req, res) => {
             'permitNumber',
             'applicantName',
             'applicantEmail',
+            'systemType',
+            'isPBTS',
             'expirationDate',
             // ✅ URLs de Cloudinary (reemplazo de BLOBs)
             'permitPdfUrl',
@@ -645,6 +736,10 @@ const updateWork = async (req, res) => {
       });
     }
 
+    if (statusChanged && workInstance.status === 'inProgress' && oldStatus !== 'inProgress') {
+      sendClientPortalLinkOnInProgress(idWork, workInstance.propertyAddress);
+    }
+
     //  OPTIMIZACIÓN: Si solo cambió asignación/fecha (no status), devolver respuesta mínima
     const isSimpleAssignment = assignmentChanged && !statusChanged;
     
@@ -653,7 +748,7 @@ const updateWork = async (req, res) => {
       const updatedWorkLight = await Work.findByPk(idWork, {
         include: [
           { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'applicantName']},
-          { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate']},
+          { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'systemType', 'isPBTS']},
           { model: Staff, attributes: ['id', 'name', 'email'] }
         ],
       });
@@ -665,7 +760,7 @@ const updateWork = async (req, res) => {
     const updatedWorkWithAssociations = await Work.findByPk(idWork, {
       include: [
         { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage']},
-        { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'expirationDate', 'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId']}, // ✅ URLs de Cloudinary
+        { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'expirationDate', 'systemType', 'isPBTS', 'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId']}, // ✅ URLs de Cloudinary
         { model: Material, attributes: ['idMaterial', 'name', 'quantity', 'cost']},
         {
           model: Inspection,
@@ -1512,6 +1607,10 @@ const changeWorkStatus = async (req, res) => {
         { model: MaintenanceVisit, as: 'maintenanceVisits' }
       ]
     });
+
+    if (targetStatus === 'inProgress' && currentStatus !== 'inProgress') {
+      sendClientPortalLinkOnInProgress(idWork, updatedWork?.propertyAddress || work?.propertyAddress);
+    }
 
     console.log(`✅ Estado cambiado exitosamente: ${currentStatus} → ${targetStatus} para work ${idWork}`);
 

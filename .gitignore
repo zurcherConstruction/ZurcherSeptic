@@ -161,6 +161,9 @@ verify-*.js
 **/audit-*.js
 **/verify-*.js
 
+# Dependency lockfiles (mantener locales, no subir)
+**/package-lock.json
+
 # Temporary files and documentation
 temp_*.txt
 FRONTEND_STATUS_AUDIT_COMPLETE.md

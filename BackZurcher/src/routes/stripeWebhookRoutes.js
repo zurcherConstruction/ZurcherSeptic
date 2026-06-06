@@ -20,6 +20,9 @@ router.post(
   stripeWebhookController.handleStripeWebhook
 );
 
+// 🔎 Consulta pública de recibo por session_id (para pantalla Thank You)
+router.get('/checkout-receipt', stripeWebhookController.getCheckoutReceipt);
+
 // 🧪 Endpoint de prueba para verificar que el webhook está accesible
 router.get('/test', stripeWebhookController.testWebhook);
 

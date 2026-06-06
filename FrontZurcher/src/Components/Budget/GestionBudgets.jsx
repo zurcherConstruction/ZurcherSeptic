@@ -79,7 +79,19 @@ const GestionBudgets = () => {
   const [showSignedPdfModal, setShowSignedPdfModal] = useState(false);
   const [signedPdfUrl, setSignedPdfUrl] = useState(null);
   const [downloadingSignedPdf, setDownloadingSignedPdf] = useState(false);
-  
+  const [loadingStripeReceiptBudgetId, setLoadingStripeReceiptBudgetId] = useState(null);
+  const [showPaymentReceiptModal, setShowPaymentReceiptModal] = useState(false);
+  const [paymentReceiptUrl, setPaymentReceiptUrl] = useState(null);
+  const [paymentReceiptType, setPaymentReceiptType] = useState('pdf');
+  const [paymentReceiptTitle, setPaymentReceiptTitle] = useState('');
+  const [paymentReceiptDownloadUrl, setPaymentReceiptDownloadUrl] = useState(null);
+
+  const getPdfPreviewSrc = (url) => {
+    const isBackendInlineRoute = /\/budgets\/.+\/payment-receipt\/view/i.test(url || '');
+    if (isBackendInlineRoute) return url;
+    return `https://docs.google.com/gview?url=${encodeURIComponent(url || '')}&embedded=true`;
+  };
+
   // Estados para reemplazar PDFs del Permit
   const [showReplacePermitPdfModal, setShowReplacePermitPdfModal] = useState(false);
   const [showReplaceOptionalDocsModal, setShowReplaceOptionalDocsModal] = useState(false);
@@ -595,6 +607,8 @@ const GestionBudgets = () => {
   const handleViewSignedPdf = async (budget) => {
     try {
       let pdfUrl = null;
+      // Guardar presupuesto activo del modal para que Descargar use el ID correcto
+      setSelectedBudget(budget);
       
       // 🆕 Si es firma manual, usar la URL directa de Cloudinary
       if (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath) {
@@ -643,11 +657,74 @@ const GestionBudgets = () => {
     if (!selectedBudget) return;
     setDownloadingSignedPdf(true);
     try {
-      await dispatch(downloadSignedBudget(selectedBudget.idBudget));
+      // Firma manual o legacy: descargar desde URL directa almacenada
+      if (selectedBudget.signatureMethod === 'manual' && selectedBudget.manualSignedPdfPath) {
+        const response = await api.get(selectedBudget.manualSignedPdfPath, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Budget_${selectedBudget.idBudget}_signed_manual.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else if (selectedBudget.signatureMethod === 'legacy' && selectedBudget.legacySignedPdfUrl) {
+        const response = await api.get(selectedBudget.legacySignedPdfUrl, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Budget_${selectedBudget.idBudget}_signed_legacy.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // SignNow/DocuSign: descargar vía backend
+        await dispatch(downloadSignedBudget(selectedBudget.idBudget));
+      }
     } catch (e) {
       alert('No se pudo descargar el PDF firmado.');
     }
     setDownloadingSignedPdf(false);
+  };
+
+  const handleViewPaymentReceipt = async (budget) => {
+    if (!budget?.idBudget) return;
+    setLoadingStripeReceiptBudgetId(budget.idBudget);
+    try {
+      // Si hay comprobante manual cargado, mostrarlo directamente
+      if (budget.paymentInvoice) {
+        const inferredType = budget.paymentProofType || (/\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(budget.paymentInvoice) ? 'image' : 'pdf');
+        const backendBaseUrl = (api.defaults.baseURL || '').replace(/\/$/, '');
+        setPaymentReceiptUrl(budget.paymentInvoice);
+        setPaymentReceiptType(inferredType);
+        setPaymentReceiptTitle('Comprobante de Pago');
+        setPaymentReceiptDownloadUrl(`${backendBaseUrl}/budgets/${budget.idBudget}/payment-receipt/download`);
+        setShowPaymentReceiptModal(true);
+        return;
+      }
+
+      // Si no, intentar obtener el recibo de Stripe
+      const response = await api.get(`/budget/${budget.idBudget}/stripe-receipt`);
+      const receiptUrl = response?.data?.receiptUrl;
+
+      if (!receiptUrl) {
+        alert('No hay comprobante de pago disponible para este presupuesto.');
+        return;
+      }
+
+      const backendBaseUrl = (api.defaults.baseURL || '').replace(/\/$/, '');
+      setPaymentReceiptUrl(`${backendBaseUrl}/budgets/${budget.idBudget}/stripe-receipt/view`);
+      setPaymentReceiptType('html');
+      setPaymentReceiptTitle('Recibo Stripe');
+      setPaymentReceiptDownloadUrl(`${backendBaseUrl}/budgets/${budget.idBudget}/payment-receipt/download`);
+      setShowPaymentReceiptModal(true);
+    } catch (error) {
+      const message = error?.response?.data?.message || 'No hay comprobante de pago disponible para este presupuesto.';
+      alert(message);
+    } finally {
+      setLoadingStripeReceiptBudgetId(null);
+    }
   };
 
   // 🆕 Handler para verificar firma PPI manualmente
@@ -1376,6 +1453,24 @@ const GestionBudgets = () => {
                           <DocumentTextIcon className="h-4 w-4" />
                         </button>
                       )}
+
+                      {['client_approved', 'sent_for_signature', 'signed', 'approved'].includes(budget.status) && (
+                      <button
+                        onClick={() => handleViewPaymentReceipt(budget)}
+                        disabled={loadingStripeReceiptBudgetId === budget.idBudget}
+                        className="text-cyan-600 hover:text-cyan-900 p-1 rounded disabled:opacity-50"
+                        title={budget.paymentInvoice ? 'Ver comprobante de pago' : 'Ver recibo de pago Stripe'}
+                      >
+                        {loadingStripeReceiptBudgetId === budget.idBudget ? (
+                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <span className="text-sm">💳</span>
+                        )}
+                      </button>
+                      )}
                       
                       {/* 🆕 BOTONES PPI */}
                       {budget.Permit?.ppiCloudinaryUrl && (
@@ -1769,6 +1864,65 @@ const GestionBudgets = () => {
                 <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
                   <Viewer fileUrl={ppiUrl} />
                 </Worker>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPaymentReceiptModal && paymentReceiptUrl && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full p-4 relative">
+            <button
+              onClick={() => {
+                setShowPaymentReceiptModal(false);
+                setPaymentReceiptUrl(null);
+                setPaymentReceiptType('pdf');
+                setPaymentReceiptTitle('');
+                setPaymentReceiptDownloadUrl(null);
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center">{paymentReceiptTitle || 'Comprobante de Pago'}</h2>
+            <div className="flex justify-center mb-3">
+              <a
+                href={paymentReceiptDownloadUrl || paymentReceiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar Comprobante
+              </a>
+            </div>
+            <div className="h-[70vh] overflow-y-auto border rounded shadow-inner bg-gray-50 flex items-center justify-center p-4">
+              {paymentReceiptType === 'image' ? (
+                <img
+                  src={paymentReceiptUrl}
+                  alt="Comprobante de pago"
+                  className="max-w-full max-h-full object-contain rounded shadow"
+                />
+              ) : paymentReceiptType === 'html' ? (
+                <iframe
+                  src={paymentReceiptUrl}
+                  title="Recibo Stripe"
+                  className="w-full h-full border-none bg-white"
+                  style={{ minHeight: '70vh' }}
+                />
+              ) : (
+                <iframe
+                  src={getPdfPreviewSrc(paymentReceiptUrl)}
+                  title="Comprobante de pago"
+                  className="w-full h-full border-none bg-white"
+                  style={{ minHeight: '70vh' }}
+                />
               )}
             </div>
           </div>

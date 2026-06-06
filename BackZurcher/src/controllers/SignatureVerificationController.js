@@ -19,16 +19,30 @@ const verifyPendingSignatures = async (req, res) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    const recentSignatureActivityWhere = {
+      [Op.or]: [
+        { sentForSignatureAt: { [Op.gte]: thirtyDaysAgo } },
+        { sentForReviewAt: { [Op.gte]: thirtyDaysAgo } },
+        { updatedAt: { [Op.gte]: thirtyDaysAgo } }
+      ]
+    };
+
     // Buscar presupuestos pendientes de SignNow
     const pendingSignNow = await Budget.findAll({
       where: {
         signNowDocumentId: { [Op.ne]: null },
         status: 'sent_for_signature',
-        sentForReviewAt: { [Op.gte]: thirtyDaysAgo }
+        ...recentSignatureActivityWhere,
+        [Op.or]: [
+          { signatureMethod: 'signnow' },
+          { signatureMethod: null },
+          { signatureMethod: '' },
+          { signatureMethod: 'none' }
+        ]
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }],
       limit: 25,
-      order: [['sentForReviewAt', 'DESC']]
+      order: [['updatedAt', 'DESC']]
     });
 
     // Buscar presupuestos pendientes de DocuSign
@@ -36,11 +50,17 @@ const verifyPendingSignatures = async (req, res) => {
       where: {
         docusignEnvelopeId: { [Op.ne]: null },
         status: 'sent_for_signature',
-        sentForReviewAt: { [Op.gte]: thirtyDaysAgo }
+        ...recentSignatureActivityWhere,
+        [Op.or]: [
+          { signatureMethod: 'docusign' },
+          { signatureMethod: null },
+          { signatureMethod: '' },
+          { signatureMethod: 'none' }
+        ]
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }],
       limit: 25,
-      order: [['sentForReviewAt', 'DESC']]
+      order: [['updatedAt', 'DESC']]
     });
 
     const totalPending = pendingSignNow.length + pendingDocuSign.length;
@@ -150,9 +170,9 @@ const verifyPendingSignatures = async (req, res) => {
     // ===== VERIFICAR DOCUSIGN =====
     for (const budget of pendingDocuSign) {
       try {
-        const envelopeStatus = await docuSignService.getEnvelopeStatus(budget.docusignEnvelopeId);
+        const signatureStatus = await docuSignService.isDocumentSigned(budget.docusignEnvelopeId);
 
-        if (envelopeStatus.status === 'completed') {
+        if (signatureStatus.signed) {
           signedCount++;
 
           try {
@@ -187,7 +207,7 @@ const verifyPendingSignatures = async (req, res) => {
             await budget.update({
               status: 'signed',
               signatureMethod: 'docusign',
-              signedAt: envelopeStatus.completedDateTime || new Date(),
+              signedAt: signatureStatus.completedDateTime || new Date(),
               signedPdfPath: uploadResult.secure_url,
               signedPdfPublicId: uploadResult.public_id
             });
@@ -208,7 +228,7 @@ const verifyPendingSignatures = async (req, res) => {
             await budget.update({
               status: 'signed',
               signatureMethod: 'docusign',
-              signedAt: envelopeStatus.completedDateTime || new Date()
+              signedAt: signatureStatus.completedDateTime || new Date()
             });
 
             results.push({
@@ -224,6 +244,7 @@ const verifyPendingSignatures = async (req, res) => {
             idBudget: budget.idBudget,
             propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
             status: envelopeStatus.status,
+            completedDateTime: signatureStatus.completedDateTime,
             method: 'DocuSign'
           });
         }

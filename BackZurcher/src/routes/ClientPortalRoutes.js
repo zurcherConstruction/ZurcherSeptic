@@ -268,6 +268,11 @@ router.get('/:token/works', async (req, res) => {
           ]
         },
         {
+          model: Permit,
+          required: false,
+          attributes: ['idPermit', 'systemType', 'isPBTS']
+        },
+        {
           model: WorkNote,
           as: 'workNotes',
           required: false,
@@ -432,7 +437,7 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         }]
       }],
       attributes: [
-        'idBudget', 'signedPdfPath', 'manualSignedPdfPath', 'signatureMethod',
+        'idBudget', 'signedPdfPath', 'manualSignedPdfPath', 'manualSignedPdfPublicId', 'legacySignedPdfUrl', 'legacySignedPdfPublicId', 'signedPdfPublicId', 'signatureMethod',
         'signatureDocumentId', 'paymentInvoice', 'paymentProofAmount',
         'applicantName', 'propertyAddress', 'initialPayment'
       ]
@@ -474,12 +479,26 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
 
     const budget = budgets[0];
     const work = budget.Work;
+    const cloudinaryCloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const signedBudgetUrl =
+      budget.signedPdfPath ||
+      budget.manualSignedPdfPath ||
+      budget.legacySignedPdfUrl ||
+      (budget.signedPdfPublicId && cloudinaryCloudName
+        ? `https://res.cloudinary.com/${cloudinaryCloudName}/raw/upload/${budget.signedPdfPublicId}`
+        : null) ||
+      (budget.manualSignedPdfPublicId && cloudinaryCloudName
+        ? `https://res.cloudinary.com/${cloudinaryCloudName}/raw/upload/${budget.manualSignedPdfPublicId}`
+        : null) ||
+      (budget.legacySignedPdfPublicId && cloudinaryCloudName
+        ? `https://res.cloudinary.com/${cloudinaryCloudName}/raw/upload/${budget.legacySignedPdfPublicId}`
+        : null);
 
     // Crear respuesta con documentos disponibles - información más completa
     const documents = {
       signedBudget: {
-        available: !!(budget.signedPdfPath || budget.manualSignedPdfPath),
-        url: convertToServerUrl(budget.signedPdfPath || budget.manualSignedPdfPath),
+        available: !!signedBudgetUrl,
+        url: convertToServerUrl(signedBudgetUrl),
         signatureMethod: budget.signatureMethod || 'none',
         budgetId: budget.idBudget, // 🔧 Agregado para que el frontend pueda construir la URL del endpoint
         budgetInfo: {
@@ -849,13 +868,18 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     console.log(`   manualSignedPdfPath: ${budget.manualSignedPdfPath || 'null'}`);
     console.log(`   legacySignedPdfUrl: ${budget.legacySignedPdfUrl || 'null'}`);
     console.log(`   signedPdfPublicId: ${budget.signedPdfPublicId || 'null'}`);
+    console.log(`   manualSignedPdfPublicId: ${budget.manualSignedPdfPublicId || 'null'}`);
+    console.log(`   legacySignedPdfPublicId: ${budget.legacySignedPdfPublicId || 'null'}`);
     console.log(`   → Usando: ${filePath || 'NINGUNO'}`);
     
-    // 🆕 Si no hay filePath pero hay signedPdfPublicId, construir URL de Cloudinary
-    if (!filePath && budget.signedPdfPublicId) {
-      console.log(`☁️  Construyendo URL de Cloudinary desde publicId: ${budget.signedPdfPublicId}`);
-      filePath = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${budget.signedPdfPublicId}`;
-      console.log(`   URL construida: ${filePath}`);
+    // 🆕 Si no hay filePath pero hay public ID de Cloudinary, construir URL
+    if (!filePath) {
+      const cloudinaryPublicId = budget.signedPdfPublicId || budget.manualSignedPdfPublicId || budget.legacySignedPdfPublicId;
+      if (cloudinaryPublicId && process.env.CLOUDINARY_CLOUD_NAME) {
+        console.log(`☁️  Construyendo URL de Cloudinary desde publicId: ${cloudinaryPublicId}`);
+        filePath = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${cloudinaryPublicId}`;
+        console.log(`   URL construida: ${filePath}`);
+      }
     }
     
     if (!filePath) {

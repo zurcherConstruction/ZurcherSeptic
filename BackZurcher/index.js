@@ -1,6 +1,6 @@
 const { app, server } = require("./src/app.js"); // Importar tanto app como server
 const { conn } = require("./src/data");
-const { PORT } = require("./src/config/envs.js");
+const { PORT, DB_DEPLOY } = require("./src/config/envs.js");
 const { startSignatureCheckCron } = require("./src/services/checkPendingSignatures.js");
 const { startFixedExpensesCron } = require("./src/services/autoGenerateFixedExpenses.js");
 const { startBudgetRemindersCron } = require("./src/services/checkBudgetReminders.js");
@@ -10,9 +10,10 @@ const { startFleetExpiryRemindersCron } = require("./src/services/checkFleetExpi
 
 require("dotenv").config();
 
-// 🚀 OPTIMIZACIÓN: Solo hacer sync() si la variable ENABLE_DB_SYNC está en true
-// Esto acelera enormemente el arranque del servidor
-const shouldSync = process.env.ENABLE_DB_SYNC === 'true';
+// 🚀 Sync solo en entornos remotos y cuando está habilitado explícitamente.
+// En local se evita sync para no romper esquemas existentes con alter/constraints.
+const hasDeployDb = typeof DB_DEPLOY === 'string' && DB_DEPLOY.trim().startsWith('postgresql://');
+const shouldSync = process.env.ENABLE_DB_SYNC === 'true' && hasDeployDb;
 
 // 🔄 Función de reconexión automática
 const reconnectDatabase = async (retries = 5, delay = 5000) => {
@@ -45,6 +46,10 @@ if (shouldSync) {
     process.exit(1);
   });
 } else {
+  if (process.env.ENABLE_DB_SYNC === 'true' && !DB_DEPLOY) {
+    console.log('ℹ️ Sync deshabilitado en local para evitar conflictos de esquema; se validará solo la conexión');
+  }
+
   // 🚀 Inicio rápido: Solo verificar conexión sin sync (con reintentos automáticos)
   conn.authenticate()
     .then(() => {
@@ -64,8 +69,29 @@ if (shouldSync) {
     });
 }
 
+let isServerStarting = false;
+
 function startServer() {
+  if (isServerStarting || server.listening) {
+    return;
+  }
+
+  isServerStarting = true;
+
+  server.once('error', (error) => {
+    isServerStarting = false;
+    if (error?.code === 'EADDRINUSE') {
+      console.error(`❌ Puerto ${PORT} en uso. Esto suele indicar otra instancia local del backend activa.`);
+      console.error('💡 Cierra procesos node/nodemon duplicados y reinicia una sola instancia de npm run dev.');
+      process.exit(1);
+    }
+
+    console.error('❌ Error iniciando servidor HTTP:', error);
+    process.exit(1);
+  });
+
   server.listen(PORT, () => {
+    isServerStarting = false;
     console.log(`🚀 Servidor escuchando en el puerto: ${PORT} 🚀`);
     startSignatureCheckCron(); // Iniciar el cron para verificar firmas pendientes
     startFixedExpensesCron(); // Iniciar el cron para auto-generar gastos fijos vencidos
@@ -108,3 +134,8 @@ const gracefulShutdown = (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Nodemon usa SIGUSR2 para reiniciar. Hacemos cierre limpio para evitar carreras del puerto.
+process.once('SIGUSR2', () => {
+  gracefulShutdown('SIGUSR2');
+});
