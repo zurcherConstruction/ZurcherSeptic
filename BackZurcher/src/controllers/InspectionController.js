@@ -1,10 +1,20 @@
 const path = require('path');
-const { Inspection, Work, Permit, Image, Budget, sequelize } = require('../data'); // Asegúrate de importar Image
+const { Inspection, Work, Permit, Image, Budget, WorkNote, sequelize } = require('../data'); // Asegúrate de importar Image
 const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
 const { scheduleInitialMaintenanceVisits } = require('./MaintenanceController'); // <--- IMPORTANTE: AÑADIR ESTA LÍNEA
 const { PDFDocument } = require('pdf-lib'); // Para comprimir PDFs
+
+const formatActionDate = (date = new Date()) => {
+  return new Date(date).toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 // Función para comprimir PDF si es necesario
 const compressPdfIfNeeded = async (buffer, filename = 'PDF') => {
@@ -51,7 +61,7 @@ const compressPdfIfNeeded = async (buffer, filename = 'PDF') => {
 const registerQuickInspectionResult = async (req, res) => {
   try {
     const { workId } = req.params;
-    const { type, finalStatus, notes, dateInspectionPerformed } = req.body;
+    const { type, finalStatus, notes, dateInspectionPerformed, allowReplaceApproved } = req.body;
     if (!type || !['initial', 'final'].includes(type)) {
       return res.status(400).json({ error: true, message: 'Tipo de inspección inválido (initial/final).' });
     }
@@ -79,7 +89,9 @@ const registerQuickInspectionResult = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    if (existingApprovedInspection) {
+    const canReplaceApproved = String(allowReplaceApproved).toLowerCase() === 'true';
+
+    if (existingApprovedInspection && !canReplaceApproved) {
       const resultDate = existingApprovedInspection.dateResultReceived 
         ? new Date(existingApprovedInspection.dateResultReceived).toLocaleString('es-ES')
         : new Date(existingApprovedInspection.createdAt).toLocaleString('es-ES');
@@ -125,6 +137,52 @@ const registerQuickInspectionResult = async (req, res) => {
       resource_type: isPdf ? 'raw' : 'auto', // 'auto' para imágenes, 'raw' para PDFs
       public_id: `quick_result_${timestamp}${fileExtension}` // Ahora incluye la extensión
     });
+
+    // ✅ MODO REEMPLAZO: actualizar comprobante de inspección aprobada existente
+    // sin crear nueva inspección ni alterar estado de la obra
+    if (existingApprovedInspection && canReplaceApproved) {
+      await sequelize.transaction(async (t) => {
+        if (existingApprovedInspection.resultDocumentPublicId) {
+          try {
+            await deleteFromCloudinary(existingApprovedInspection.resultDocumentPublicId);
+          } catch (deleteError) {
+            console.warn('⚠️ No se pudo eliminar comprobante anterior de Cloudinary:', deleteError.message);
+          }
+        }
+
+        await existingApprovedInspection.update({
+          resultDocumentUrl: cloudinaryResult.secure_url,
+          resultDocumentPublicId: cloudinaryResult.public_id,
+          dateInspectionPerformed: dateInspectionPerformed || existingApprovedInspection.dateInspectionPerformed || new Date(),
+          dateResultReceived: new Date(),
+          notes: notes ?? existingApprovedInspection.notes,
+        }, { transaction: t });
+      });
+
+      try {
+        const typeLabel = type === 'initial' ? 'inicial' : 'final';
+        const timestampLabel = formatActionDate();
+        await WorkNote.create({
+          workId,
+          staffId: req.user?.id || null,
+          message: `Inspección ${typeLabel}: comprobante reemplazado (${String(existingApprovedInspection.finalStatus || '').toUpperCase()}) - ${timestampLabel}`,
+          noteType: 'progress',
+          priority: 'medium',
+          relatedStatus: work.status,
+          isResolved: true,
+          mentionedStaffIds: [],
+        });
+      } catch (noteError) {
+        console.warn('⚠️ No se pudo crear WorkNote automático para reemplazo de comprobante:', noteError.message);
+      }
+
+      return res.status(200).json({
+        message: 'Comprobante de inspección reemplazado exitosamente.',
+        inspection: existingApprovedInspection,
+        workStatus: work.status,
+        replaced: true,
+      });
+    }
 
     // ✅ TRANSACCIÓN ATÓMICA: Inspection.create + work.save juntos
     // Si work.save() falla (timeout), la inspección también se revierte
@@ -208,6 +266,23 @@ const registerQuickInspectionResult = async (req, res) => {
         console.error(`[InspectionController - Quick] ERROR scheduleInitialMaintenanceVisits for work ${work.idWork}:`, scheduleError);
       }
     }
+      try {
+        const typeLabel = type === 'initial' ? 'inicial' : 'final';
+        const statusLabel = finalStatus === 'approved' ? 'APROBADA' : 'RECHAZADA';
+        const timestampLabel = formatActionDate();
+        await WorkNote.create({
+          workId,
+          staffId: req.user?.id || null,
+          message: `Inspección ${typeLabel}: resultado ${statusLabel} registrado con comprobante - ${timestampLabel}`,
+          noteType: 'progress',
+          priority: finalStatus === 'rejected' ? 'high' : 'medium',
+          relatedStatus: work.status,
+          isResolved: finalStatus === 'approved',
+          mentionedStaffIds: [],
+        });
+      } catch (noteError) {
+        console.warn('⚠️ No se pudo crear WorkNote automático para resultado de inspección:', noteError.message);
+      }
 
     return res.status(201).json({
       message: 'Resultado de inspección registrado rápidamente.',

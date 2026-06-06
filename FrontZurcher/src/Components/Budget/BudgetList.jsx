@@ -26,17 +26,18 @@ import {
 import { parseISO, format } from "date-fns";
 import api from "../../utils/axios";
 import EditClientDataModal from './EditClientDataModal';
+import { Worker, Viewer } from '@react-pdf-viewer/core';
+import '@react-pdf-viewer/core/lib/styles/index.css';
+
+const PDF_WORKER_URL = 'https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
 
 const PdfModal = ({ isOpen, onClose, pdfUrl, title, fileType = 'pdf', downloadName, downloadUrl }) => {
   if (!isOpen || !pdfUrl) {
     return null;
   }
 
-  const getPdfPreviewSrc = () => {
-    const isBackendInlineRoute = /\/budgets\/.+\/payment-receipt\/view/i.test(pdfUrl);
-    if (isBackendInlineRoute) return pdfUrl;
-    return `https://docs.google.com/gview?url=${encodeURIComponent(pdfUrl)}&embedded=true`;
-  };
+  // kept for html/stripe-receipt iframes only
+  const getPdfPreviewSrc = () => pdfUrl;
 
   // Detect device type with better breakpoints
   const screenWidth = window.innerWidth;
@@ -156,22 +157,28 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title, fileType = 'pdf', downloadNa
               }}
             />
           ) : fileType === 'pdf' ? (
-            <iframe
-              src={getPdfPreviewSrc()}
-              title={title || 'PDF Viewer'}
-              className="absolute top-0 left-0 w-full h-full border-none"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                border: 'none',
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'thin',
-                backgroundColor: 'white'
-              }}
-            />
+            <div className="absolute top-0 left-0 w-full h-full bg-white overflow-hidden">
+              <Worker workerUrl={PDF_WORKER_URL}>
+                <Viewer
+                  fileUrl={pdfUrl}
+                  renderError={() => (
+                    <div className="h-full flex items-center justify-center p-6 text-center">
+                      <div>
+                        <p className="text-gray-700 font-medium mb-3">No se pudo mostrar el PDF en el modal.</p>
+                        <a
+                          href={pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                        >
+                          Abrir en nueva pestaña
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                />
+              </Worker>
+            </div>
           ) : (
             <iframe
               src={pdfUrl}
@@ -507,7 +514,7 @@ const BudgetList = () => {
   };
 
   // *** FUNCIÓN para manejar la vista del PDF LEGACY ***
-  const handleViewLegacyBudgetPdf = async (budgetId, directUrl = null) => {
+  const handleViewLegacyBudgetPdf = async (budgetId) => {
     setViewingPdfId(budgetId); // Indicar que se está cargando la vista previa
 
     // Limpiar modal anterior si existe
@@ -518,16 +525,7 @@ const BudgetList = () => {
     }
 
     try {
-      // Si tenemos URL directa de Cloudinary, usarla directamente
-      if (directUrl && directUrl.includes('cloudinary.com')) {
-        setPdfUrlForModal(directUrl);
-        setPdfTitleForModal(`🏷️ Presupuesto Legacy - ${budgetId}`);
-        setIsModalOpen(true);
-        setViewingPdfId(null);
-        return;
-      }
-
-      // Fallback: usar endpoint del backend (debería redirigir)
+      // Usar siempre endpoint del backend para evitar errores por URLs externas
       console.log(`🔄 Using backend endpoint for budget ${budgetId}`);
       const response = await api.get(`/budget/${budgetId}/legacy-budget-pdf`, {
         responseType: "blob", // Obtener como Blob

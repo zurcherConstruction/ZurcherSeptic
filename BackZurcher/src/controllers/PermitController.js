@@ -847,7 +847,11 @@ const getPermitPdfInline = async (req, res) => {
       }
       
       if (cloudinaryUrl) {
-        return res.redirect(cloudinaryUrl);
+        const axiosFallback = require('axios');
+        const fbResponse = await axiosFallback.get(encodeURI(cloudinaryUrl.trim()), { responseType: 'arraybuffer', timeout: 15000 });
+        res.setHeader('Content-Type', fbResponse.headers['content-type'] || 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="permit_${idPermit}.pdf"`);
+        return res.send(Buffer.from(fbResponse.data));
       }
     }
 
@@ -965,7 +969,11 @@ const getPermitOptionalDocInline = async (req, res) => {
       }
       
       if (cloudinaryUrl) {
-        return res.redirect(cloudinaryUrl);
+        const axiosFallback = require('axios');
+        const fbResponse = await axiosFallback.get(encodeURI(cloudinaryUrl.trim()), { responseType: 'arraybuffer', timeout: 15000 });
+        res.setHeader('Content-Type', fbResponse.headers['content-type'] || 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="optional_${idPermit}.pdf"`);
+        return res.send(Buffer.from(fbResponse.data));
       }
     }
 

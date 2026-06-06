@@ -45,7 +45,7 @@ if (shouldSync) {
     console.error('❌ Error al sincronizar la base de datos:', error);
     process.exit(1);
   });
-} else {hasDeployDb
+} else {
   if (process.env.ENABLE_DB_SYNC === 'true' && !DB_DEPLOY) {
     console.log('ℹ️ Sync deshabilitado en local para evitar conflictos de esquema; se validará solo la conexión');
   }
@@ -69,8 +69,29 @@ if (shouldSync) {
     });
 }
 
+let isServerStarting = false;
+
 function startServer() {
+  if (isServerStarting || server.listening) {
+    return;
+  }
+
+  isServerStarting = true;
+
+  server.once('error', (error) => {
+    isServerStarting = false;
+    if (error?.code === 'EADDRINUSE') {
+      console.error(`❌ Puerto ${PORT} en uso. Esto suele indicar otra instancia local del backend activa.`);
+      console.error('💡 Cierra procesos node/nodemon duplicados y reinicia una sola instancia de npm run dev.');
+      process.exit(1);
+    }
+
+    console.error('❌ Error iniciando servidor HTTP:', error);
+    process.exit(1);
+  });
+
   server.listen(PORT, () => {
+    isServerStarting = false;
     console.log(`🚀 Servidor escuchando en el puerto: ${PORT} 🚀`);
     startSignatureCheckCron(); // Iniciar el cron para verificar firmas pendientes
     startFixedExpensesCron(); // Iniciar el cron para auto-generar gastos fijos vencidos
@@ -113,3 +134,8 @@ const gracefulShutdown = (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Nodemon usa SIGUSR2 para reiniciar. Hacemos cierre limpio para evitar carreras del puerto.
+process.once('SIGUSR2', () => {
+  gracefulShutdown('SIGUSR2');
+});

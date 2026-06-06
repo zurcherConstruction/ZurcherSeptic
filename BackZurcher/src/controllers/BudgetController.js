@@ -2249,10 +2249,19 @@ async permitPdf(req, res) {
     const permitPdfUrl = budget.Permit.permitPdfUrl;
     const pdfData = budget.Permit.pdfData;
     
-    // Si tenemos URL de Cloudinary, redirigir directamente
+    // Si tenemos URL de Cloudinary, hacer proxy para evitar errores externos/CORS
     if (permitPdfUrl) {
-      console.log(`🔗 Redirigiendo a Cloudinary URL para Permit PDF: ${permitPdfUrl}`);
-      return res.redirect(permitPdfUrl);
+      console.log(`🔗 Proxy Permit PDF desde URL externa: ${permitPdfUrl}`);
+      const axios = require('axios');
+      const encodedUrl = encodeURI(String(permitPdfUrl).trim());
+      const externalResponse = await axios.get(encodedUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+      });
+
+      res.setHeader('Content-Type', externalResponse.headers['content-type'] || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="permit_${budget.Permit.idPermit}.pdf"`);
+      return res.send(Buffer.from(externalResponse.data));
     }
     
     // Fallback a BLOB legacy
@@ -2284,8 +2293,17 @@ async permitPdf(req, res) {
     }
     
     if (cloudinaryUrl) {
-      console.log(`🔗 Redirigiendo a Cloudinary URL para permitPdf: ${cloudinaryUrl}`);
-      return res.redirect(cloudinaryUrl);
+      console.log(`🔗 Proxy Permit PDF detectado desde pdfData URL externa: ${cloudinaryUrl}`);
+      const axios = require('axios');
+      const encodedUrl = encodeURI(String(cloudinaryUrl).trim());
+      const externalResponse = await axios.get(encodedUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+      });
+
+      res.setHeader('Content-Type', externalResponse.headers['content-type'] || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="permit_${budget.Permit.idPermit}.pdf"`);
+      return res.send(Buffer.from(externalResponse.data));
     }
     
     if (isLegacy && typeof pdfData === 'string' && !pdfData.startsWith('data:')) {
@@ -2353,10 +2371,19 @@ async optionalDocs(req, res) {
     const optionalDocsUrl = budget.Permit.optionalDocsUrl;
     const optionalDocs = budget.Permit.optionalDocs;
     
-    // Si tenemos URL de Cloudinary, redirigir directamente
+    // Si tenemos URL de Cloudinary, hacer proxy para evitar errores externos/CORS
     if (optionalDocsUrl) {
-      console.log(`🔗 Redirigiendo a Cloudinary URL para Optional Docs: ${optionalDocsUrl}`);
-      return res.redirect(optionalDocsUrl);
+      console.log(`🔗 Proxy Optional Docs desde URL externa: ${optionalDocsUrl}`);
+      const axios = require('axios');
+      const encodedUrl = encodeURI(String(optionalDocsUrl).trim());
+      const externalResponse = await axios.get(encodedUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+      });
+
+      res.setHeader('Content-Type', externalResponse.headers['content-type'] || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="optional_docs_${budget.Permit.idPermit}.pdf"`);
+      return res.send(Buffer.from(externalResponse.data));
     }
     
     // Fallback a BLOB legacy
@@ -2390,8 +2417,17 @@ async optionalDocs(req, res) {
     }
     
     if (cloudinaryUrl) {
-      console.log(`🔗 Redirigiendo a Cloudinary URL para optionalDocs: ${cloudinaryUrl}`);
-      return res.redirect(cloudinaryUrl);
+      console.log(`🔗 Proxy Optional Docs detectado desde optionalDocs URL externa: ${cloudinaryUrl}`);
+      const axios = require('axios');
+      const encodedUrl = encodeURI(String(cloudinaryUrl).trim());
+      const externalResponse = await axios.get(encodedUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+      });
+
+      res.setHeader('Content-Type', externalResponse.headers['content-type'] || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="optional_docs_${budget.Permit.idPermit}.pdf"`);
+      return res.send(Buffer.from(externalResponse.data));
     }
     
     if (isLegacy && typeof optionalDocs === 'string' && !optionalDocs.startsWith('data:')) {
@@ -4633,9 +4669,18 @@ async optionalDocs(req, res) {
         });
       }
 
-      // Redirigir directamente a la URL de Cloudinary
-      console.log(`🔗 Redirigiendo a URL de Cloudinary: ${budget.legacySignedPdfUrl}`);
-      res.redirect(budget.legacySignedPdfUrl);
+      // Servir por proxy para evitar errores externos/CORS
+      console.log(`🔗 Proxy Legacy Budget PDF desde URL externa: ${budget.legacySignedPdfUrl}`);
+      const axios = require('axios');
+      const encodedUrl = encodeURI(String(budget.legacySignedPdfUrl).trim());
+      const externalResponse = await axios.get(encodedUrl, {
+        responseType: 'arraybuffer',
+        timeout: 15000,
+      });
+
+      res.setHeader('Content-Type', externalResponse.headers['content-type'] || 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="legacy_budget_${idBudget}.pdf"`);
+      return res.send(Buffer.from(externalResponse.data));
 
     } catch (error) {
       console.error('❌ Error al obtener PDF legacy:', error);

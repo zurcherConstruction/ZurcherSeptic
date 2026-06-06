@@ -1,5 +1,7 @@
 // filepath: src/Components/Common/PdfModal.jsx
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { Worker, Viewer } from '@react-pdf-viewer/core';
+import '@react-pdf-viewer/core/lib/styles/index.css';
 
 
 const PdfModal = ({ isOpen, onClose, pdfUrl, title, contentType = 'pdf' }) => {
@@ -8,6 +10,7 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title, contentType = 'pdf' }) => {
   // Detect if it's a mobile device
   const isMobile = window.innerWidth < 997;
   const isImage = contentType === 'image';
+  const workerUrl = 'https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
@@ -15,7 +18,7 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title, contentType = 'pdf' }) => {
         <div className="flex justify-between items-center p-3 sm:p-4 border-b">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-700 truncate pr-2">{title || (isImage ? "Image Viewer" : "Vista Previa del PDF")}</h3>
           <div className="flex items-center gap-2 flex-shrink-0">
-            {isMobile && (
+            {!isImage && (
               <a
                 href={pdfUrl}
                 target="_blank"
@@ -48,15 +51,28 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title, contentType = 'pdf' }) => {
               }}
             />
           ) : (
-            <iframe
-              src={pdfUrl}
-              title={title || "PDF Viewer"}
-              className="w-full h-full border-none bg-white rounded"
-              style={{ 
-                minHeight: '100%',
-                WebkitOverflowScrolling: 'touch' // Improve scrolling on iOS
-              }}
-            />
+            <div className="w-full h-full bg-white rounded overflow-hidden">
+              <Worker workerUrl={workerUrl}>
+                <Viewer
+                  fileUrl={pdfUrl}
+                  renderError={() => (
+                    <div className="h-full flex items-center justify-center p-6 text-center">
+                      <div>
+                        <p className="text-gray-700 font-medium mb-3">No se pudo mostrar este PDF dentro del modal.</p>
+                        <a
+                          href={pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
+                        >
+                          Abrir PDF en nueva pestaña
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                />
+              </Worker>
+            </div>
           )}
         </div>
         {isMobile && (

@@ -20,7 +20,7 @@ const ClientPortalDashboard = () => {
   const [error, setError] = useState(null);
   const [clientInfo, setClientInfo] = useState(null);
   const [works, setWorks] = useState([]);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('projects');
   const [selectedWork, setSelectedWork] = useState(null); // New state for selected work detail view
   const [workDocuments, setWorkDocuments] = useState(null);
   const [workPhotos, setWorkPhotos] = useState(null);
@@ -522,6 +522,21 @@ const ClientPortalDashboard = () => {
     return (statusInfo.step / 7) * 100;
   };
 
+  const getWorkSystemFlags = (work) => {
+    const rawSystemType = work?.Permit?.systemType || work?.systemType || '';
+    const normalizedSystemType = String(rawSystemType).toLowerCase();
+    const isPBTS = Boolean(work?.Permit?.isPBTS || work?.isPBTS || normalizedSystemType.includes('pbts'));
+    const isATU = normalizedSystemType.includes('atu');
+    const isRegular = !isATU && !isPBTS;
+
+    return {
+      isATU,
+      isPBTS,
+      isRegular,
+      showFinalDocuments: isATU || isPBTS,
+    };
+  };
+
   // Get current step for visual tracker
   // ✅ ALIGNED WITH PROGRESSTRACKER
   const getCurrentStep = (status) => {
@@ -779,7 +794,6 @@ const ClientPortalDashboard = () => {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <nav className="flex space-x-4 lg:space-x-8 overflow-x-auto">
               {[
-                { id: 'overview', label: 'Overview', icon: FaHome },
                 { id: 'projects', label: 'My Projects', icon: FaTools },
                 // { id: 'documents', label: 'Documents', icon: FaFileContract },
                 // { id: 'gallery', label: 'Gallery', icon: FaImages }
@@ -1046,6 +1060,10 @@ const ClientPortalDashboard = () => {
 
           {activeTab === 'project-detail' && selectedWork && (
             <div className="space-y-4 lg:space-y-6">
+              {(() => {
+                const systemFlags = getWorkSystemFlags(selectedWork);
+                return (
+                  <>
               {/* Header with back button */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 lg:gap-4 mb-4 lg:mb-6">
                 <button 
@@ -1171,6 +1189,8 @@ const ClientPortalDashboard = () => {
                     </button>
                   </div>
 
+                  {systemFlags.showFinalDocuments ? (
+                    <>
                   {/* Operation Permit */}
                   <div className="border border-slate-200 rounded-xl p-4 lg:p-5 bg-gradient-to-br from-white to-orange-50 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-3 mb-2">
@@ -1312,6 +1332,15 @@ const ClientPortalDashboard = () => {
                       )}
                     </button>
                   </div>
+                    </>
+                  ) : (
+                    <div className="md:col-span-2 border border-blue-200 rounded-xl p-4 lg:p-5 bg-gradient-to-br from-blue-50 to-slate-50">
+                      <h4 className="font-semibold text-slate-800 text-base mb-2">Final Documents</h4>
+                      <p className="text-sm text-slate-600">
+                        This project is classified as a Regular system. Final document uploads are not required for this system type.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1488,6 +1517,9 @@ const ClientPortalDashboard = () => {
                   </div>
                 </div>
               )}
+                  </>
+                );
+              })()}
             </div>
           )}
 
