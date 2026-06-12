@@ -58,6 +58,7 @@ const knowledgeBaseRoutes = require('./knowledgeBaseRoutes'); // 🆕 Rutas para
 const newsletterRoutes = require('./newsletterRoutes'); // 🆕 Rutas para sistema de newsletter
 const signatureDocumentRoutes = require('./signatureDocumentRoutes'); // 🆕 Rutas para documentos de firma genéricos
 const fleetRoutes = require('./fleetRoutes'); // 🆕 Rutas para flota y maquinaria
+const FinalInvoiceController = require('../controllers/FinalInvoiceController');
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -80,6 +81,7 @@ router.use('/client-portal', clientPortalRoutes); // 🆕 Portal del cliente (p�
 router.use('/ppi', ppiPublicRoutes); // 🆕 Rutas públicas de firma de PPI
 router.use('/simple-works', simpleWorkPublicRoutes); // 🆕 Aprobación pública de SimpleWork
 router.use('/newsletter', newsletterRoutes); // 🆕 Sistema de newsletter (incluye rutas públicas: subscribe, public-unsubscribe)
+router.get('/final-invoice/review/:token', FinalInvoiceController.trackAndRedirectGoogleReview); // 🆕 Tracking click Google Review
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');
