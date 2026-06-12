@@ -80,6 +80,9 @@ const FinalInvoiceComponent = ({ workId }) => {
   
   // 🆕 Estado para el modal de Google Review
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [confirmingReview, setConfirmingReview] = useState(false);
+  const [reviewConfirmMessage, setReviewConfirmMessage] = useState('');
+  const [reviewConfirmError, setReviewConfirmError] = useState('');
   
   useEffect(() => {
     if (workId) {
@@ -328,6 +331,50 @@ const handleGeneratePdf = () => {
     } catch (error) {
       console.error("Error sending email:", error);
       setShowReviewModal(false);
+    }
+  };
+
+  const reviewStatus = useMemo(() => {
+    const notes = selectedWork?.workNotes || [];
+    const hasManualConfirmation = notes.some((note) =>
+      typeof note?.message === 'string' && note.message.includes('[MANUAL] Google Review confirmed')
+    );
+    const hasClickSignal = notes.some((note) =>
+      typeof note?.message === 'string' && note.message.includes('[AUTO] Google Review link clicked')
+    );
+
+    return {
+      hasManualConfirmation,
+      hasClickSignal,
+      isDone: hasManualConfirmation || hasClickSignal,
+    };
+  }, [selectedWork?.workNotes]);
+
+  const handleConfirmGoogleReview = async () => {
+    if (!workId) {
+      setReviewConfirmError('No se pudo determinar la obra para confirmar review.');
+      return;
+    }
+
+    const accepted = window.confirm('Confirmar que el cliente ya dejó su Google Review?');
+    if (!accepted) return;
+
+    setConfirmingReview(true);
+    setReviewConfirmMessage('');
+    setReviewConfirmError('');
+
+    try {
+      const response = await api.post(`/final-invoice/work/${workId}/google-review/confirm`);
+      setReviewConfirmMessage(response?.data?.message || 'Google Review confirmado correctamente.');
+
+      if (selectedWork?.idWork) {
+        await dispatch(fetchWorkById(selectedWork.idWork));
+      }
+    } catch (err) {
+      const message = err?.response?.data?.message || 'Error al confirmar Google Review.';
+      setReviewConfirmError(message);
+    } finally {
+      setConfirmingReview(false);
     }
   };
 
@@ -626,6 +673,32 @@ const handleGeneratePdf = () => {
                   {errorEmail && <p className="text-red-500 text-xs mt-1">{errorEmail}</p>}
                </div>
             )}
+
+            {/* Confirmación manual de Google Review */}
+            <div className="pt-3 border-t">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Seguimiento de Google Review
+              </label>
+
+              {reviewStatus.isDone ? (
+                <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+                  {reviewStatus.hasManualConfirmation
+                    ? 'Review confirmado manualmente.'
+                    : 'Cliente ya abrió el link de review.'}
+                </p>
+              ) : (
+                <button
+                  onClick={handleConfirmGoogleReview}
+                  className="button-standard bg-amber-500 hover:bg-amber-600 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
+                  disabled={confirmingReview}
+                >
+                  {confirmingReview ? 'Confirmando...' : 'Marcar Review Confirmado'}
+                </button>
+              )}
+
+              {reviewConfirmMessage && <p className="text-green-600 text-xs mt-1">{reviewConfirmMessage}</p>}
+              {reviewConfirmError && <p className="text-red-500 text-xs mt-1">{reviewConfirmError}</p>}
+            </div>
          </div>
       </div>
 

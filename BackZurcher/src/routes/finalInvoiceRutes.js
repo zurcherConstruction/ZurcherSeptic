@@ -3,6 +3,7 @@ const FinalInvoiceController = require('../controllers/FinalInvoiceController');
 const upload = require('../middleware/multer'); // Si necesitas subir archivos para PDF o pagos
 const { verifyToken } = require('../middleware/isAuth');
 const { allowRoles } = require('../middleware/byRol');
+const { checkGoogleReviewReminders } = require('../services/checkGoogleReviewReminders');
 
 const router = Router();
 
@@ -38,6 +39,24 @@ router.get('/:finalInvoiceId/pdf/download', verifyToken, allowRoles(['admin', 'r
 
 // --- Ruta Email ---
 router.post('/:finalInvoiceId/email', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), FinalInvoiceController.emailFinalInvoicePDF); // NUEVO
+
+// --- Confirmación manual de Google Review (follow-up/owner/admin) ---
+router.post('/work/:workId/google-review/confirm', verifyToken, allowRoles(['admin', 'owner', 'finance', 'follow-up']), FinalInvoiceController.confirmGoogleReview);
+
+// --- Trigger manual para recordatorios de Google Review ---
+router.post('/google-review/reminders/run', verifyToken, allowRoles(['admin', 'owner', 'finance', 'follow-up']), async (req, res) => {
+	try {
+		const olderThanDays = req.body?.olderThanDays;
+		const lookbackDays = req.body?.lookbackDays;
+		const dryRun = req.body?.dryRun === true;
+
+		const result = await checkGoogleReviewReminders({ olderThanDays, lookbackDays, dryRun });
+		res.status(200).json({ success: true, result });
+	} catch (error) {
+		console.error('[FinalInvoiceRoutes] Error running Google Review reminders:', error);
+		res.status(500).json({ success: false, message: 'Error ejecutando recordatorios de Google Review', error: error.message });
+	}
+});
 
 
 module.exports = router;

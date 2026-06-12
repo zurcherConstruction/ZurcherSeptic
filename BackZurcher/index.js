@@ -9,6 +9,7 @@ const { startBudgetRemindersCron } = require("./src/services/checkBudgetReminder
 const { startLeadRemindersCron } = require("./src/services/checkLeadReminders.js");
 const { startNewsletterSchedulerCron } = require("./src/services/newsletterSchedulerCron.js");
 const { startFleetExpiryRemindersCron } = require("./src/services/checkFleetExpiryReminders.js");
+const { startGoogleReviewRemindersCron } = require("./src/services/checkGoogleReviewReminders.js");
 
 require("dotenv").config();
 
@@ -101,6 +102,7 @@ function startServer() {
     startLeadRemindersCron(); // Iniciar el cron para recordatorios de leads
     startNewsletterSchedulerCron(); // Iniciar el cron para newsletters programados y recurrentes
     startFleetExpiryRemindersCron(); // Iniciar el cron para alertas de vencimiento de flota
+    startGoogleReviewRemindersCron(); // Iniciar el cron para recordatorios de Google Review
   });
 }
 

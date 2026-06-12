@@ -5,6 +5,11 @@ const fs = require('fs'); // <-- AÑADIR ESTA LÍNEA
 const path = require('path'); //
 const { sendEmail } = require('../utils/notifications/emailService'); // Asegúrate de tener esta función para enviar correos electrónicos
 const { getNextInvoiceNumber } = require('../utils/invoiceNumberManager'); // 🆕 HELPER DE NUMERACIÓN UNIFICADA
+const {
+  DEFAULT_GOOGLE_REVIEW_LINK,
+  buildTrackedGoogleReviewLink,
+  verifyGoogleReviewTrackingToken,
+} = require('../utils/googleReviewTracking');
 
 const FinalInvoiceController = {
 
@@ -763,13 +768,18 @@ async emailFinalInvoicePDF(req, res) {
        }
 
        // 🆕 GOOGLE REVIEW: Construir sección de review si está habilitada
-       const googleReviewLink = 'https://g.page/r/CVtNkk-2-u5GEAI/review';
+       const googleReviewLink = DEFAULT_GOOGLE_REVIEW_LINK;
+       const trackedGoogleReviewLink = buildTrackedGoogleReviewLink({
+         workId: finalInvoice.workId,
+         email: emailsToSend[0] || null,
+         req,
+       });
        let reviewSection = '';
        let reviewSectionHtml = '';
        
        if (includeGoogleReview) {
          // Versión texto plano (fallback)
-         reviewSection = `\n\n${'─'.repeat(50)}\n\n⭐ WE VALUE YOUR FEEDBACK ⭐\n\nIf we made your project simple and stress-free, we'd love to hear from you.\n\nYour review helps other homeowners choose a reliable septic company—and helps us keep improving every day.\n\n👉 Share your experience in 30 seconds\n\nLeave Your Review: ${googleReviewLink}\n\nThank you for trusting Zurcher Septic!`;
+         reviewSection = `\n\n${'─'.repeat(50)}\n\n⭐ WE VALUE YOUR FEEDBACK ⭐\n\nIf we made your project simple and stress-free, we'd love to hear from you.\n\nYour review helps other homeowners choose a reliable septic company—and helps us keep improving every day.\n\n👉 Share your experience in 30 seconds\n\nLeave Your Review: ${trackedGoogleReviewLink}\n\nThank you for trusting Zurcher Septic!`;
          
          // Versión HTML profesional con colores de la empresa (compatible con modo oscuro)
          reviewSectionHtml = `
@@ -806,7 +816,7 @@ async emailFinalInvoicePDF(req, res) {
                    </p>
                    
                    <!-- Botón con colores de la empresa -->
-                   <a href="${googleReviewLink}" target="_blank"
+                   <a href="${trackedGoogleReviewLink}" target="_blank"
                       style="display:inline-block;background:#f6d02c !important;background-color:#f6d02c !important;color:#000000 !important;-webkit-text-fill-color:#000000 !important;text-decoration:none;padding:16px 44px;border-radius:30px;font-size:17px;font-weight:700;letter-spacing:0.5px;box-shadow:0 8px 24px rgba(0,0,0,0.25), 0 4px 12px rgba(246,208,44,0.40);">
                      <span style="color:#000000 !important;-webkit-text-fill-color:#000000 !important;text-shadow:0 0 12px rgba(26,58,92,1), 0 3px 6px rgba(26,58,92,1), 0 0 20px rgba(26,58,92,0.8);">⭐</span> Leave Your Review
                    </a>
@@ -1012,6 +1022,77 @@ async emailFinalInvoicePDF(req, res) {
        res.status(500).json({ error: true, message: 'Error interno al enviar el correo electrónico.' });
    }
  },
+
+  async trackAndRedirectGoogleReview(req, res) {
+    try {
+      const { token } = req.params;
+      const parsed = verifyGoogleReviewTrackingToken(token);
+
+      if (!parsed.valid) {
+        console.warn(`[GoogleReviewTracking] Invalid token: ${parsed.reason}`);
+        return res.redirect(302, DEFAULT_GOOGLE_REVIEW_LINK);
+      }
+
+      const workId = parsed.payload.w;
+      const email = parsed.payload.e;
+
+      const existingClickNote = await WorkNote.findOne({
+        where: {
+          workId,
+          noteType: 'client_contact',
+          relatedStatus: 'invoiceFinal',
+          message: { [Op.iLike]: '[AUTO] Google Review link clicked%' },
+        },
+      });
+
+      if (!existingClickNote) {
+        await WorkNote.create({
+          workId,
+          staffId: null,
+          noteType: 'client_contact',
+          priority: 'medium',
+          relatedStatus: 'invoiceFinal',
+          isResolved: false,
+          mentionedStaffIds: [],
+          message: `[AUTO] Google Review link clicked${email ? ` by ${email}` : ''} (${new Date().toISOString()})`,
+        });
+      }
+
+      return res.redirect(302, DEFAULT_GOOGLE_REVIEW_LINK);
+    } catch (error) {
+      console.error('[FinalInvoiceController.trackAndRedirectGoogleReview]', error);
+      return res.redirect(302, DEFAULT_GOOGLE_REVIEW_LINK);
+    }
+  },
+
+  async confirmGoogleReview(req, res) {
+    try {
+      const { workId } = req.params;
+      const staffId = req.staff?.id || null;
+      const staffName = req.staff?.name || 'Staff';
+
+      const work = await Work.findByPk(workId);
+      if (!work) {
+        return res.status(404).json({ success: false, message: 'Work no encontrado' });
+      }
+
+      await WorkNote.create({
+        workId,
+        staffId,
+        noteType: 'client_contact',
+        priority: 'low',
+        relatedStatus: 'invoiceFinal',
+        isResolved: true,
+        mentionedStaffIds: [],
+        message: `[MANUAL] Google Review confirmed by ${staffName} (${new Date().toISOString()})`,
+      });
+
+      return res.status(200).json({ success: true, message: 'Google Review marcado como confirmado' });
+    } catch (error) {
+      console.error('[FinalInvoiceController.confirmGoogleReview]', error);
+      return res.status(500).json({ success: false, message: 'Error confirmando Google Review', error: error.message });
+    }
+  },
 };
 
 
