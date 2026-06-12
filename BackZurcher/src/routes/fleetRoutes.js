@@ -19,6 +19,7 @@ router.use(verifyToken);
 
 // ─── Stats ───────────────────────────────────────────────
 router.get('/stats', FleetController.getFleetStats);
+router.get('/expense-report', FleetController.getFleetExpenseReport);
 
 // ─── Export ──────────────────────────────────────────────
 router.get('/export', FleetController.exportFleetReport);

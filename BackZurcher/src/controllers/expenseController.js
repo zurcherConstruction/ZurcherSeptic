@@ -1,13 +1,47 @@
-const { Expense, Staff, Receipt, Work, SupplierInvoiceExpense, WorkNote, sequelize } = require('../data');
+const { Expense, Staff, Receipt, Work, SupplierInvoiceExpense, WorkNote, FleetAsset, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
-const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
+const { createWithdrawalTransaction, isBankAccount, getAccountName } = require('../utils/bankTransactionHelper');
 const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService');
 const { sendEmail } = require('../utils/notifications/emailService');
 
 const ORLANDO_TIMEZONE = 'America/New_York';
 const formatOrlandoDateTime = () => new Date().toLocaleString('es-US', { timeZone: ORLANDO_TIMEZONE });
+
+const buildFleetAssetNote = (fleetAsset) => {
+  if (!fleetAsset) return '';
+
+  const parts = [fleetAsset.name];
+
+  if (fleetAsset.licensePlate) {
+    parts.push(`Placa: ${fleetAsset.licensePlate}`);
+  } else if (fleetAsset.serialNumber) {
+    parts.push(`Serie: ${fleetAsset.serialNumber}`);
+  }
+
+  const assetTypeLabel =
+    fleetAsset.assetType === 'vehicle' ? 'Vehículo' :
+    fleetAsset.assetType === 'machine' ? 'Maquinaria' :
+    fleetAsset.assetType === 'equipment' ? 'Equipo' :
+    fleetAsset.assetType === 'trailer' ? 'Remolque' :
+    fleetAsset.assetType;
+
+  parts.push(`Tipo: ${assetTypeLabel}`);
+
+  return `Activo de flota: ${parts.join(' · ')}`;
+};
+
+const composeFleetNotes = (notes, fleetAsset) => {
+  const autoNote = buildFleetAssetNote(fleetAsset);
+  if (!autoNote) return notes || null;
+
+  const trimmedNotes = (notes || '').trim();
+  if (!trimmedNotes) return autoNote;
+
+  const notesWithoutAutoPrefix = trimmedNotes.replace(/^Activo de flota: .*?(\r?\n)?/, '').trimStart();
+  return notesWithoutAutoPrefix ? `${autoNote}\n${notesWithoutAutoPrefix}` : autoNote;
+};
 
 const sendClientPortalLinkOnInProgress = async (workId, propertyAddress = 'tu proyecto') => {
   try {
@@ -122,12 +156,25 @@ const normalizeDateToLocal = (dateInput) => {
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
-  let { date, amount, typeExpense, notes, workId, simpleWorkId, staffId, paymentMethod, paymentDetails, verified, fixedExpenseId } = req.body;
+  let { date, amount, typeExpense, notes, workId, simpleWorkId, staffId, paymentMethod, paymentDetails, verified, fixedExpenseId, fleetAssetId } = req.body;
   let shouldSendPortalLinkEmail = false;
   let workPropertyAddressForPortal = null;
+
+  const normalizeUuid = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return null;
+    }
+
+    return value;
+  };
   
   // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
   date = normalizeDateToLocal(date);
+  workId = normalizeUuid(workId);
+  simpleWorkId = normalizeUuid(simpleWorkId);
+  fixedExpenseId = normalizeUuid(fixedExpenseId);
+  fleetAssetId = normalizeUuid(fleetAssetId);
+  staffId = normalizeUuid(staffId);
   
   // Iniciar transacción de base de datos
   const transaction = await sequelize.transaction();
@@ -140,6 +187,28 @@ const createExpense = async (req, res) => {
         error: 'El método de pago es obligatorio',
         message: 'Debe seleccionar un método de pago para registrar el gasto'
       });
+    }
+
+    // 🚗 VALIDACIÓN: Gasto Flota requiere un activo válido
+    if (typeExpense === 'Gasto Flota') {
+      if (!fleetAssetId) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: 'El activo de flota es obligatorio',
+          message: 'Debe seleccionar el vehículo o maquinaria para registrar un Gasto Flota'
+        });
+      }
+
+      const fleetAsset = await FleetAsset.findByPk(fleetAssetId, { transaction });
+      if (!fleetAsset) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: 'Activo de flota no encontrado',
+          message: 'El vehículo o maquinaria seleccionado no existe o ya no está disponible'
+        });
+      }
+
+      notes = composeFleetNotes(notes, fleetAsset);
     }
 
     // 1. Crear el Expense normalmente (con estado unpaid por defecto)
@@ -155,7 +224,8 @@ const createExpense = async (req, res) => {
       paymentDetails,
       verified: verified || false,
       paymentStatus: 'unpaid',  // 🆕 Todos los gastos inician como no pagados
-      relatedFixedExpenseId: fixedExpenseId || null  // 💳 Vincular con FixedExpense para cascade al liquidar tarjeta
+      relatedFixedExpenseId: fixedExpenseId || null,  // 💳 Vincular con FixedExpense para cascade al liquidar tarjeta
+      fleetAssetId: fleetAssetId || null  // 🚗 Vincular con FleetAsset si es Gasto Flota
     }, { transaction });
 
     console.log('✅ [EXPENSE] Gasto creado:', {
@@ -285,6 +355,19 @@ const createExpense = async (req, res) => {
       Receipt: createdReceipt ? createdReceipt.toJSON() : null
     });
   } catch (error) {
+    console.error('❌ [ExpenseController] Error creando gasto:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+      body: req.body,
+    });
+
+    try {
+      await transaction.rollback();
+    } catch (rollbackError) {
+      console.error('❌ [ExpenseController] Error haciendo rollback:', rollbackError.message);
+    }
+
     res.status(500).json({ message: 'Error al crear el gasto', error: error.message });
   }
 };
@@ -292,7 +375,7 @@ const createExpense = async (req, res) => {
 // Obtener todos los gastos CON relaciones
 const getAllExpenses = async (req, res) => {
   try {
-    const { paymentStatus } = req.query;
+    const { paymentStatus, fleetAssetId, typeExpense, month, year } = req.query;
     
     // Construir filtro base
     const where = {};
@@ -317,6 +400,28 @@ const getAllExpenses = async (req, res) => {
       }
     }
 
+    if (fleetAssetId) {
+      where.fleetAssetId = fleetAssetId;
+    }
+
+    if (typeExpense) {
+      where.typeExpense = typeExpense;
+    }
+
+    if (year && month) {
+      const y = Number(year);
+      const m = Number(month);
+      const lastDay = new Date(y, m, 0).getDate();
+      where.date = {
+        [Op.between]: [
+          `${y}-${String(m).padStart(2, '0')}-01`,
+          `${y}-${String(m).padStart(2, '0')}-${lastDay}`,
+        ],
+      };
+    } else if (year) {
+      where.date = { [Op.between]: [`${year}-01-01`, `${year}-12-31`] };
+    }
+
     // Obtener gastos con Staff
     const expenses = await Expense.findAll({
       where,
@@ -326,7 +431,13 @@ const getAllExpenses = async (req, res) => {
           as: 'Staff',
           attributes: ['id', 'name', 'email'],
           required: false
-        }
+        },
+        ...(fleetAssetId ? [{
+          model: FleetAsset,
+          as: 'fleetAsset',
+          attributes: ['id', 'name', 'licensePlate', 'serialNumber', 'assetType'],
+          required: false,
+        }] : []),
       ],
       order: [['date', 'DESC']]
     });
@@ -399,19 +510,255 @@ const getExpenseById = async (req, res) => {
 // Actualizar un gasto
 const updateExpense = async (req, res) => {
   const { id } = req.params;
-  let { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body; // Agregar paymentDetails
+  let { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified, fleetAssetId } = req.body; // Agregar paymentDetails
   
   // ✅ Normalizar fecha si se proporciona
   if (date) {
     date = normalizeDateToLocal(date);
   }
   
+  const dbTransaction = await sequelize.transaction();
+
   try {
-    const expense = await Expense.findByPk(id);
-    if (!expense) return res.status(404).json({ message: 'Gasto no encontrado' });
+    const expense = await Expense.findByPk(id, { transaction: dbTransaction });
+    if (!expense) {
+      await dbTransaction.rollback();
+      return res.status(404).json({ message: 'Gasto no encontrado' });
+    }
+
+    const prev = {
+      amount: parseFloat(expense.amount || 0),
+      date: expense.date,
+      typeExpense: expense.typeExpense,
+      notes: expense.notes,
+      workId: expense.workId,
+      staffId: expense.staffId,
+      paymentMethod: expense.paymentMethod,
+      relatedFixedExpenseId: expense.relatedFixedExpenseId,
+      fleetAssetId: expense.fleetAssetId,
+    };
+
+    const normalizeUuid = (value) => {
+      if (value === '' || value === null || value === undefined) {
+        return null;
+      }
+
+      return value;
+    };
+
+    const hasFleetAssetIdInPayload = Object.prototype.hasOwnProperty.call(req.body, 'fleetAssetId');
+    const hasWorkIdInPayload = Object.prototype.hasOwnProperty.call(req.body, 'workId');
+    const nextTypeExpense = typeExpense ?? prev.typeExpense;
+    const nextWorkId = hasWorkIdInPayload ? normalizeUuid(workId) : prev.workId;
+
+    let nextFleetAssetId = prev.fleetAssetId;
+    if (nextTypeExpense !== 'Gasto Flota') {
+      nextFleetAssetId = null;
+    } else if (hasFleetAssetIdInPayload) {
+      nextFleetAssetId = normalizeUuid(fleetAssetId);
+    }
+
+    if (nextTypeExpense === 'Gasto Flota' && nextFleetAssetId) {
+      const fleetAsset = await FleetAsset.findByPk(nextFleetAssetId, { transaction: dbTransaction });
+      if (!fleetAsset) {
+        await dbTransaction.rollback();
+        return res.status(400).json({
+          error: 'Activo de flota no encontrado',
+          message: 'El vehículo o maquinaria seleccionado no existe o ya no está disponible'
+        });
+      }
+    }
+
+    const next = {
+      date: date ?? prev.date,
+      amount: amount ?? prev.amount,
+      typeExpense: nextTypeExpense,
+      notes: notes ?? prev.notes,
+      workId: nextWorkId,
+      staffId: staffId ?? prev.staffId,
+      paymentMethod: paymentMethod ?? prev.paymentMethod,
+      paymentDetails: paymentDetails ?? expense.paymentDetails,
+      verified: verified ?? expense.verified,
+      fleetAssetId: nextFleetAssetId,
+    };
 
     // Actualizar el gasto
-    await expense.update({ date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified }); // Incluir paymentDetails
+    await expense.update(next, { transaction: dbTransaction });
+
+    // ─────────────────────────────────────────────────────────────
+    // Sincronizar BankTransaction + balances al editar
+    // ─────────────────────────────────────────────────────────────
+    const { BankAccount, BankTransaction } = require('../data');
+    const existingBankTransaction = await BankTransaction.findOne({
+      where: {
+        relatedExpenseId: expense.idExpense,
+        transactionType: 'withdrawal'
+      },
+      transaction: dbTransaction
+    });
+
+    const oldIsBank = isBankAccount(prev.paymentMethod);
+    const newIsBank = isBankAccount(next.paymentMethod);
+    const nextAmount = parseFloat(next.amount || 0);
+
+    // Revertir el efecto anterior si estaba en cuenta bancaria
+    if (oldIsBank && existingBankTransaction) {
+      const oldAccount = await BankAccount.findByPk(existingBankTransaction.bankAccountId, { transaction: dbTransaction });
+      if (oldAccount) {
+        const revertedBalance = parseFloat(oldAccount.currentBalance || 0) + parseFloat(existingBankTransaction.amount || 0);
+        await oldAccount.update({ currentBalance: revertedBalance }, { transaction: dbTransaction });
+      }
+    }
+
+    if (newIsBank) {
+      const accountName = getAccountName(next.paymentMethod);
+      const newAccount = await BankAccount.findOne({
+        where: { accountName, isActive: true },
+        transaction: dbTransaction
+      });
+
+      if (!newAccount) {
+        throw new Error(`Cuenta bancaria no encontrada para método de pago: ${next.paymentMethod}`);
+      }
+
+      const newBalance = parseFloat(newAccount.currentBalance || 0) - nextAmount;
+      await newAccount.update({ currentBalance: newBalance }, { transaction: dbTransaction });
+
+      const txPayload = {
+        bankAccountId: newAccount.idBankAccount,
+        amount: nextAmount,
+        date: next.date,
+        description: `Gasto editado: ${next.typeExpense}${next.workId ? ` (Work #${String(next.workId).slice(0, 8)})` : ''}`,
+        category: 'expense',
+        balanceAfter: newBalance,
+        notes: next.notes || null,
+        createdByStaffId: next.staffId || null,
+      };
+
+      if (existingBankTransaction) {
+        await existingBankTransaction.update(txPayload, { transaction: dbTransaction });
+      } else {
+        await BankTransaction.create({
+          ...txPayload,
+          transactionType: 'withdrawal',
+          relatedExpenseId: expense.idExpense,
+        }, { transaction: dbTransaction });
+      }
+
+      // Si sale por banco, asegurar estado paid
+      if (expense.paymentStatus !== 'paid') {
+        await expense.update({ paymentStatus: 'paid' }, { transaction: dbTransaction });
+      }
+    } else if (existingBankTransaction) {
+      await existingBankTransaction.destroy({ transaction: dbTransaction });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Recalcular gasto fijo vinculado cuando cambia monto
+    // ─────────────────────────────────────────────────────────────
+    if (prev.relatedFixedExpenseId) {
+      const { FixedExpense, FixedExpensePayment } = require('../data');
+      const fixedExpense = await FixedExpense.findByPk(prev.relatedFixedExpenseId, { transaction: dbTransaction });
+
+      if (fixedExpense) {
+        const oldAmount = parseFloat(prev.amount || 0);
+        const newAmount = parseFloat(next.amount || 0);
+        const delta = newAmount - oldAmount;
+
+        if (Math.abs(delta) > 0.0001) {
+          const currentPaid = parseFloat(fixedExpense.paidAmount || 0);
+          const totalAmount = parseFloat(fixedExpense.totalAmount || 0);
+          const newPaidAmount = Math.max(0, currentPaid + delta);
+
+          const newStatus = newPaidAmount >= totalAmount
+            ? 'paid'
+            : newPaidAmount > 0
+              ? 'partial'
+              : 'unpaid';
+
+          await fixedExpense.update({
+            paidAmount: newPaidAmount,
+            paymentStatus: newStatus,
+            paidDate: newPaidAmount <= 0 ? null : fixedExpense.paidDate
+          }, { transaction: dbTransaction });
+        }
+
+        const paymentRecord = await FixedExpensePayment.findOne({
+          where: {
+            fixedExpenseId: prev.relatedFixedExpenseId,
+            expenseId: expense.idExpense,
+          },
+          transaction: dbTransaction
+        });
+
+        if (paymentRecord) {
+          await paymentRecord.update({
+            amount: parseFloat(next.amount || 0),
+            paymentDate: next.date || paymentRecord.paymentDate,
+            paymentMethod: next.paymentMethod || paymentRecord.paymentMethod,
+            notes: next.notes || paymentRecord.notes,
+          }, { transaction: dbTransaction });
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Recalcular estado de Works afectados cuando cambia workId o typeExpense
+    // Solo aplica a tipos que disparan transiciones de estado automáticas
+    // ─────────────────────────────────────────────────────────────
+    const STATUS_TRIGGERING_TYPES = ['Materiales Iniciales'];
+    const wasStatusTriggering = STATUS_TRIGGERING_TYPES.includes(prev.typeExpense);
+    const isStatusTriggering  = STATUS_TRIGGERING_TYPES.includes(next.typeExpense);
+    const workIdChanged        = String(prev.workId || '') !== String(next.workId || '');
+    const typeChanged          = prev.typeExpense !== next.typeExpense;
+
+    if (wasStatusTriggering || isStatusTriggering) {
+      // Works que debemos revisar:
+      // - El work anterior si el workId cambió o si dejó de ser tipo disparador
+      // - El work nuevo si pasó a ser tipo disparador
+      const worksToRecheck = new Set();
+
+      if (wasStatusTriggering && (workIdChanged || (typeChanged && !isStatusTriggering))) {
+        if (prev.workId) worksToRecheck.add(String(prev.workId));
+      }
+      if (isStatusTriggering && (workIdChanged || (typeChanged && !wasStatusTriggering))) {
+        if (next.workId) worksToRecheck.add(String(next.workId));
+      }
+
+      for (const targetWorkId of worksToRecheck) {
+        const targetWork = await Work.findByPk(targetWorkId, { transaction: dbTransaction });
+        if (!targetWork) continue;
+
+        // Contar cuántos "Materiales Iniciales" siguen vinculados a este work
+        const remainingMI = await Expense.count({
+          where: {
+            workId: targetWorkId,
+            typeExpense: 'Materiales Iniciales',
+            idExpense: { [require('sequelize').Op.ne]: expense.idExpense } // excluir el propio gasto editado
+          },
+          transaction: dbTransaction
+        });
+
+        // También contar el propio gasto actualizado si queda en este work con tipo MI
+        const thisExpenseCountsForWork =
+          String(next.workId || '') === targetWorkId &&
+          next.typeExpense === 'Materiales Iniciales';
+
+        const totalMIForWork = remainingMI + (thisExpenseCountsForWork ? 1 : 0);
+
+        if (totalMIForWork === 0 && targetWork.status === 'inProgress') {
+          // Ya no hay Materiales Iniciales → volver a assigned
+          await targetWork.update({ status: 'assigned' }, { transaction: dbTransaction });
+          console.log(`↩️  Work ${targetWorkId.slice(0, 8)} revertido a 'assigned' (sin Materiales Iniciales restantes)`);
+        } else if (totalMIForWork > 0 && targetWork.status === 'assigned') {
+          // Ahora tiene Materiales Iniciales → avanzar a inProgress
+          await targetWork.update({ status: 'inProgress' }, { transaction: dbTransaction });
+          console.log(`✅ Work ${targetWorkId.slice(0, 8)} avanzado a 'inProgress' (Materiales Iniciales vinculados)`);
+        }
+      }
+    }
+
+    await dbTransaction.commit();
     
     // Enviar notificación de actualización
     try {
@@ -438,6 +785,9 @@ const updateExpense = async (req, res) => {
     
     res.status(200).json(expense);
   } catch (error) {
+    if (dbTransaction && !dbTransaction.finished) {
+      await dbTransaction.rollback();
+    }
     res.status(500).json({ message: 'Error al actualizar el gasto', error: error.message });
   }
 };
@@ -657,7 +1007,8 @@ const getExpenseTypes = async (req, res) => {
       'Inspección Inicial',
       'Inspección Final',
       'Comisión Vendedor',
-      'Gasto Fijo'
+      'Gasto Fijo',
+      'Gasto Flota'
     ];
     
     res.status(200).json({ types });

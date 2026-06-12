@@ -35,13 +35,42 @@ const generalExpenseTypes = [
   // "Workers", // ❌ Removido del sistema
   "Gastos Generales",
   // "Comisión Vendedor", // ❌ Removido - Las comisiones se pagan desde CommissionsManager.jsx
-  "Gasto Fijo" // 🆕 Los gastos fijos son siempre generales
+  "Gasto Fijo", // 🆕 Los gastos fijos son siempre generales
+  "Gasto Flota" // 🚗 gasto general asociado a vehículo/maquinaria
   // "Comprobante Gasto" // ❌ Removido del sistema
 ];
 
 const generalIncomeTypes = [
   "Comprobante Ingreso" // Puede ser general o específico
 ];
+
+const getFleetAssetNote = (asset) => {
+  if (!asset) return '';
+
+  const parts = [asset.name];
+
+  if (asset.licensePlate) {
+    parts.push(`Placa: ${asset.licensePlate}`);
+  } else if (asset.serialNumber) {
+    parts.push(`Serie: ${asset.serialNumber}`);
+  }
+
+  const assetTypeLabel =
+    asset.assetType === 'vehicle' ? 'Vehículo' :
+    asset.assetType === 'machine' ? 'Maquinaria' :
+    asset.assetType === 'equipment' ? 'Equipo' :
+    asset.assetType === 'trailer' ? 'Remolque' :
+    asset.assetType;
+
+  parts.push(`Tipo: ${assetTypeLabel}`);
+
+  return `Activo de flota: ${parts.join(' · ')}`;
+};
+
+const stripFleetAssetNote = (value) => {
+  if (!value) return '';
+  return value.replace(/^Activo de flota: .*?(\r?\n)?/, '').trimStart();
+};
 
 // 🆕 Función para calcular períodos pendientes de un gasto fijo
 const getPendingMonthsForFixedExpense = (expense) => {
@@ -160,6 +189,10 @@ const AttachReceipt = () => {
   const [simpleWorkPaymentAmount, setSimpleWorkPaymentAmount] = useState(''); // 🆕 Monto a pagar de SimpleWork
   const [loadingFixedExpenses, setLoadingFixedExpenses] = useState(false); // 🆕 Loading para gastos fijos
   const [fixedExpensePaymentAmount, setFixedExpensePaymentAmount] = useState(''); // 🆕 Monto del pago parcial para gasto fijo
+  // 🚗 Fleet
+  const [fleetAssets, setFleetAssets] = useState([]);
+  const [selectedFleetAsset, setSelectedFleetAsset] = useState('');
+  const [loadingFleetAssets, setLoadingFleetAssets] = useState(false);
   const [workSearchTerm, setWorkSearchTerm] = useState(''); // 🆕 Término de búsqueda para works
   // Estado para el periodo (mes) seleccionado para Gasto Fijo - Ahora es el objeto completo del período
   const [fixedExpensePeriodMonth, setFixedExpensePeriodMonth] = React.useState(null);
@@ -272,6 +305,37 @@ const AttachReceipt = () => {
       console.error('Error registrando pago:', error);
     }
   };
+
+  // 🚗 Cargar activos de flota cuando se selecciona "Gasto Flota"
+  useEffect(() => {
+    if (type === 'Gasto Flota') {
+      setLoadingFleetAssets(true);
+      api.get('/fleet')
+        .then(res => setFleetAssets((res.data?.data || []).filter(a => a.status !== 'retired')))
+        .catch(() => setFleetAssets([]))
+        .finally(() => setLoadingFleetAssets(false));
+    } else {
+      setFleetAssets([]);
+      setSelectedFleetAsset('');
+    }
+  }, [type]);
+
+  useEffect(() => {
+    if (type !== 'Gasto Flota') {
+      return;
+    }
+
+    const selectedAsset = fleetAssets.find(asset => asset.id === selectedFleetAsset);
+    if (!selectedAsset) {
+      return;
+    }
+
+    const autoNote = getFleetAssetNote(selectedAsset);
+    setNotes(currentNotes => {
+      const manualNotes = stripFleetAssetNote(currentNotes);
+      return manualNotes ? `${autoNote}\n${manualNotes}` : autoNote;
+    });
+  }, [type, selectedFleetAsset, fleetAssets]);
 
   // 🆕 Cargar gastos fijos cuando se selecciona "Gasto Fijo"
   useEffect(() => {
@@ -795,6 +859,11 @@ const AttachReceipt = () => {
             return;
           }
 
+          if (type === 'Gasto Flota' && !selectedFleetAsset) {
+            toast.error("Seleccione el vehículo o maquinaria para registrar el Gasto Flota.");
+            return;
+          }
+
           let createdRecordId = null;
           let createdRecord;
           const isIncome = incomeTypes.includes(type);
@@ -813,6 +882,8 @@ const AttachReceipt = () => {
             ...(paymentDetails ? { paymentDetails } : {}),
             // 🆕 SIMPLIFIED: Agregar simpleWorkId si se seleccionó un SimpleWork (funciona con CUALQUIER tipo)
             ...(selectedSimpleWork ? { simpleWorkId: selectedSimpleWork } : {}),
+            // 🚗 Vincular activo de flota si es Gasto Flota
+            ...(type === 'Gasto Flota' && selectedFleetAsset ? { fleetAssetId: selectedFleetAsset } : {}),
           };
 
           console.log('💰 Datos a enviar (Income/Expense):', incomeExpenseData);
@@ -1112,7 +1183,7 @@ const AttachReceipt = () => {
             </div>
 
             {/* General Transaction Toggle - Only show for applicable types (excepto Gasto Fijo que es siempre general) */}
-            {type && canBeGeneral && !requiresWork && type !== 'Gasto Fijo' && (
+            {type && canBeGeneral && !requiresWork && type !== 'Gasto Fijo' && type !== 'Gasto Flota' && (
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
                 <label className="flex items-center cursor-pointer">
                   <input
@@ -1480,7 +1551,69 @@ const AttachReceipt = () => {
             )}
 
             {/* 🆕 SELECTOR DE SIMPLEWORK */}
-            {type === 'Factura SimpleWork' && (
+              {/* 🚗 SELECTOR DE ACTIVO DE FLOTA */}
+              {type === 'Gasto Flota' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="p-2 bg-blue-600 rounded-lg">
+                      <CurrencyDollarIcon className="h-5 w-5 text-white" />
+                    </div>
+                    <h5 className="font-semibold text-blue-800">
+                      🚗 Seleccionar Vehículo / Maquinaria
+                    </h5>
+                  </div>
+
+                  {loadingFleetAssets && (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                      <span className="ml-3 text-sm text-gray-600">Cargando activos...</span>
+                    </div>
+                  )}
+
+                  {!loadingFleetAssets && fleetAssets.length === 0 && (
+                    <p className="text-sm text-gray-500 py-2">No hay vehículos o maquinaria activos registrados.</p>
+                  )}
+
+                  {!loadingFleetAssets && fleetAssets.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Activo <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={selectedFleetAsset}
+                        onChange={(e) => setSelectedFleetAsset(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                      >
+                        <option value="">-- Seleccionar vehículo / máquina --</option>
+                        {fleetAssets.map(asset => (
+                          <option key={asset.id} value={asset.id}>
+                            {asset.name}
+                            {asset.licensePlate ? ` · ${asset.licensePlate}` : ''}
+                            {asset.serialNumber && !asset.licensePlate ? ` · SN: ${asset.serialNumber}` : ''}
+                            {' · '}
+                            {asset.companyType === 'zurcher' ? 'ZURCHER' : asset.companyType === 'invertech' ? 'INVERTECH' : asset.companyOtherName || 'OTRA'}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedFleetAsset && (() => {
+                        const a = fleetAssets.find(x => x.id === selectedFleetAsset);
+                        if (!a) return null;
+                        return (
+                          <div className="mt-2 p-3 bg-white border border-blue-100 rounded-lg text-xs text-gray-600 flex gap-4 flex-wrap">
+                            <span><strong>Tipo:</strong> {a.assetType}</span>
+                            {a.licensePlate && <span><strong>Placa:</strong> {a.licensePlate}</span>}
+                            {a.brand && <span><strong>Marca:</strong> {a.brand} {a.model || ''}</span>}
+                            {a.year && <span><strong>Año:</strong> {a.year}</span>}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 🆕 SELECTOR DE SIMPLEWORK */}
+              {type === 'Factura SimpleWork' && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
                 <div className="flex items-center space-x-3 mb-3">
                   <div className="p-2 bg-blue-500 rounded-lg">

@@ -73,6 +73,7 @@ export const EXPENSE_TYPES = [
   'Inspección Final',
   // 'Comisión Vendedor', // ❌ Removido - Se paga desde CommissionsManager.jsx
   'Gasto Fijo',
+  'Gasto Flota', // 🚗 Gastos de vehículos y maquinaria (fleet)
 ];
 
 // Tipos de Comprobantes (sincronizado con Receipt.js)
@@ -91,6 +92,7 @@ export const RECEIPT_TYPES = [
   'Inspección Inicial',
   'Inspección Final',
   'Gasto Fijo', // 🆕 Para comprobantes de gastos fijos
+  'Gasto Flota', // 🚗 Para comprobantes de gastos de vehículos/maquinaria
 ];
 
 // Helper para obtener label de método de pago

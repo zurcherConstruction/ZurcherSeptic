@@ -1,4 +1,4 @@
-const { Expense, Work, Budget, FixedExpense } = require('../data');
+const { Expense, Work, Budget, FixedExpense, FleetAsset } = require('../data');
 const { Op } = require('sequelize');
 
 /**
@@ -44,6 +44,12 @@ const getBalanceDetailAnalysis = async (req, res) => {
           as: 'fixedExpense',
           required: false,
           attributes: ['name', 'description', 'category']
+        },
+        {
+          model: FleetAsset,
+          as: 'fleetAsset',
+          required: false,
+          attributes: ['id', 'name', 'assetType', 'companyType', 'companyOtherName', 'licensePlate', 'serialNumber']
         }
       ],
       order: [['date', 'DESC'], ['amount', 'DESC']]
@@ -99,7 +105,16 @@ const getBalanceDetailAnalysis = async (req, res) => {
           description: expense.fixedExpense.description,
           category: expense.fixedExpense.category
         } : null,
-        relatedFixedExpenseId: expense.relatedFixedExpenseId
+        relatedFixedExpenseId: expense.relatedFixedExpenseId,
+        fleetAssetInfo: expense.fleetAsset ? {
+          id: expense.fleetAsset.id,
+          name: expense.fleetAsset.name,
+          assetType: expense.fleetAsset.assetType,
+          companyType: expense.fleetAsset.companyType,
+          companyOtherName: expense.fleetAsset.companyOtherName,
+          licensePlate: expense.fleetAsset.licensePlate,
+          serialNumber: expense.fleetAsset.serialNumber
+        } : null
       });
     });
 
@@ -112,87 +127,114 @@ const getBalanceDetailAnalysis = async (req, res) => {
       const amount = parseFloat(expense.amount) || 0;
       const notes = expense.notes || '';
       const notesLower = notes.toLowerCase();
+      const typeExpense = expense.typeExpense || '';
       
       // 🎯 CLASIFICACIÓN MEJORADA Y MÁS ESPECÍFICA
       let expenseType = 'Gastos Generales';
+
+      // 0. RESPETAR tipos explícitos clave del modelo
+      if (typeExpense === 'Gasto Flota') {
+        expenseType = 'Gasto Vehículos/Máquinas';
+      } else if (typeExpense === 'Gasto Fijo') {
+        expenseType = 'Nómina y Salarios';
+      }
       
       // 1. MATERIALES INICIALES - Muy específico
-      if (notesLower.includes('materiales iniciales') || 
-          notesLower.includes('gasto de materiales iniciales')) {
+      if (expenseType === 'Gastos Generales' && (
+          notesLower.includes('materiales iniciales') ||
+          notesLower.includes('gasto de materiales iniciales')
+      )) {
         expenseType = 'Materiales Iniciales';
       }
       // 2. INSPECCIÓN INICIAL - Muy específico  
-      else if (notesLower.includes('initial inspection') ||
-               notesLower.includes('inspección inicial') ||
-               notesLower.includes('initial septic inspection') ||
-               notesLower.includes('final septic inspection') ||
-               (notesLower.includes('inspection') && notesLower.includes('address:'))) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('initial inspection') ||
+        notesLower.includes('inspección inicial') ||
+        notesLower.includes('initial septic inspection') ||
+        notesLower.includes('final septic inspection') ||
+        (notesLower.includes('inspection') && notesLower.includes('address:'))
+      )) {
         expenseType = 'Inspección Inicial';
       }
       // 3. MATERIALES - Otros materiales que no sean iniciales
-      else if ((notesLower.includes('chambers y endcaps') ||
-                notesLower.includes('chambers') ||
-                notesLower.includes('endcaps') ||
-                notesLower.includes('lift station') ||
-                notesLower.includes('tanque') ||
-                notesLower.includes('correcion de tanque') ||
-                notesLower.includes('materiales') ||
-                notesLower.includes('pegamento') ||
-                notesLower.includes('grasa') ||
-                notesLower.includes('aceite')) && 
-                !notesLower.includes('materiales iniciales')) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('chambers y endcaps') ||
+        notesLower.includes('chambers') ||
+        notesLower.includes('endcaps') ||
+        notesLower.includes('lift station') ||
+        notesLower.includes('tanque') ||
+        notesLower.includes('correcion de tanque') ||
+        notesLower.includes('materiales') ||
+        notesLower.includes('pegamento') ||
+        notesLower.includes('grasa') ||
+        notesLower.includes('aceite')
+      ) && !notesLower.includes('materiales iniciales')) {
         expenseType = 'Materiales';
       }
       // 4. NÓMINA Y SALARIOS - Gastos fijos de payroll
-      else if (notesLower.includes('payroll') ||
-               notesLower.includes('salarios') ||
-               expense.relatedFixedExpenseId ||
-               expense.fixedExpense) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('payroll') ||
+        notesLower.includes('salarios') ||
+        expense.relatedFixedExpenseId ||
+        expense.fixedExpense
+      )) {
         expenseType = 'Nómina y Salarios';
       }
       // 5. COMBUSTIBLE - Categoría específica
-      else if (notesLower.includes('gasolina') ||
-               notesLower.includes('diesel') ||
-               notesLower.includes('gas') ||
-               notesLower.includes('combustible')) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('gasolina') ||
+        notesLower.includes('diesel') ||
+        notesLower.includes('gas') ||
+        notesLower.includes('combustible')
+      )) {
         expenseType = 'Combustible';
       }
       // 6. TRANSPORTE Y ARENA - Servicios de terceros
-      else if (notesLower.includes('sand') ||
-               notesLower.includes('arena') ||
-               notesLower.includes('trucking') ||
-               notesLower.includes('transport') ||
-               notesLower.includes('gdg trucking') ||
-               notesLower.includes('arian transport') ||
-               notesLower.includes('ronay transport')) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('sand') ||
+        notesLower.includes('arena') ||
+        notesLower.includes('trucking') ||
+        notesLower.includes('transport') ||
+        notesLower.includes('gdg trucking') ||
+        notesLower.includes('arian transport') ||
+        notesLower.includes('ronay transport')
+      )) {
         expenseType = 'Transporte y Arena';
       }
       // 7. FEES E INSPECCIONES - Otros fees que no sean initial
-      else if (notesLower.includes('fee') ||
-               notesLower.includes('inspection') ||
-               notesLower.includes('taxes') ||
-               notesLower.includes('renovación') ||
-               notesLower.includes('placas')) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('fee') ||
+        notesLower.includes('inspection') ||
+        notesLower.includes('taxes') ||
+        notesLower.includes('renovación') ||
+        notesLower.includes('placas')
+      )) {
         expenseType = 'Fees e Inspecciones';
       }
       // 8. SEGUROS - Categoría específica
-      else if (notesLower.includes('liability') ||
-               notesLower.includes('insurance') ||
-               notesLower.includes('seguro')) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('liability') ||
+        notesLower.includes('insurance') ||
+        notesLower.includes('seguro')
+      )) {
         expenseType = 'Seguros';
       }
       // 9. SUMINISTROS BÁSICOS - Agua, hielo, etc.
-      else if (notesLower.includes('agua') ||
-               notesLower.includes('hielo') ||
-               notesLower.includes('water') ||
-               notesLower.includes('ice')) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('agua') ||
+        notesLower.includes('hielo') ||
+        notesLower.includes('water') ||
+        notesLower.includes('ice')
+      )) {
         expenseType = 'Suministros Básicos';
       }
       // 10. LABOR/MANO DE OBRA - Pagos a subcontratistas
-      else if (notesLower.includes('labor') ||
-               notesLower.includes('instalacion') ||
-               notesLower.includes('malagon llc') ||
-               notesLower.includes('pago para')) {
+      else if (expenseType === 'Gastos Generales' && (
+        notesLower.includes('labor') ||
+        notesLower.includes('instalacion') ||
+        notesLower.includes('malagon llc') ||
+        notesLower.includes('pago para')
+      )) {
         expenseType = 'Mano de Obra';
       }
       // 11. TODO LO DEMÁS - Gastos Generales
@@ -239,8 +281,25 @@ const getBalanceDetailAnalysis = async (req, res) => {
           description: expense.fixedExpense.description,
           category: expense.fixedExpense.category
         } : null,
-        relatedFixedExpenseId: expense.relatedFixedExpenseId
+        relatedFixedExpenseId: expense.relatedFixedExpenseId,
+        fleetAssetInfo: expense.fleetAsset ? {
+          id: expense.fleetAsset.id,
+          name: expense.fleetAsset.name,
+          assetType: expense.fleetAsset.assetType,
+          companyType: expense.fleetAsset.companyType,
+          companyOtherName: expense.fleetAsset.companyOtherName,
+          licensePlate: expense.fleetAsset.licensePlate,
+          serialNumber: expense.fleetAsset.serialNumber
+        } : null
       });
+
+      if (expenseType === 'Gasto Vehículos/Máquinas') {
+        expenseTypeAnalysis[expenseType].fleetCompany = expense.fleetAsset
+          ? (expense.fleetAsset.companyType === 'other'
+              ? (expense.fleetAsset.companyOtherName || 'OTRA')
+              : expense.fleetAsset.companyType.toUpperCase())
+          : 'Sin empresa';
+      }
     });
 
     // =============================================================================

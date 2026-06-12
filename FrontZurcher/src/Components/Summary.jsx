@@ -6,6 +6,7 @@ import {
   balanceActions,
 } from "../Redux/Actions/balanceActions";
 import { createReceipt, deleteReceipt } from "../Redux/Actions/receiptActions";
+import api from "../utils/axios";
 import { toast } from 'react-toastify';
 import {
   ChartBarIcon,
@@ -55,6 +56,10 @@ const Summary = () => {
   const [incomeTypes, setIncomeTypes] = useState(INCOME_TYPES);
   const [expenseTypes, setExpenseTypes] = useState(EXPENSE_TYPES);
   const [typesLoading, setTypesLoading] = useState(true);
+  const [fleetAssets, setFleetAssets] = useState([]);
+  const [fleetAssetsLoading, setFleetAssetsLoading] = useState(false);
+  const [works, setWorks] = useState([]);
+  const [worksLoading, setWorksLoading] = useState(false);
   
   const dispatch = useDispatch();
   const { currentStaff: staff } = useSelector((state) => state.auth);
@@ -279,8 +284,84 @@ const Summary = () => {
     }
   };
 
+  const fetchFleetAssets = async () => {
+    try {
+      setFleetAssetsLoading(true);
+      const response = await api.get('/fleet');
+      const assets = (response?.data?.data || response?.data || []).filter(asset => asset?.status !== 'retired');
+      setFleetAssets(Array.isArray(assets) ? assets : []);
+    } catch (error) {
+      console.error('Error al cargar activos de flota:', error);
+      setFleetAssets([]);
+    } finally {
+      setFleetAssetsLoading(false);
+    }
+  };
+
+  const fetchWorks = async () => {
+    try {
+      setWorksLoading(true);
+      const response = await api.get('/work?limit=1000');
+      const worksList = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.data?.works)
+          ? response.data.works
+          : [];
+      setWorks(worksList);
+    } catch (error) {
+      console.error('Error al cargar works para edición:', error);
+      setWorks([]);
+    } finally {
+      setWorksLoading(false);
+    }
+  };
+
+  const shouldShowWorkLinkField = (movementType, data) => {
+    if (movementType === 'Ingreso') {
+      const incomeTypesLinkedToWork = [
+        'Factura Pago Inicial Budget',
+        'Factura Pago Final Budget',
+        'Factura Cambio de Bomba',
+        'Factura Sistema Completo'
+      ];
+      return incomeTypesLinkedToWork.includes(data?.typeIncome) || !!data?.workId;
+    }
+
+    if (movementType === 'Gasto') {
+      const expenseTypesLinkedToWork = [
+        'Materiales',
+        'Materiales Iniciales',
+        'Fee de Inspección',
+        'Inspección Inicial',
+        'Inspección Final',
+        'Comprobante Gasto',
+        'Gastos Generales',
+        'Gasto Flota'
+      ];
+      return expenseTypesLinkedToWork.includes(data?.typeExpense) || !!data?.workId;
+    }
+
+    return false;
+  };
+
+  const getWorkOptionsForEdit = () => {
+    // Mostrar todos los works para permitir re-vincular sin perder el vínculo actual.
+    return works;
+  };
+
+  const getCurrentLinkedWorkForEdit = (data) => {
+    if (!data?.workId) return null;
+
+    const found = works.find((work) => String(work.idWork) === String(data.workId));
+    if (found) return found;
+
+    return editModal?.movement?.work || null;
+  };
+
   useEffect(() => {
     fetchTypes(); // Cargar tipos primero
+    fetchFleetAssets();
+    fetchWorks();
     fetchMovements();
     // eslint-disable-next-line
   }, []);
@@ -377,6 +458,8 @@ const Summary = () => {
       date: mov.date,
       typeIncome: mov.typeIncome || "",
       typeExpense: mov.typeExpense || "",
+      fleetAssetId: mov.fleetAssetId || mov.fleetAssetInfo?.id || "",
+      workId: mov.workId || "",
       paymentMethod: mov.paymentMethod || "", // 🆕 Campo de método de pago
       verified: mov.verified || false, // 🆕 Campo de verificación
     });
@@ -483,6 +566,7 @@ const Summary = () => {
           notes: editData.notes,
           date: editData.date,
           typeIncome: editData.typeIncome,
+          workId: shouldShowWorkLinkField('Ingreso', editData) ? (editData.workId || null) : undefined,
           paymentMethod: editData.paymentMethod, // 🆕 Incluir método de pago
           verified: editData.verified, // 🆕 Incluir verificación
         });
@@ -492,6 +576,8 @@ const Summary = () => {
           notes: editData.notes,
           date: editData.date,
           typeExpense: editData.typeExpense,
+          workId: shouldShowWorkLinkField('Gasto', editData) ? (editData.workId || null) : undefined,
+          fleetAssetId: editData.typeExpense === 'Gasto Flota' ? (editData.fleetAssetId || null) : null,
           paymentMethod: editData.paymentMethod, // 🆕 Incluir método de pago
           verified: editData.verified, // 🆕 Incluir verificación
         });
@@ -1137,6 +1223,75 @@ const Summary = () => {
                         <option key={type} value={type}>{type}</option>
                       )}
                     </select>
+                  </div>
+                )}
+
+                {editModal.movement.movimiento === "Gasto" && editData.typeExpense === 'Gasto Flota' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Vehículo/Máquina (Opcional)
+                    </label>
+                    <select
+                      value={editData.fleetAssetId || ''}
+                      onChange={(e) =>
+                        setEditData({ ...editData, fleetAssetId: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      disabled={fleetAssetsLoading}
+                    >
+                      <option value="">Sin vincular a vehículo</option>
+                      {fleetAssets.map(asset => (
+                        <option key={asset.id} value={asset.id}>
+                          {asset.name}
+                          {asset.licensePlate ? ` · ${asset.licensePlate}` : ''}
+                          {asset.serialNumber ? ` · ${asset.serialNumber}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Puedes dejarlo sin vehículo y seguirá siendo gasto de flota general.
+                    </p>
+                  </div>
+                )}
+
+                {shouldShowWorkLinkField(editModal.movement.movimiento, editData) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Work actualmente vinculado
+                    </label>
+                    <div className="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-700 mb-3">
+                      {(() => {
+                        const currentWork = getCurrentLinkedWorkForEdit(editData);
+                        if (!currentWork) return 'Sin work vinculado';
+
+                        const address = currentWork.budget?.propertyAddress || currentWork.propertyAddress || 'Sin dirección';
+                        const applicant = currentWork.budget?.applicantName ? ` · ${currentWork.budget.applicantName}` : '';
+                        return `${address}${applicant}`;
+                      })()}
+                    </div>
+
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Cambiar vínculo de Work (Opcional)
+                    </label>
+                    <select
+                      value={editData.workId || ''}
+                      onChange={(e) =>
+                        setEditData({ ...editData, workId: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      disabled={worksLoading}
+                    >
+                      <option value="">Sin vincular a work</option>
+                      {getWorkOptionsForEdit().map((work) => (
+                        <option key={work.idWork} value={work.idWork}>
+                          {(work.budget?.propertyAddress || work.propertyAddress || 'Sin dirección')}
+                          {work.budget?.applicantName ? ` · ${work.budget.applicantName}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Puedes cambiar o quitar el work vinculado al editar este movimiento.
+                    </p>
                   </div>
                 )}
 

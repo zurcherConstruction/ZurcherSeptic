@@ -33,6 +33,7 @@ module.exports = (sequelize) => {
             'Inspección Inicial',
             'Inspección Final',
             'Gasto Fijo', // 🆕 Para comprobantes de gastos fijos
+            'Gasto Flota', // 🚗 Para comprobantes de gastos de flota
             'Invoice Proveedor', // 🆕 Para invoices de proveedores
             'Factura SimpleWork' // 🆕 Para facturas de SimpleWork
         ),

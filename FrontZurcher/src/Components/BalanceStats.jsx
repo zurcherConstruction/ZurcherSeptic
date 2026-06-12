@@ -8,6 +8,7 @@ const BalanceStats = () => {
   const [expandedSections, setExpandedSections] = useState({});
   const [showTransactionList, setShowTransactionList] = useState(false);
   const [showPrintVersion, setShowPrintVersion] = useState(false);
+  const [companyFilter, setCompanyFilter] = useState('all');
   
   // 🆕 Inicializar con mes/año actual dinámicamente
   const currentDate = new Date();
@@ -184,6 +185,26 @@ const BalanceStats = () => {
       month: '2-digit',
       day: '2-digit'
     });
+  };
+
+  const formatCategoryLabel = (category) => {
+    if (category === 'Gasto Flota') return 'Gasto Vehículos/Máquinas';
+    return category;
+  };
+
+  const getCompanyLabel = (fleetAssetInfo) => {
+    if (!fleetAssetInfo) return 'Sin empresa';
+    if (fleetAssetInfo.companyType === 'other') {
+      return fleetAssetInfo.companyOtherName || 'OTRA';
+    }
+    return String(fleetAssetInfo.companyType || '').toUpperCase();
+  };
+
+  const matchesCompanyFilter = (transaction) => {
+    if (companyFilter === 'all') return true;
+    const companyType = transaction.fleetAssetInfo?.companyType;
+    if (companyFilter === 'otra') return companyType === 'other';
+    return companyType === companyFilter;
   };
 
   // Filtrar gastos generales (excluir materiales iniciales e inspecciones)
@@ -591,7 +612,8 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
             verified: expense.verified || false,
             paymentStatus: expense.paymentStatus || 'Sin estado',
             hasNotes: expense.hasNotes || false,
-            hasVendor: expense.hasVendor || false
+            hasVendor: expense.hasVendor || false,
+            fleetAssetInfo: expense.fleetAssetInfo || null
           });
         });
       }
@@ -637,6 +659,7 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
 
   // Función para imprimir el listado
   const handlePrint = () => {
+    const printTransactions = filteredTransactions;
     const printContent = `
       <!DOCTYPE html>
       <html>
@@ -701,9 +724,9 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
             <p><strong>Total Ingresos:</strong> $${(data?.summary?.totalIncome || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
             <p><strong>Total Egresos:</strong> $${(data?.summary?.totalEgresos || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
             <p><strong>Ganancia:</strong> $${((data?.summary?.totalIncome || 0) - (data?.summary?.totalEgresos || 0)).toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
-            <p><strong>Total Transacciones:</strong> ${allTransactions.length}</p>
-            <p><strong>IDs Únicos:</strong> ${new Set(allTransactions.map(t => t.id)).size}</p>
-            <p><strong>Transacciones Sospechosas:</strong> ${allTransactions.filter(t => t.isSuspicious).length}</p>
+            <p><strong>Total Transacciones:</strong> ${printTransactions.length}</p>
+            <p><strong>IDs Únicos:</strong> ${new Set(printTransactions.map(t => t.id)).size}</p>
+            <p><strong>Transacciones Sospechosas:</strong> ${printTransactions.filter(t => t.isSuspicious).length}</p>
           </div>
           
           <table>
@@ -720,7 +743,7 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
               </tr>
             </thead>
             <tbody>
-              ${allTransactions.map((transaction, index) => `
+              ${printTransactions.map((transaction, index) => `
                 <tr class="${
                   transaction.isSuspicious 
                     ? 'suspicious' 
@@ -733,7 +756,7 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                   <td>${index + 1}</td>
                   <td>${transaction.date}</td>
                   <td>${transaction.type}</td>
-                  <td>${transaction.category}</td>
+                  <td>${transaction.category === 'Gasto Flota' ? 'Gasto Vehículos/Máquinas' : transaction.category}</td>
                   <td>$${transaction.amount.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</td>
                   <td>${transaction.description}</td>
                   <td>${transaction.paymentMethod}</td>
@@ -808,18 +831,19 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
 
   // Obtener todas las transacciones para el listado
   const allTransactions = getAllTransactions();
+  const filteredTransactions = allTransactions.filter(matchesCompanyFilter);
 
   // Renderizar tabla de todas las transacciones
   const renderTransactionList = () => {
-    const suspiciousCount = allTransactions.filter(t => t.isSuspicious).length;
-    const fixedExpenseCount = allTransactions.filter(t => t.isFixedExpense).length;
-    const suspiciousExpenseCount = allTransactions.filter(t => t.isSuspiciousExpense).length;
+    const suspiciousCount = filteredTransactions.filter(t => t.isSuspicious).length;
+    const fixedExpenseCount = filteredTransactions.filter(t => t.isFixedExpense).length;
+    const suspiciousExpenseCount = filteredTransactions.filter(t => t.isSuspiciousExpense).length;
     
     return (
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-800">
-            📋 Listado Completo de Transacciones ({allTransactions.length})
+            📋 Listado Completo de Transacciones ({filteredTransactions.length})
             {suspiciousCount > 0 && (
               <span className="ml-2 text-yellow-600 font-bold">
                 ⚠️ {suspiciousCount} duplicados
@@ -837,6 +861,16 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
             )}
           </h3>
           <div className="flex gap-2">
+            <select
+              value={companyFilter}
+              onChange={(e) => setCompanyFilter(e.target.value)}
+              className="border border-gray-300 rounded px-3 py-2 text-sm bg-white"
+            >
+              <option value="all">Todas las empresas</option>
+              <option value="zurcher">Zurcher</option>
+              <option value="invertech">Invertech</option>
+              <option value="otra">Otra</option>
+            </select>
             <button
               onClick={handlePrint}
               className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors"
@@ -856,9 +890,9 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
           <div className="overflow-x-auto">
             <div className="mb-4 text-sm text-gray-600 grid grid-cols-4 gap-4">
               <div>
-                <p><strong>Total transacciones:</strong> {allTransactions.length}</p>
-                <p><strong>IDs únicos:</strong> {new Set(allTransactions.map(t => t.id)).size}</p>
-                <p><strong>Duplicados por ID:</strong> {allTransactions.length - new Set(allTransactions.map(t => t.id)).size}</p>
+                <p><strong>Total transacciones:</strong> {filteredTransactions.length}</p>
+                <p><strong>IDs únicos:</strong> {new Set(filteredTransactions.map(t => t.id)).size}</p>
+                <p><strong>Duplicados por ID:</strong> {filteredTransactions.length - new Set(filteredTransactions.map(t => t.id)).size}</p>
               </div>
               <div>
                 <p><strong>Duplicados exactos:</strong> {suspiciousCount}</p>
@@ -897,7 +931,7 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                 </tr>
               </thead>
               <tbody>
-                {allTransactions.map((transaction, index) => (
+                {filteredTransactions.map((transaction, index) => (
                   <tr 
                     key={transaction.id} 
                     className={`border-b hover:bg-gray-50 ${
@@ -970,7 +1004,7 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                         {transaction.type}
                       </span>
                     </td>
-                    <td className="px-2 py-2 text-xs">{transaction.category}</td>
+                    <td className="px-2 py-2 text-xs">{formatCategoryLabel(transaction.category)}</td>
                     <td className="px-2 py-2">{transaction.date}</td>
                     <td className="px-2 py-2 font-semibold">
                       ${transaction.amount.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
@@ -988,7 +1022,19 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                             )}
                           </div>
                         ) : (
-                          transaction.description
+                          <div>
+                            <div>{transaction.description}</div>
+                            {transaction.fleetAssetInfo && (
+                              <div className="text-sky-700 mt-1">
+                                🚗 {transaction.fleetAssetInfo.name}
+                                {transaction.fleetAssetInfo.licensePlate ? ` · ${transaction.fleetAssetInfo.licensePlate}` : ''}
+                                {' · '}
+                                {transaction.fleetAssetInfo.companyType === 'other'
+                                  ? (transaction.fleetAssetInfo.companyOtherName || 'OTRA')
+                                  : transaction.fleetAssetInfo.companyType?.toUpperCase()}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </td>
@@ -1348,9 +1394,9 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
               className="w-full p-4 text-left flex justify-between items-center hover:bg-gray-50"
             >
               <div className="flex items-center gap-3">
-                <div className={`w-4 h-4 rounded ${getCategoryColor(category.category)}`}></div>
+                <div className={`w-4 h-4 rounded ${getCategoryColor(formatCategoryLabel(category.category))}`}></div>
                 <h3 className="text-lg font-semibold">
-                  {category.category} - {formatCurrency(category.total)}
+                  {formatCategoryLabel(category.category)} - {formatCurrency(category.total)}
                 </h3>
                 <span className="text-sm text-gray-500">
                   ({category.count} transacciones)
@@ -1401,6 +1447,16 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                             <div className="text-sm text-gray-500">
                               {formatDate(expense.date)} • {expense.paymentMethod} • {expense.typeExpense}
                             </div>
+                            {expense.fleetAssetInfo && (
+                              <div className="text-xs text-sky-700 mt-1">
+                                🚗 {expense.fleetAssetInfo.name}
+                                {expense.fleetAssetInfo.licensePlate ? ` · ${expense.fleetAssetInfo.licensePlate}` : ''}
+                                {' · '}
+                                {expense.fleetAssetInfo.companyType === 'other'
+                                  ? (expense.fleetAssetInfo.companyOtherName || 'OTRA')
+                                  : expense.fleetAssetInfo.companyType?.toUpperCase()}
+                              </div>
+                            )}
                             {expense.propertyAddress && expense.propertyAddress !== 'Sin dirección' && (
                               <div className="text-xs text-blue-600 mt-1">
                                 📍 {expense.propertyAddress}
@@ -1433,6 +1489,7 @@ const getCategoryColor = (category) => {
     'Materiales': 'bg-indigo-500',
     'Materiales Iniciales': 'bg-cyan-500', 
     'Gastos Generales': 'bg-orange-500',
+    'Gasto Vehículos/Máquinas': 'bg-sky-500',
     'Inspección Inicial': 'bg-yellow-500',
     'Comisión Vendedor': 'bg-pink-500',
     'Workers': 'bg-emerald-500',

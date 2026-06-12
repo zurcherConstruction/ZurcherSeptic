@@ -976,6 +976,10 @@ FleetMileageLog.belongsTo(FleetAsset, { foreignKey: 'assetId', as: 'asset' });
 FleetMileageLog.belongsTo(Staff, { foreignKey: 'recordedById', as: 'recordedBy' });
 Staff.hasMany(FleetMileageLog, { foreignKey: 'recordedById', as: 'mileageLogs' });
 
+// Un Expense puede estar vinculado a un FleetAsset (typeExpense = 'Gasto Flota')
+Expense.belongsTo(FleetAsset, { foreignKey: 'fleetAssetId', as: 'fleetAsset' });
+FleetAsset.hasMany(Expense, { foreignKey: 'fleetAssetId', as: 'fleetExpensesExpense' });
+
 // --- RELACIONES PARA SIGNATURE DOCUMENTS (DOCUMENTOS PARA FIRMA) ---
 
 // Un SignatureDocument puede estar vinculado a un KnowledgeContact
