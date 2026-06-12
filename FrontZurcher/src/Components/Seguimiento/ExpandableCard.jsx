@@ -31,6 +31,14 @@ const ExpandableCard = ({ title, totalAmount, paidAmount, unpaidAmount, totalCou
     return status === 'paid' ? '✅' : '⏳';
   };
 
+  const getCompanyLabel = (fleetAssetInfo) => {
+    if (!fleetAssetInfo) return '';
+    if (fleetAssetInfo.companyType === 'other') {
+      return fleetAssetInfo.companyOtherName || 'OTRA';
+    }
+    return String(fleetAssetInfo.companyType || '').toUpperCase();
+  };
+
   const paidPercentage = totalAmount > 0 ? (parseFloat(paidAmount) / parseFloat(totalAmount)) * 100 : 0;
 
   return (
@@ -102,6 +110,11 @@ const ExpandableCard = ({ title, totalAmount, paidAmount, unpaidAmount, totalCou
                           💳 {expense.paymentMethod}
                         </span>
                       )}
+                      {expense.fleetAssetInfo && (
+                        <span className="expense-client">
+                          🚗 {getCompanyLabel(expense.fleetAssetInfo)}
+                        </span>
+                      )}
                     </div>
                     
                     <div className="expense-details">
@@ -138,6 +151,14 @@ const ExpandableCard = ({ title, totalAmount, paidAmount, unpaidAmount, totalCou
                       {expense.simpleWork && (
                         <div className="property-address" style={{ color: '#d97706' }}>
                           🔨 {expense.simpleWork.workNumber} - {expense.simpleWork.propertyAddress}
+                        </div>
+                      )}
+
+                      {expense.fleetAssetInfo && (
+                        <div className="property-address" style={{ color: '#0369a1' }}>
+                          🚛 {expense.fleetAssetInfo.name}
+                          {expense.fleetAssetInfo.licensePlate ? ` · ${expense.fleetAssetInfo.licensePlate}` : ''}
+                          {expense.fleetAssetInfo.serialNumber ? ` · ${expense.fleetAssetInfo.serialNumber}` : ''}
                         </div>
                       )}
                       

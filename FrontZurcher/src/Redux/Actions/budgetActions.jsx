@@ -139,7 +139,6 @@ export const createBudget = createAsyncThunk(
   async (budgetData, { rejectWithValue }) => {
     try {
       const response = await api.post('/budget', budgetData); // Ruta del backend
-      // Simplemente retorna los datos exitosos. RTK los pondrá en el payload de 'fulfilled'.
       return response.data;
     } catch (error) {
       // Usa rejectWithValue para enviar un payload de error estructurado.

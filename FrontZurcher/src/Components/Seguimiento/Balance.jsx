@@ -47,6 +47,11 @@ ChartJS.register(
   ArcElement
 );
 
+const formatExpenseTypeLabel = (label) => {
+  if (label === 'Gasto Flota') return 'Gasto Vehículos/Máquinas';
+  return label;
+};
+
 const Balance = () => {
   const [period, setPeriod] = useState('month');
   const [data, setData] = useState(null);
@@ -182,22 +187,6 @@ const fetchFinancialData = async (selectedPeriod) => {
     setLoading(false);
     setLoadingDetails(false);
   }
-};
-        profitMargin: 0
-      });
-    }
-  } catch (error) {
-    console.error('Error fetching financial data:', error);
-    // AGREGAR: Reset del estado en caso de error
-    setData(null);
-    setSummary({
-      totalIncome: 0,
-      totalExpense: 0,
-      profit: 0,
-      profitMargin: 0
-    });
-  }
-  setLoading(false);
 };
 
   useEffect(() => {
@@ -368,7 +357,10 @@ const processTimeSeriesData = () => {
     const expenseCategories = data.details.expenses || [];
 
     return {
-      labels: [...incomeCategories.map(cat => cat.name), ...expenseCategories.map(cat => cat.name)],
+      labels: [
+        ...incomeCategories.map(cat => cat.name),
+        ...expenseCategories.map(cat => formatExpenseTypeLabel(cat.name)),
+      ],
       datasets: [
         {
           label: 'Ingresos por Categoría',
@@ -539,7 +531,7 @@ const processTimeSeriesData = () => {
                   {detailAnalysis.expenseTypes?.map((type, index) => (
                     <ExpandableCard
                       key={`type-${index}`}
-                      title={`📂 ${type.type}`}
+                      title={`📂 ${formatExpenseTypeLabel(type.type)}`}
                       totalAmount={type.totalAmount}
                       paidAmount={type.paidAmount}
                       unpaidAmount={type.unpaidAmount}

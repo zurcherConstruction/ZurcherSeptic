@@ -10,6 +10,7 @@ import {
   FaExclamationTriangle,
   FaChartBar,
   FaFileExcel,
+  FaPrint,
   FaCalendarAlt,
   FaShieldAlt,
   FaIdCard,
@@ -26,6 +27,9 @@ export default function FleetDashboard() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { assets, stats, loading, upcoming } = useSelector((state) => state.fleet);
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentYear = currentDate.getFullYear();
 
   const [showForm, setShowForm] = useState(false);
   const [openSection, setOpenSection] = useState('registrations');
@@ -34,6 +38,7 @@ export default function FleetDashboard() {
   const [filterCompany, setFilterCompany] = useState('');
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [printPeriod, setPrintPeriod] = useState('monthly');
 
   useEffect(() => {
     dispatch(fetchFleetAssets());
@@ -78,6 +83,114 @@ export default function FleetDashboard() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(Number(value || 0));
+  };
+
+  const handlePrintReport = async () => {
+    let reportData = null;
+    try {
+      const response = await api.get('/fleet/expense-report', {
+        params: {
+          period: printPeriod,
+          year: currentYear,
+          month: currentMonth,
+        },
+      });
+      reportData = response.data?.data || null;
+    } catch {
+      alert('No se pudo obtener el detalle de gastos por activo para imprimir.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1024,height=768');
+    if (!printWindow) return;
+
+    const now = new Date();
+    const reportDate = now.toLocaleDateString('en-US');
+    const monthLabel = now.toLocaleString('es', { month: 'long' });
+    const periodLabel = printPeriod === 'yearly'
+      ? `Anual ${currentYear}`
+      : `Mensual ${monthLabel} ${currentYear}`;
+
+    const rows = (reportData?.byAsset || []).map((a, idx) => `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${a.assetName || ''}</td>
+        <td>${a.assetType || ''}</td>
+        <td>${a.licensePlate || a.serialNumber || ''}</td>
+        <td>${a.company || ''}</td>
+        <td>${a.expenseCount || 0}</td>
+        <td>${formatCurrency(a.totalAmount || 0)}</td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <html>
+        <head>
+          <title>Fleet Expense Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #1f2937; }
+            h1 { margin: 0 0 4px; }
+            .meta { color: #6b7280; margin-bottom: 20px; }
+            .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+            .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
+            .label { font-size: 12px; color: #6b7280; text-transform: uppercase; font-weight: 700; }
+            .value { font-size: 22px; font-weight: 700; margin-top: 6px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px; font-size: 12px; text-align: left; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>
+          <h1>Fleet Expense Report</h1>
+          <div class="meta">Generado: ${reportDate} · Periodo: ${periodLabel}</div>
+
+          <div class="grid">
+            <div class="card">
+              <div class="label">Total del período</div>
+              <div class="value">${formatCurrency(reportData?.totalAmount || 0)}</div>
+              <div>Transacciones: ${reportData?.totalTransactions || 0}</div>
+            </div>
+            <div class="card">
+              <div class="label">Activos con gastos</div>
+              <div class="value">${reportData?.byAsset?.length || 0}</div>
+              <div>Detalle por vehículo/maquinaria</div>
+            </div>
+          </div>
+
+          <h2>Detalle de Gasto Total por Vehículo/Máquina</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Activo</th>
+                <th>Tipo</th>
+                <th>Placa/Serie</th>
+                <th>Empresa</th>
+                <th>Transacciones</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="7">Sin gastos de flota en el período seleccionado.</td></tr>'}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   const companyLabel = (item) => {
@@ -175,6 +288,20 @@ export default function FleetDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <select
+              value={printPeriod}
+              onChange={(e) => setPrintPeriod(e.target.value)}
+              className="bg-white/20 hover:bg-white/30 text-white border border-white/30 px-3 py-2.5 rounded-xl font-semibold text-sm shadow transition-colors"
+            >
+              <option value="monthly" className="text-gray-900">Mensual</option>
+              <option value="yearly" className="text-gray-900">Anual</option>
+            </select>
+            <button
+              onClick={handlePrintReport}
+              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white border border-white/30 px-4 py-2.5 rounded-xl font-semibold text-sm shadow transition-colors"
+            >
+              <FaPrint /> Imprimir Reporte
+            </button>
             <button
               onClick={handleExport}
               disabled={exporting}
@@ -230,6 +357,21 @@ export default function FleetDashboard() {
                 <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Prox. Service</p>
                 <p className="text-3xl font-bold text-orange-600">{stats.upcomingMaintenance}</p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {stats?.fleetExpenses && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Gasto Vehículos/Máquinas Mensual</p>
+              <p className="text-2xl font-bold text-sky-700 mt-2">{formatCurrency(stats.fleetExpenses.monthly?.amount)}</p>
+              <p className="text-sm text-gray-500 mt-1">{stats.fleetExpenses.monthly?.count || 0} transacciones en {String(stats.fleetExpenses.monthly?.month || currentMonth).padStart(2, '0')}/{stats.fleetExpenses.monthly?.year || currentYear}</p>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
+              <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Gasto Vehículos/Máquinas Anual</p>
+              <p className="text-2xl font-bold text-sky-700 mt-2">{formatCurrency(stats.fleetExpenses.yearly?.amount)}</p>
+              <p className="text-sm text-gray-500 mt-1">{stats.fleetExpenses.yearly?.count || 0} transacciones en {stats.fleetExpenses.yearly?.year || currentYear}</p>
             </div>
           </div>
         )}

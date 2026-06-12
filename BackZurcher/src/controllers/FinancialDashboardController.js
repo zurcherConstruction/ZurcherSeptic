@@ -453,6 +453,7 @@ const FinancialDashboardController = {
         'Materiales': [],               // typeExpense = Materiales (directos)
         'Materiales Iniciales': [],     // typeExpense = Materiales Iniciales (directos)
         'Gastos Generales': [],         // typeExpense = Gastos Generales (directos)
+        'Gasto Flota': [],              // typeExpense = Gasto Flota (directos)
         'Inspección Inicial': [],       // typeExpense = Inspección Inicial (directos)
         'Comisión Vendedor': [],        // typeExpense = Comisión Vendedor (directos)
         'Workers': [],                  // typeExpense = Workers (directos)

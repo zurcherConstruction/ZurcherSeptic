@@ -1,4 +1,4 @@
-const { FleetAsset, FleetMaintenance, FleetMileageLog, Staff } = require('../data');
+const { FleetAsset, FleetMaintenance, FleetMileageLog, Staff, Expense } = require('../data');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { Op } = require('sequelize');
 const ExcelJS = require('exceljs');
@@ -37,6 +37,93 @@ function sanitizeAssetPayload(data) {
 }
 
 const FleetController = {
+
+  async getFleetExpenseReport(req, res) {
+    try {
+      const now = new Date();
+      const period = req.query.period === 'yearly' ? 'yearly' : 'monthly';
+      const year = Number(req.query.year) || now.getFullYear();
+      const month = Number(req.query.month) || (now.getMonth() + 1);
+
+      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+      const monthEnd = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
+
+      const dateRange = period === 'yearly'
+        ? { [Op.between]: [yearStart, yearEnd] }
+        : { [Op.between]: [monthStart, monthEnd] };
+
+      const expenses = await Expense.findAll({
+        where: {
+          typeExpense: 'Gasto Flota',
+          date: dateRange,
+        },
+        attributes: ['idExpense', 'amount', 'date', 'fleetAssetId'],
+        include: [
+          {
+            model: FleetAsset,
+            as: 'fleetAsset',
+            required: false,
+            attributes: ['id', 'name', 'assetType', 'licensePlate', 'serialNumber', 'companyType', 'companyOtherName'],
+          },
+        ],
+        order: [['date', 'ASC']],
+      });
+
+      const byAssetMap = {};
+
+      expenses.forEach((exp) => {
+        const amount = parseFloat(exp.amount || 0);
+        const asset = exp.fleetAsset;
+        const key = asset?.id || 'sin-activo';
+
+        if (!byAssetMap[key]) {
+          byAssetMap[key] = {
+            assetId: asset?.id || null,
+            assetName: asset?.name || 'Sin activo vinculado',
+            assetType: asset?.assetType || null,
+            licensePlate: asset?.licensePlate || null,
+            serialNumber: asset?.serialNumber || null,
+            company: asset
+              ? (asset.companyType === 'other' ? (asset.companyOtherName || 'OTRA') : String(asset.companyType || '').toUpperCase())
+              : 'Sin empresa',
+            totalAmount: 0,
+            expenseCount: 0,
+          };
+        }
+
+        byAssetMap[key].totalAmount += amount;
+        byAssetMap[key].expenseCount += 1;
+      });
+
+      const byAsset = Object.values(byAssetMap)
+        .sort((a, b) => b.totalAmount - a.totalAmount)
+        .map((item) => ({
+          ...item,
+          totalAmount: Number(item.totalAmount.toFixed(2)),
+        }));
+
+      const totalAmount = Number(
+        byAsset.reduce((sum, item) => sum + item.totalAmount, 0).toFixed(2)
+      );
+
+      res.json({
+        success: true,
+        data: {
+          period,
+          year,
+          month: period === 'monthly' ? month : null,
+          totalAmount,
+          totalTransactions: expenses.length,
+          byAsset,
+        },
+      });
+    } catch (error) {
+      console.error('[FleetController.getFleetExpenseReport]', error);
+      res.status(500).json({ success: false, message: 'Error obteniendo reporte de gastos de flota' });
+    }
+  },
 
   // ─────────────────────────────────────────────────────────────
   // FLEET ASSETS
@@ -694,7 +781,15 @@ const FleetController = {
 
   async getFleetStats(req, res) {
     try {
-      const [totalAssets, activeAssets, inRepair, upcomingMaintenance] = await Promise.all([
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = now.getMonth() + 1;
+      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+      const monthEnd = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+      const yearStart = `${year}-01-01`;
+      const yearEnd = `${year}-12-31`;
+
+      const [totalAssets, activeAssets, inRepair, upcomingMaintenance, monthlyFleetExpensesRaw, yearlyFleetExpensesRaw, monthlyFleetExpensesCount, yearlyFleetExpensesCount] = await Promise.all([
         FleetAsset.count({ where: { status: { [Op.ne]: 'retired' } } }),
         FleetAsset.count({ where: { status: 'active' } }),
         FleetAsset.count({ where: { status: 'in_repair' } }),
@@ -707,11 +802,56 @@ const FleetController = {
             },
           },
         }),
+        Expense.sum('amount', {
+          where: {
+            typeExpense: 'Gasto Flota',
+            date: { [Op.between]: [monthStart, monthEnd] },
+          },
+        }),
+        Expense.sum('amount', {
+          where: {
+            typeExpense: 'Gasto Flota',
+            date: { [Op.between]: [yearStart, yearEnd] },
+          },
+        }),
+        Expense.count({
+          where: {
+            typeExpense: 'Gasto Flota',
+            date: { [Op.between]: [monthStart, monthEnd] },
+          },
+        }),
+        Expense.count({
+          where: {
+            typeExpense: 'Gasto Flota',
+            date: { [Op.between]: [yearStart, yearEnd] },
+          },
+        }),
       ]);
+
+      const monthlyFleetExpenses = parseFloat(monthlyFleetExpensesRaw || 0);
+      const yearlyFleetExpenses = parseFloat(yearlyFleetExpensesRaw || 0);
 
       res.json({
         success: true,
-        data: { totalAssets, activeAssets, inRepair, upcomingMaintenance },
+        data: {
+          totalAssets,
+          activeAssets,
+          inRepair,
+          upcomingMaintenance,
+          fleetExpenses: {
+            monthly: {
+              amount: monthlyFleetExpenses,
+              count: monthlyFleetExpensesCount,
+              month,
+              year,
+            },
+            yearly: {
+              amount: yearlyFleetExpenses,
+              count: yearlyFleetExpensesCount,
+              year,
+            },
+          },
+        },
       });
     } catch (error) {
       console.error('[FleetController.getFleetStats]', error);

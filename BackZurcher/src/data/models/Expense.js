@@ -36,7 +36,8 @@ module.exports = (sequelize) => {
             'Inspección Inicial',
             'Inspección Final',
             'Comisión Vendedor', // 🆕 Nuevo tipo para comisiones
-            'Gasto Fijo' // 🆕 Para gastos fijos recurrentes (alquiler, servicios, etc.)
+            'Gasto Fijo', // 🆕 Para gastos fijos recurrentes (alquiler, servicios, etc.)
+            'Gasto Flota' // 🚗 Para gastos de vehículos y maquinaria
         ),
         allowNull: false,
     },
@@ -94,6 +95,12 @@ module.exports = (sequelize) => {
         key: 'idFixedExpense'
       },
       comment: 'Referencia al gasto fijo que generó este expense'
+    },
+    // 🚗 Relación con Fleet Asset (para gastos de flota)
+    fleetAssetId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Referencia al vehículo o maquinaria (typeExpense = Gasto Flota)'
     },
     // 🆕 Proveedor/Vendor
     vendor: {

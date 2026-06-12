@@ -1,7 +1,7 @@
 const { Income, Staff, Receipt, Work, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
-const { createDepositTransaction } = require('../utils/bankTransactionHelper');
+const { createDepositTransaction, isBankAccount, getAccountName } = require('../utils/bankTransactionHelper');
 
 // 🔧 Helper: Normalizar fecha de ISO a YYYY-MM-DD (acepta ambos formatos)
 const normalizeDateToLocal = (dateInput) => {
@@ -391,12 +391,225 @@ const updateIncome = async (req, res) => {
     date = normalizeDateToLocal(date);
   }
   
+  const dbTransaction = await sequelize.transaction();
+
   try {
-    const income = await Income.findByPk(id);
-    if (!income) return res.status(404).json({ message: 'Ingreso no encontrado' });
+    const income = await Income.findByPk(id, { transaction: dbTransaction });
+    if (!income) {
+      await dbTransaction.rollback();
+      return res.status(404).json({ message: 'Ingreso no encontrado' });
+    }
+
+    const prev = {
+      amount: parseFloat(income.amount || 0),
+      date: income.date,
+      paymentMethod: income.paymentMethod,
+      typeIncome: income.typeIncome,
+      workId: income.workId,
+      notes: income.notes,
+      staffId: income.staffId,
+    };
+
+    const normalizeUuid = (value) => {
+      if (value === '' || value === null || value === undefined) {
+        return null;
+      }
+
+      return value;
+    };
+
+    const hasWorkIdInPayload = Object.prototype.hasOwnProperty.call(req.body, 'workId');
+    const nextWorkId = hasWorkIdInPayload ? normalizeUuid(workId) : prev.workId;
+
+    const next = {
+      date: date ?? prev.date,
+      amount: amount ?? prev.amount,
+      typeIncome: typeIncome ?? prev.typeIncome,
+      notes: notes ?? prev.notes,
+      workId: nextWorkId,
+      staffId: staffId ?? prev.staffId,
+      paymentMethod: paymentMethod ?? prev.paymentMethod,
+      paymentDetails: paymentDetails ?? income.paymentDetails,
+      verified: verified ?? income.verified,
+    };
 
     // Actualizar el ingreso
-    await income.update({ date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified }); // Incluir paymentDetails
+    await income.update(next, { transaction: dbTransaction });
+
+    // ─────────────────────────────────────────────────────────────
+    // Sincronizar BankTransaction + balances al editar
+    // ─────────────────────────────────────────────────────────────
+    const { BankAccount, BankTransaction } = require('../data');
+    const existingBankTransaction = await BankTransaction.findOne({
+      where: {
+        relatedIncomeId: income.idIncome,
+        transactionType: 'deposit'
+      },
+      transaction: dbTransaction
+    });
+
+    const oldIsBank = isBankAccount(prev.paymentMethod);
+    const newIsBank = isBankAccount(next.paymentMethod);
+    const nextAmount = parseFloat(next.amount || 0);
+
+    // Revertir efecto anterior si estaba en cuenta bancaria
+    if (oldIsBank && existingBankTransaction) {
+      const oldAccount = await BankAccount.findByPk(existingBankTransaction.bankAccountId, { transaction: dbTransaction });
+      if (oldAccount) {
+        const revertedBalance = parseFloat(oldAccount.currentBalance || 0) - parseFloat(existingBankTransaction.amount || 0);
+        await oldAccount.update({ currentBalance: revertedBalance }, { transaction: dbTransaction });
+      }
+    }
+
+    if (newIsBank) {
+      const accountName = getAccountName(next.paymentMethod);
+      const newAccount = await BankAccount.findOne({
+        where: { accountName, isActive: true },
+        transaction: dbTransaction
+      });
+
+      if (!newAccount) {
+        throw new Error(`Cuenta bancaria no encontrada para método de pago: ${next.paymentMethod}`);
+      }
+
+      const newBalance = parseFloat(newAccount.currentBalance || 0) + nextAmount;
+      await newAccount.update({ currentBalance: newBalance }, { transaction: dbTransaction });
+
+      const txPayload = {
+        bankAccountId: newAccount.idBankAccount,
+        amount: nextAmount,
+        date: next.date,
+        description: `Ingreso editado: ${next.typeIncome}${next.workId ? ` (Work #${String(next.workId).slice(0, 8)})` : ''}`,
+        category: 'income',
+        balanceAfter: newBalance,
+        notes: next.notes || null,
+        createdByStaffId: next.staffId || null,
+      };
+
+      if (existingBankTransaction) {
+        await existingBankTransaction.update(txPayload, { transaction: dbTransaction });
+      } else {
+        await BankTransaction.create({
+          ...txPayload,
+          transactionType: 'deposit',
+          relatedIncomeId: income.idIncome,
+        }, { transaction: dbTransaction });
+      }
+    } else if (existingBankTransaction) {
+      await existingBankTransaction.destroy({ transaction: dbTransaction });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Recalcular Budget asociado cuando aplica pago inicial/final
+    // ─────────────────────────────────────────────────────────────
+    const budgetTypes = ['Factura Pago Inicial Budget', 'Factura Pago Final Budget'];
+    const shouldRecalculateBudget =
+      budgetTypes.includes(prev.typeIncome) ||
+      budgetTypes.includes(next.typeIncome) ||
+      prev.workId !== next.workId;
+
+    if (shouldRecalculateBudget) {
+      const { Work, Budget, FinalInvoice } = require('../data');
+
+      const recalcBudgetForWork = async (targetWorkId) => {
+        if (!targetWorkId) return;
+
+        const work = await Work.findByPk(targetWorkId, {
+          include: [{ model: Budget, as: 'budget' }],
+          transaction: dbTransaction
+        });
+
+        if (!work || !work.budget) return;
+
+        const budget = work.budget;
+        const totalPaymentProof = parseFloat(await Income.sum('amount', {
+          where: {
+            workId: targetWorkId,
+            typeIncome: { [Op.in]: budgetTypes }
+          },
+          transaction: dbTransaction
+        }) || 0);
+
+        const hasFirmaCompleta = budget.manualSignedPdfPath ||
+          budget.signatureStatus === 'signed' ||
+          budget.signatureStatus === 'completed';
+
+        const fueEnviadoAFirmar = budget.signatureStatus === 'sent' ||
+          budget.signatureStatus === 'pending' ||
+          budget.signNowDocumentId ||
+          budget.docusignEnvelopeId;
+
+        let newStatus = budget.status;
+
+        if (budget.status === 'approved' && totalPaymentProof === 0) {
+          if (hasFirmaCompleta) {
+            newStatus = 'signed';
+          } else if (fueEnviadoAFirmar) {
+            newStatus = 'sent_for_signature';
+          } else {
+            newStatus = 'send';
+          }
+        } else if (totalPaymentProof > 0 && ['send', 'sent_for_signature', 'signed'].includes(budget.status)) {
+          newStatus = 'approved';
+        }
+
+        await budget.update({
+          paymentProofAmount: totalPaymentProof === 0 ? null : totalPaymentProof,
+          status: newStatus
+        }, { transaction: dbTransaction });
+
+        // Si ya existe FinalInvoice, recalcular tomando el nuevo pago inicial real.
+        // finalAmountDue = originalBudgetTotal + subtotalExtras - discount - initialPaymentMade
+        const finalInvoice = await FinalInvoice.findOne({
+          where: { workId: targetWorkId },
+          transaction: dbTransaction
+        });
+
+        if (finalInvoice && finalInvoice.status !== 'cancelled') {
+          const totalInitialPayment = parseFloat(await Income.sum('amount', {
+            where: {
+              workId: targetWorkId,
+              typeIncome: 'Factura Pago Inicial Budget'
+            },
+            transaction: dbTransaction
+          }) || 0);
+
+          const originalBudgetTotal = parseFloat(finalInvoice.originalBudgetTotal || 0);
+          const subtotalExtras = parseFloat(finalInvoice.subtotalExtras || 0);
+          const discount = parseFloat(finalInvoice.discount || 0);
+          const currentPaid = parseFloat(finalInvoice.totalAmountPaid || 0);
+          const newFinalAmountDue = Math.max(0, originalBudgetTotal + subtotalExtras - discount - totalInitialPayment);
+
+          let newInvoiceStatus = finalInvoice.status;
+          if (currentPaid <= 0) {
+            newInvoiceStatus = 'pending';
+          } else if (currentPaid >= newFinalAmountDue) {
+            newInvoiceStatus = 'paid';
+          } else {
+            newInvoiceStatus = 'partially_paid';
+          }
+
+          await finalInvoice.update({
+            initialPaymentMade: totalInitialPayment,
+            finalAmountDue: newFinalAmountDue,
+            status: newInvoiceStatus,
+            paymentDate: newInvoiceStatus === 'pending' ? null : finalInvoice.paymentDate,
+          }, { transaction: dbTransaction });
+
+          // Si deja de estar paid, mover Work de paymentReceived a invoiceFinal para reabrir saldo.
+          if (work.status === 'paymentReceived' && newInvoiceStatus !== 'paid') {
+            await work.update({ status: 'invoiceFinal' }, { transaction: dbTransaction });
+          }
+        }
+      };
+
+      if (prev.workId && prev.workId !== next.workId) {
+        await recalcBudgetForWork(prev.workId);
+      }
+      await recalcBudgetForWork(next.workId);
+    }
+
+    await dbTransaction.commit();
     
     // Enviar notificación de actualización (opcional - solo para cambios importantes)
     try {
@@ -433,6 +646,9 @@ const updateIncome = async (req, res) => {
     
     res.status(200).json(income);
   } catch (error) {
+    if (dbTransaction && !dbTransaction.finished) {
+      await dbTransaction.rollback();
+    }
     res.status(500).json({ message: 'Error al actualizar el ingreso', error: error.message });
   }
 };

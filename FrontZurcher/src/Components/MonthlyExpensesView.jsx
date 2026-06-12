@@ -37,6 +37,14 @@ const MonthlyExpensesView = () => {
     return `${month}-${day}-${year}`;
   };
 
+  const getCompanyLabel = (fleetAssetInfo) => {
+    if (!fleetAssetInfo) return 'Sin empresa';
+    if (fleetAssetInfo.companyType === 'other') {
+      return fleetAssetInfo.companyOtherName || 'OTRA';
+    }
+    return String(fleetAssetInfo.companyType || '').toUpperCase();
+  };
+
   // Toggle sección expandida/colapsada
   const toggleSection = (sectionId) => {
     setExpandedSections(prev => ({
@@ -197,6 +205,7 @@ const MonthlyExpensesView = () => {
               {data?.summary && (
                 <div className="space-y-1">
                   <p className="font-medium">📈 {data.summary.generalExpensesFound} gastos generales</p>
+                  <p className="font-medium">🚚 {data.summary.fleetExpensesFound || 0} gastos flota</p>
                   <p className="font-medium">🔄 {data.summary.fixedExpensesActive} gastos fijos activos</p>
                 </div>
               )}
@@ -264,7 +273,7 @@ const MonthlyExpensesView = () => {
             {/* Mostrar resumen de actualización */}
             {refreshing === false && data && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-                ✅ Datos actualizados. Se encontraron {data.summary?.generalExpensesFound || 0} gastos generales y {data.summary?.fixedExpensesActive || 0} gastos fijos activos.
+                ✅ Datos actualizados. Se encontraron {data.summary?.generalExpensesFound || 0} gastos generales, {data.summary?.fleetExpensesFound || 0} gastos de flota y {data.summary?.fixedExpensesActive || 0} gastos fijos activos.
               </div>
             )}
 
@@ -280,7 +289,7 @@ const MonthlyExpensesView = () => {
                           📅 {month.monthName} {data.year || selectedYear}
                         </h3>
                         <p className="text-sm text-gray-600">
-                          {month.generalExpenses.count + month.fixedExpenses.count} gastos registrados
+                          {month.generalExpenses.count + month.fleetExpenses.count + month.fixedExpenses.count} gastos registrados
                         </p>
                       </div>
                       <div className="text-right">
@@ -366,6 +375,103 @@ const MonthlyExpensesView = () => {
                                           <span>{item.vendor}</span>
                                         </p>
                                       )}
+                                      {item.notes && (
+                                        <p className="flex items-start gap-2">
+                                          <span className="mt-0.5">📝</span>
+                                          <span className="font-medium">Nota:</span>
+                                          <span className="text-gray-600">{item.notes}</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Gastos Flota - Sección desplegable */}
+                    {month.fleetExpenses.count > 0 && (
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => toggleSection(`fleet-${month.month}`)}
+                          className="w-full bg-amber-50 hover:bg-amber-100 px-6 py-4 flex items-center justify-between transition-colors"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-amber-500 text-white rounded-lg p-2">
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v6a2 2 0 002 2h1a3 3 0 106 0h2a3 3 0 106 0h1a2 2 0 002-2V8a2 2 0 00-2-2h-2l-2-2H4zm3 10a1 1 0 100-2 1 1 0 000 2zm9 0a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <div className="text-left">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                Gasto Vehículos/Máquinas ({month.fleetExpenses.count})
+                              </h4>
+                              <p className="text-sm text-gray-600">
+                                Monto total de flota del mes
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <div className="text-right">
+                              <div className="text-xl font-bold text-amber-600">
+                                {formatCurrency(month.fleetExpenses.total)}
+                              </div>
+                            </div>
+                            <div className={`transform transition-transform ${expandedSections[`fleet-${month.month}`] ? 'rotate-180' : ''}`}>
+                              <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+
+                        {expandedSections[`fleet-${month.month}`] && (
+                          <div className="border-t border-gray-200 bg-white">
+                            <div className="p-6 space-y-3">
+                              {month.fleetExpenses.items.map((item, index) => (
+                                <div key={index} className="flex items-start justify-between p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-100">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-4 mb-3">
+                                      <span className="text-xl font-bold text-gray-900 min-w-max">
+                                        {formatCurrency(item.amount)}
+                                      </span>
+                                      <span className="text-xs text-gray-500 px-2 py-1 bg-white rounded">
+                                        📅 {formatDateMDY(item.date)}
+                                      </span>
+                                      {item.fleetAssetInfo?.companyLabel && (
+                                        <span className="text-xs px-2 py-1 bg-amber-100 text-amber-800 rounded font-semibold">
+                                          {item.fleetAssetInfo.companyLabel}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-sm text-gray-700 space-y-1">
+                                      <p className="flex items-center gap-2">
+                                        <span>🚛</span>
+                                        <span className="font-medium">Activo:</span>
+                                        <span>{item.fleetAssetInfo?.name || 'Sin activo'}</span>
+                                      </p>
+                                      {item.fleetAssetInfo?.licensePlate && (
+                                        <p className="flex items-center gap-2">
+                                          <span>🔖</span>
+                                          <span className="font-medium">Placa:</span>
+                                          <span>{item.fleetAssetInfo.licensePlate}</span>
+                                        </p>
+                                      )}
+                                      {item.fleetAssetInfo?.serialNumber && (
+                                        <p className="flex items-center gap-2">
+                                          <span>🔢</span>
+                                          <span className="font-medium">Serie:</span>
+                                          <span>{item.fleetAssetInfo.serialNumber}</span>
+                                        </p>
+                                      )}
+                                      <p className="flex items-center gap-2">
+                                        <span>🏢</span>
+                                        <span className="font-medium">Empresa:</span>
+                                        <span>{getCompanyLabel(item.fleetAssetInfo)}</span>
+                                      </p>
                                       {item.notes && (
                                         <p className="flex items-start gap-2">
                                           <span className="mt-0.5">📝</span>
