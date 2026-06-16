@@ -24,7 +24,7 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
             break;
             case 'pending': // Estado inicial del Work o cuando está listo para materiales/asignación
              // Ajusta roles según quién deba saber que está pendiente
-            staffToNotify = await Staff.findAll({ where: { role: ['owner'] } });
+                staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
             message = `Trabajo Pendiente: ${address}. Comprar materiales/asignar.`;
             break;
 
@@ -75,6 +75,10 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
              staffToNotify = await Staff.findAll({ where: { role: [ 'admin', 'owner'] } });
              message = `Trabajo Instalado: ${address}. Solicitar 1ra inspección.`;
              break;
+           case 'firstInspectionPending':
+               staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+               message = `Inspección inicial solicitada: ${address}.`;
+               break;
         case 'coverPending':
                 // Notificar a roles relevantes para solicitar inspección
                 staffToNotify = await Staff.findAll({ where: { role: ['worker', 'admin', 'owner'] } });
@@ -87,8 +91,24 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
                     break;
         case 'invoiceFinal':
                     // Notificar cuando se envía la factura final
-                    staffToNotify = await Staff.findAll({ where: { role: [ 'owner'] } });
+                    staffToNotify = await Staff.findAll({ where: { role: [ 'admin', 'owner'] } });
                     message = `Invoice Final enviado para: ${address}. Esperando pago del cliente.`;
+                    break;
+        case 'finalInspectionPending':
+                    staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+                    message = `Inspección final solicitada: ${address}.`;
+                    break;
+        case 'final_inspection_requested':
+                    staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+                    message = `Inspección final solicitada al inspector: ${address}.`;
+                    break;
+        case 'final_invoice_sent_to_client':
+                    staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+                    message = `Invoice final enviado al cliente para: ${address}.`;
+                    break;
+        case 'final_payment_confirmed_by_client':
+                    staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+                    message = `Pago final confirmado por el cliente para: ${address}.`;
                     break;
 
         // --- Añade CASES para TODOS los demás estados de Work ---
