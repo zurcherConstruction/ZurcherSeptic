@@ -100,7 +100,7 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido instalado. Por favor, solicita la primera inspección.`,
   },
   firstInspectionPending: {
-    roles: [ 'owner'], 
+    roles: ['admin', 'owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la primera inspección. Esperando respuesta del inspector.`,
   },
   approvedInspection: {
@@ -140,8 +140,15 @@ const stateNotificationMap = {
     message: (work) => `El Invoice final del trabajo con dirección ${work.propertyAddress} ha sido enviada al cliente. Esperando pago.`,
   },
   finalInspectionPending: {
-    roles: ['owner'], 
+    roles: ['admin', 'owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la inspección final. Por favor, coordina con el inspector.`,
+  },
+  final_inspection_requested: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => {
+      const inspectorEmail = context?.applicantEmail || context?.inspectorEmail || 'inspector@desconocido';
+      return `Se solicitó la inspección final para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspector: ${inspectorEmail}. Inspección ID: ${context?.inspectionId || 'N/A'}.`;
+    }
   },
   finalApproved: {
     roles: ['owner'], 
@@ -344,17 +351,23 @@ const stateNotificationMap = {
   },
   // ------------------ Estados faltantes agregados ------------------
   final_invoice_received: {
-    roles: ['owner'],
+    roles: ['admin', 'owner'],
     message: (work, context) => {
       const invoiceUrl = context?.invoiceUrl || context?.invoiceFromInspectorUrl || 'Sin URL';
       return `Se recibió la factura del inspector para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}. URL: ${invoiceUrl}`;
     }
   },
   final_invoice_sent_to_client: {
-    roles: [ 'owner'],
+    roles: ['admin', 'owner'],
     message: (work, context) => {
       const clientEmail = context?.clientEmail || 'cliente@desconocido';
       return `El Invoice final ha sido enviado al cliente (${clientEmail}) para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}.`;
+    }
+  },
+  final_payment_confirmed_by_client: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => {
+      return `El cliente confirmó el pago de la factura final para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}.`;
     }
   },
   budgetSigned: {

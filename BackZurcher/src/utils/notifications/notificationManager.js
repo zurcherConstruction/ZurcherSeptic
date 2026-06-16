@@ -6,6 +6,19 @@ const { Expo } = require('expo-server-sdk');
 const { filterDuplicates, registerSent } = require('./notificationDeduplicator');
 let expo = new Expo();
 
+const getCanonicalRecipientEmail = (staff) => {
+  const rawEmail = (staff?.email || '').toString().trim().toLowerCase();
+  const adminInbox = (process.env.ADMIN_EMAIL || process.env.SMTP_USER || '').toString().trim().toLowerCase();
+
+  if (staff?.role === 'admin' && adminInbox) {
+    return adminInbox;
+  }
+
+  return rawEmail;
+};
+
+const isValidEmail = (email) => typeof email === 'string' && /^\S+@\S+\.\S+$/.test(email.trim());
+
 const sendNotifications = async (status, work, budget, io, context = {}) => {
   try {
     // 🔧 AUTO-DETECTAR ORDEN DE PARÁMETROS
@@ -30,35 +43,32 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
       // 🛡️ DEDUPLICACIÓN DESHABILITADA - Siempre enviar correos
       // const filteredStaff = filterDuplicates(staffToNotify, status, entityId);
       const filteredStaff = staffToNotify; // ✅ Usar lista completa sin filtrar
+      const sentRecipientEmails = new Set();
       
       // if (filteredStaff.length === 0) {
       //   console.log(`⏭️ Todas las notificaciones de email para "${status}" (${entityId}) fueron filtradas por duplicación`);
       // }
 
       for (const staff of filteredStaff) {
-        if (!staff.email || !staff.email.includes('@')) {
+        const recipientEmail = getCanonicalRecipientEmail(staff);
+
+        if (!isValidEmail(recipientEmail)) {
           console.error(`El usuario ${staff.id} no tiene un correo electrónico válido: ${staff.email}`);
+          continue;
+        }
+
+        if (sentRecipientEmails.has(recipientEmail)) {
+          console.log(`🚫 Bloqueando envío duplicado a ${recipientEmail} (canal ya procesado en este lote)`);
           continue;
         }
         
         // 🚫 FILTRO 1: No notificar al usuario que realiza la acción
         // Evita que recibas emails de tus propias acciones
         if (context?.userId && staff.id && context.userId === staff.id) {
-          console.log(`🚫 Bloqueando auto-notificación a ${staff.email} (usuario ${staff.id} realizó la acción)`);
+          console.log(`🚫 Bloqueando auto-notificación a ${recipientEmail} (usuario ${staff.id} realizó la acción)`);
           continue;
         }
-        
-        // 🚫 FILTRO 2: No enviar al correo del sistema (SMTP_USER) si el rol 'admin' no está en la lista de roles
-        // Esto previene que el admin reciba TODAS las notificaciones del sistema
-        const systemEmail = process.env.SMTP_USER?.toLowerCase().trim();
-        if (systemEmail && staff.email.toLowerCase().trim() === systemEmail) {
-          // Solo enviar si 'admin' está EXPLÍCITAMENTE en la lista de roles
-          const notificationRoles = roles || [];
-          if (!notificationRoles.includes('admin')) {
-            console.log(`🚫 Bloqueando envío a ${staff.email} (correo del sistema/admin) - Roles permitidos: [${notificationRoles.join(', ')}]`);
-            continue;
-          }
-        }
+
         try {
           let htmlContent;
           
@@ -124,14 +134,16 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
                                'Notificación del Sistema');
           
           await sendEmail({
-            to: staff.email,
+            to: recipientEmail,
             subject: emailSubject,
             text: message,
             html: htmlContent,
             attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
           });
+
+          sentRecipientEmails.add(recipientEmail);
         } catch (error) {
-          console.error(`Error al enviar correo a ${staff.email}:`, error);
+          console.error(`Error al enviar correo a ${recipientEmail}:`, error);
         }
       }
       

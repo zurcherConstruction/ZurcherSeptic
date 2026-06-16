@@ -262,7 +262,16 @@ const registerQuickInspectionResult = async (req, res) => {
           notificationExtras = { notes };
         }
       } else if (type === 'final') {
+        const canAutoTransitionFinalStatus = work.status === 'paymentReceived';
+
+        if (!canAutoTransitionFinalStatus) {
+          console.log(`[InspectionController - Quick] Work ${work.idWork} has final result (${finalStatus}) but is not paid (status=${work.status}). Keeping status unchanged; manual tracking required.`);
+        }
+
         if (finalStatus === 'approved') {
+          if (!canAutoTransitionFinalStatus) {
+            notificationKey = null;
+          } else {
           const rawSystemType = work.Permit?.systemType || work.systemType || null;
           const systemTypeNormalized = rawSystemType ? String(rawSystemType).toLowerCase() : '';
           isATUSystemForSchedule = systemTypeNormalized.includes('atu');
@@ -277,10 +286,15 @@ const registerQuickInspectionResult = async (req, res) => {
             work.status = 'finalApproved';
             notificationKey = 'finalApproved';
           }
+          }
         } else {
-          work.status = 'finalRejected';
-          notificationKey = 'final_inspection_rejected';
-          notificationExtras = { notes };
+          if (canAutoTransitionFinalStatus) {
+            work.status = 'finalRejected';
+            notificationKey = 'final_inspection_rejected';
+            notificationExtras = { notes };
+          } else {
+            notificationKey = null;
+          }
         }
       }
 
@@ -295,7 +309,7 @@ const registerQuickInspectionResult = async (req, res) => {
       work.resultDocumentUrl = inspection.resultDocumentUrl;
       await sendNotifications(notificationKey, work, req.app.get('io'), notificationExtras);
       delete work.resultDocumentUrl;
-    } else {
+    } else if (notificationKey) {
       await sendNotifications(notificationKey, work, req.app.get('io'), notificationExtras);
     }
 
@@ -418,10 +432,9 @@ const saveQuickInspectionFollowUp = async (req, res) => {
       if (inspectionType === 'initial' && work.status === 'installed') {
         work.status = 'firstInspectionPending';
         await work.save({ transaction: t });
-      } else if (inspectionType === 'final' && ['paymentReceived', 'covered', 'invoiceFinal'].includes(work.status)) {
-        work.status = 'finalInspectionPending';
-        await work.save({ transaction: t });
       }
+      // Para inspecciones finales, registrar fecha/solicitud NO cambia estado automáticamente.
+      // El cambio de estado debe hacerse con resultado final + pago confirmado.
     });
 
     try {
@@ -942,6 +955,15 @@ const registerInspectionResult = async (req, res) => {
         // Enviar notificaciones para el nuevo estado automático
         await sendNotifications('coverPending', work, req.app.get('io'));
       } else if (inspection.type === 'final') {
+        const canAutoTransitionFinalStatus = work.status === 'paymentReceived';
+
+        if (!canAutoTransitionFinalStatus) {
+          console.log(`[InspectionController - registerResult] Work ${work.idWork} has final result approved but is not paid (status=${work.status}). Keeping status unchanged; manual tracking required.`);
+        }
+
+        if (!canAutoTransitionFinalStatus) {
+          // No cambiar estado automáticamente si no hay pago confirmado.
+        } else {
         const oldWorkStatus = work.status; // Asegúrate que esto esté antes de cambiar work.status
 
         // Determinar si el sistema es ATU mirando el Permit asociado
@@ -986,14 +1008,19 @@ const registerInspectionResult = async (req, res) => {
           // Podríamos enviar una notificación específica si la tienes configurada
           await sendNotifications('finalApproved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
         }
+        }
       }
     } else if (finalStatus === 'rejected') {
       if (inspection.type === 'initial') {
         work.status = 'rejectedInspection';
         await sendNotifications('initial_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
       } else if (inspection.type === 'final') {
-        work.status = 'finalRejected'; // Esto ya lo tenías
-        await sendNotifications('final_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
+        if (work.status === 'paymentReceived') {
+          work.status = 'finalRejected';
+          await sendNotifications('final_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
+        } else {
+          console.log(`[InspectionController - registerResult] Work ${work.idWork} has final result rejected but is not paid (status=${work.status}). Keeping status unchanged; manual tracking required.`);
+        }
       }
     }
     await work.save();
@@ -1209,8 +1236,6 @@ const requestReinspection = async (req, res, next) => {
     // 3. Actualizar estado de la obra (la inspección ya se creó con el processStatus correcto)
     if (newInspectionType === 'initial') {
       work.status = 'firstInspectionPending'; // O un estado como 'reinspectionPending'
-    } else if (newInspectionType === 'final') {
-      work.status = 'finalInspectionPending'; // O un estado como 'reinspectionFinalPending'
     }
     await work.save();
     
@@ -1380,9 +1405,8 @@ const requestFinalInspection = async (req, res) => {
     inspection.processStatus = 'final_requested_to_inspector';
     inspection.dateRequestedToInspectors = new Date(); // Reutilizamos este campo
     await inspection.save();
-
-    work.status = 'finalInspectionPending'; // Nuevo estado de obra
-    await work.save();
+    // Registrar solicitud/fecha final NO cambia el estado de la obra automáticamente.
+    // El estado final se actualiza cuando existe resultado de inspección y pago confirmado.
     
     await sendNotifications('final_inspection_requested', work, req.app.get('io'), { inspectionId: inspection.idInspection, applicantEmail });
 
