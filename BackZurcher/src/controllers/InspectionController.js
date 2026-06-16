@@ -1,5 +1,5 @@
 const path = require('path');
-const { Inspection, Work, Permit, Image, Budget, WorkNote, sequelize } = require('../data'); // Asegúrate de importar Image
+const { Inspection, Work, Permit, Image, Budget, WorkNote, Staff, sequelize } = require('../data'); // Asegúrate de importar Image
 const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
@@ -30,6 +30,89 @@ const formatDateOnlyLabel = (dateValue) => {
     month: '2-digit',
     year: 'numeric',
   });
+};
+
+const sendInitialInspectionFeeReminderEmail = async (work, options = {}) => {
+  try {
+    if (!work) return;
+
+    const permit = work.Permit || (work.idPermit
+      ? await Permit.findByPk(work.idPermit, { attributes: ['permitNumber', 'systemType'] })
+      : null);
+
+    const rawSystemType = permit?.systemType || work.systemType || null;
+    const normalizedSystemType = rawSystemType ? String(rawSystemType).toLowerCase() : '';
+    const isATUSystem = normalizedSystemType.includes('atu');
+    const feeInstruction = isATUSystem
+      ? 'Se deben pagar Fee Inicial y Fee Final para esta obra.'
+      : 'Se debe pagar solo Fee Inicial para esta obra.';
+
+    const staffToNotify = await Staff.findAll({
+      where: {
+        role: ['recept', 'admin'],
+        isActive: true,
+      },
+      attributes: ['id', 'name', 'email', 'role']
+    });
+
+    const recipients = staffToNotify.filter((staffMember) => Boolean(staffMember?.email));
+    if (recipients.length === 0) {
+      console.warn(`[InspectionController] No se encontraron destinatarios activos (roles recept/admin) para aviso de fees de work ${work.idWork}.`);
+      return;
+    }
+
+    const permitNumber = permit?.permitNumber || 'N/A';
+    const inspectionIdLabel = options.inspectionId || 'N/A';
+    const subject = `Accion requerida: pago de fees - Work ${work.propertyAddress}`;
+    const text = [
+      'Inspeccion inicial aprobada.',
+      '',
+      `Propiedad: ${work.propertyAddress || 'N/A'}`,
+      `Permit: ${permitNumber}`,
+      `Tipo de sistema: ${rawSystemType || 'N/A'}`,
+      '',
+      feeInstruction,
+      '',
+      'Este aviso fue generado automaticamente por el sistema.'
+    ].join('\n');
+
+    const html = `
+      <p>Inspeccion inicial aprobada.</p>
+      <p><strong>Propiedad:</strong> ${work.propertyAddress || 'N/A'}<br/>
+      <strong>Permit:</strong> ${permitNumber}<br/>
+      <strong>Tipo de sistema:</strong> ${rawSystemType || 'N/A'}</p>
+      <p><strong>${feeInstruction}</strong></p>
+      <p>Este aviso fue generado automaticamente por el sistema.</p>
+    `;
+
+    for (const recipient of recipients) {
+      await sendEmail({
+        to: recipient.email,
+        subject,
+        text,
+        html,
+      });
+    }
+
+    try {
+      const timestampLabel = formatActionDate();
+      const recipientEmails = recipients.map((r) => r.email).join(', ');
+      await WorkNote.create({
+        workId: work.idWork,
+        staffId: null,
+        message: `Aviso automatico de fees enviado a recept/admin (${recipientEmails}) - ${timestampLabel}. ${feeInstruction}`,
+        noteType: 'progress',
+        priority: 'medium',
+        relatedStatus: work.status,
+        isResolved: false,
+        mentionedStaffIds: [],
+      });
+    } catch (noteError) {
+      console.warn('⚠️ No se pudo crear WorkNote del aviso de fees:', noteError.message);
+    }
+  } catch (error) {
+    console.error(`[InspectionController] Error enviando aviso automatico de fees para work ${work?.idWork}:`, error);
+  }
 };
 
 // Función para comprimir PDF si es necesario
@@ -311,6 +394,10 @@ const registerQuickInspectionResult = async (req, res) => {
       delete work.resultDocumentUrl;
     } else if (notificationKey) {
       await sendNotifications(notificationKey, work, req.app.get('io'), notificationExtras);
+    }
+
+    if (type === 'initial' && finalStatus === 'approved') {
+      await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
     }
 
     // Programar visitas de mantenimiento (ATU final aprobado)
@@ -954,6 +1041,9 @@ const registerInspectionResult = async (req, res) => {
         
         // Enviar notificaciones para el nuevo estado automático
         await sendNotifications('coverPending', work, req.app.get('io'));
+
+        // Avisar a recept/admin para pago de fees según tipo de sistema
+        await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
       } else if (inspection.type === 'final') {
         const canAutoTransitionFinalStatus = work.status === 'paymentReceived';
 

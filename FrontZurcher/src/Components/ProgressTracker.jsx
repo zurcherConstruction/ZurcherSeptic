@@ -298,7 +298,7 @@ const ProgressTracker = () => {
       {!loading &&
         !error &&
         filteredData.map((work) => {
-          const { idWork, propertyAddress, status, Permit, Receipts, inspections } = work;
+          const { idWork, propertyAddress, status, Permit, Receipts, inspections, expenses } = work;
           const statusesAfterInitialInspection = new Set([
             'installed',
             'firstInspectionPending',
@@ -435,14 +435,40 @@ const ProgressTracker = () => {
 
           // --- ALERTA DE INSPECCIÓN INICIAL NO ABONADA ---
           let initialInspectionAlert = null;
-          const hasInitialInspectionReceipt = Array.isArray(Receipts)
-            ? Receipts.some(r => r.type === "Inspección Inicial")
+          let missingInspectionFeeAlert = null;
+          const hasInitialInspectionExpense = Array.isArray(expenses)
+            ? expenses.some((exp) => {
+                const amountValue = Number(exp?.amount || 0);
+                return exp?.typeExpense === 'Inspección Inicial' && Number.isFinite(amountValue) && amountValue > 0;
+              })
             : false;
-          if (!hasInitialInspectionReceipt) {
+          const hasInspectionFeeExpense = Array.isArray(expenses)
+            ? expenses.some((exp) => {
+                const amountValue = Number(exp?.amount || 0);
+                return exp?.typeExpense === 'Fee de Inspección' && Number.isFinite(amountValue) && amountValue > 0;
+              })
+            : false;
+          const hasInitialInspectionReceipt = Array.isArray(Receipts)
+            ? Receipts.some((r) => r?.type === 'Inspección Inicial')
+            : false;
+          const hasInitialInspectionPaymentEvidence =
+            hasInitialInspectionReceipt || hasInitialInspectionExpense;
+
+          if (statusesAfterInitialInspection.has(status) && !hasInitialInspectionPaymentEvidence) {
             initialInspectionAlert = (
-              <div className="flex items-center justify-center mt-2 text-xs text-red-600 font-semibold">
+              <div className="flex items-center justify-center text-xs text-red-600 font-semibold">
                 <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-red-500 animate-pulse" />
                 No se abonó la Inspección Inicial
+              </div>
+            );
+          }
+
+          // --- ALERTA DE FEE DE INSPECCIÓN NO CARGADO ---
+          if (statusesAfterInitialInspection.has(status) && !hasInspectionFeeExpense) {
+            missingInspectionFeeAlert = (
+              <div className="flex items-center justify-center text-xs text-amber-700 font-semibold">
+                <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-amber-500 animate-pulse" />
+                Falta pagar fee
               </div>
             );
           }
@@ -481,27 +507,36 @@ const ProgressTracker = () => {
           if (statusesAfterFinalInspection.has(status) && !finalFollowUp.isResultCompleted) {
             if (finalFollowUp.state === 'overdue') {
               finalInspectionFollowUpAlert = (
-                <div className="flex items-center justify-center mt-2 text-xs text-red-700 font-semibold">
+                <div className="flex items-center justify-center text-xs text-red-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-red-500 animate-pulse" />
                   Inspeccion final pedida {finalFollowUp.requestedDate ? formatDateShort(finalFollowUp.requestedDate, { includeYear: false }) : 'sin fecha'}, programada {finalFollowUp.dueDate ? formatDateShort(finalFollowUp.dueDate, { includeYear: false }) : 'sin fecha'}{finalFollowUp.inspectorEmail ? ` (${finalFollowUp.inspectorEmail})` : ''}
                 </div>
               );
             } else if (finalFollowUp.state === 'requested') {
               finalInspectionFollowUpAlert = (
-                <div className="flex items-center justify-center mt-2 text-xs text-blue-700 font-semibold">
+                <div className="flex items-center justify-center text-xs text-blue-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-blue-500" />
                   Inspeccion final pedida {finalFollowUp.requestedDate ? formatDateShort(finalFollowUp.requestedDate, { includeYear: false }) : 'sin fecha'}, programada {finalFollowUp.dueDate ? formatDateShort(finalFollowUp.dueDate, { includeYear: false }) : 'sin fecha'}{finalFollowUp.inspectorEmail ? ` (${finalFollowUp.inspectorEmail})` : ''}
                 </div>
               );
             } else if (finalFollowUp.state === 'pending_request') {
               finalInspectionFollowUpAlert = (
-                <div className="flex items-center justify-center mt-2 text-xs text-amber-700 font-semibold">
+                <div className="flex items-center justify-center text-xs text-amber-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-amber-500" />
                   Falta cargar fecha solicitada de inspeccion final
                 </div>
               );
             }
           }
+
+          const progressAlerts = [
+            noticeToOwnerAlert,
+            budgetNotSignedAlert,
+            initialInspectionAlert,
+            missingInspectionFeeAlert,
+            quickInspectionFollowUpAlert,
+            finalInspectionFollowUpAlert,
+          ].filter(Boolean);
 
           const progressBarIndex = getProgressIndexForBar(status);
 
@@ -546,12 +581,16 @@ const ProgressTracker = () => {
                 )}
               </div>
 
-              {/* Mostrar alertas: Notice to Owner, presupuesto no firmado, inspección */}
-              {noticeToOwnerAlert}
-              {budgetNotSignedAlert}
-              {initialInspectionAlert}
-              {quickInspectionFollowUpAlert}
-              {finalInspectionFollowUpAlert}
+              {/* Mostrar alertas en stack para evitar superposición visual */}
+              {progressAlerts.length > 0 && (
+                <div className="mt-2 space-y-2 relative z-10">
+                  {progressAlerts.map((alertNode, index) => (
+                    <div key={`${idWork}-alert-${index}`}>
+                      {alertNode}
+                    </div>
+                  ))}
+                </div>
+              )}
     
               <div className="hidden sm:flex relative items-center justify-between mt-4">
                 <div className="absolute w-full h-2 bg-gray-200 rounded-full"></div>
