@@ -27,6 +27,16 @@ const enrichWithMine = (reminder, staffId) => {
   return plain;
 };
 
+const canViewReminder = async (reminderId, staffId) => {
+  const [reminder, assignment] = await Promise.all([
+    Reminder.findByPk(reminderId),
+    ReminderAssignment.findOne({ where: { reminderId, staffId } }),
+  ]);
+
+  if (!reminder) return { reminder: null, allowed: false };
+  return { reminder, allowed: !!assignment || reminder.createdBy === staffId };
+};
+
 module.exports = {
 
   // GET /reminders — Recordatorios del staff autenticado (pendientes)
@@ -62,10 +72,15 @@ module.exports = {
     }
   },
 
-  // GET /reminders/all — Todos los recordatorios (admin/owner)
+  // GET /reminders/all — Lista general compartida (solo broadcast)
   async getAllReminders(req, res) {
     try {
+      if (!['admin', 'owner'].includes(req.staff.role)) {
+        return res.status(403).json({ error: true, message: 'No tienes permiso para ver todos los recordatorios' });
+      }
+
       const reminders = await Reminder.findAll({
+        where: { type: 'broadcast' },
         include: reminderIncludes(),
         order: [['createdAt', 'DESC']],
       });
@@ -147,24 +162,29 @@ module.exports = {
       assignment.completedAt = assignment.completed ? new Date() : null;
       await assignment.save();
 
-      res.json({ success: true, completed: assignment.completed, completedAt: assignment.completedAt });
+      res.json({
+        success: true,
+        completed: assignment.completed,
+        completedAt: assignment.completedAt,
+        assignmentId: assignment.id,
+        staffId,
+      });
     } catch (err) {
       console.error('[ReminderController] toggleComplete:', err);
       res.status(500).json({ error: true, message: 'Error actualizando estado' });
     }
   },
 
-  // DELETE /reminders/:id — Eliminar (solo creador o admin/owner)
+  // DELETE /reminders/:id — Eliminar (solo owner)
   async deleteReminder(req, res) {
     try {
-      const staffId = req.staff.id;
       const role = req.staff.role;
       const { id } = req.params;
 
       const reminder = await Reminder.findByPk(id);
       if (!reminder) return res.status(404).json({ error: true, message: 'Recordatorio no encontrado' });
 
-      if (reminder.createdBy !== staffId && !['admin', 'owner'].includes(role)) {
+      if (role !== 'owner') {
         return res.status(403).json({ error: true, message: 'No tienes permiso para eliminar este recordatorio' });
       }
 
@@ -181,24 +201,39 @@ module.exports = {
     try {
       const staffId = req.staff.id;
       const { id } = req.params;
-      const { message } = req.body;
+      const { message, taggedStaffIds = [] } = req.body;
 
       if (!message?.trim()) {
         return res.status(400).json({ error: true, message: 'El comentario no puede estar vacío' });
       }
 
       // Verificar que el staff tiene acceso al recordatorio
-      const assignment = await ReminderAssignment.findOne({ where: { reminderId: id, staffId } });
-      const reminder = await Reminder.findByPk(id);
+      const { reminder, allowed } = await canViewReminder(id, staffId);
       if (!reminder) return res.status(404).json({ error: true, message: 'Recordatorio no encontrado' });
-      if (!assignment && reminder.createdBy !== staffId) {
+      if (!allowed) {
         return res.status(403).json({ error: true, message: 'No tienes acceso a este recordatorio' });
       }
 
-      const comment = await ReminderComment.create({
-        reminderId: id,
-        staffId,
-        message: message.trim(),
+      const normalizedTags = Array.isArray(taggedStaffIds)
+        ? [...new Set(taggedStaffIds.filter(Boolean))]
+        : [];
+
+      const comment = await sequelize.transaction(async (t) => {
+        const created = await ReminderComment.create({
+          reminderId: id,
+          staffId,
+          message: message.trim(),
+          taggedStaffIds: normalizedTags,
+        }, { transaction: t });
+
+        if (normalizedTags.length > 0) {
+          await ReminderAssignment.bulkCreate(
+            normalizedTags.map(taggedId => ({ reminderId: id, staffId: taggedId })),
+            { transaction: t, ignoreDuplicates: true }
+          );
+        }
+
+        return created;
       });
 
       const full = await ReminderComment.findByPk(comment.id, {
@@ -209,6 +244,61 @@ module.exports = {
     } catch (err) {
       console.error('[ReminderController] addComment:', err);
       res.status(500).json({ error: true, message: 'Error agregando comentario' });
+    }
+  },
+
+  // PATCH /reminders/:id/comments/:commentId — Editar comentario
+  async updateComment(req, res) {
+    try {
+      const staffId = req.staff.id;
+      const role = req.staff.role;
+      const { id, commentId } = req.params;
+      const { message, taggedStaffIds } = req.body;
+
+      if (!message?.trim()) {
+        return res.status(400).json({ error: true, message: 'El comentario no puede estar vacío' });
+      }
+
+      const { reminder, allowed } = await canViewReminder(id, staffId);
+      if (!reminder) return res.status(404).json({ error: true, message: 'Recordatorio no encontrado' });
+      if (!allowed && !['admin', 'owner'].includes(role)) {
+        return res.status(403).json({ error: true, message: 'No tienes acceso a este recordatorio' });
+      }
+
+      const comment = await ReminderComment.findOne({ where: { id: commentId, reminderId: id } });
+      if (!comment) {
+        return res.status(404).json({ error: true, message: 'Comentario no encontrado' });
+      }
+
+      if (comment.staffId !== staffId && !['admin', 'owner'].includes(role)) {
+        return res.status(403).json({ error: true, message: 'No tienes permiso para editar este comentario' });
+      }
+
+      const normalizedTags = Array.isArray(taggedStaffIds)
+        ? [...new Set(taggedStaffIds.filter(Boolean))]
+        : comment.taggedStaffIds || [];
+
+      await sequelize.transaction(async (t) => {
+        comment.message = message.trim();
+        comment.taggedStaffIds = normalizedTags;
+        await comment.save({ transaction: t });
+
+        if (normalizedTags.length > 0) {
+          await ReminderAssignment.bulkCreate(
+            normalizedTags.map(taggedId => ({ reminderId: id, staffId: taggedId })),
+            { transaction: t, ignoreDuplicates: true }
+          );
+        }
+      });
+
+      const full = await ReminderComment.findByPk(comment.id, {
+        include: [{ model: Staff, as: 'author', attributes: STAFF_ATTRS }],
+      });
+
+      res.json({ success: true, comment: full.toJSON() });
+    } catch (err) {
+      console.error('[ReminderController] updateComment:', err);
+      res.status(500).json({ error: true, message: 'Error editando comentario' });
     }
   },
 
@@ -240,27 +330,72 @@ module.exports = {
       const staffId = req.staff.id;
       const role = req.staff.role;
       const { id } = req.params;
-      const { title, description, priority, dueDate,
+        const { title, description, priority, dueDate, type,
+          assignedTo,
               linkedEntityType, linkedEntityId, linkedEntityLabel } = req.body;
 
       const reminder = await Reminder.findByPk(id);
       if (!reminder) return res.status(404).json({ error: true, message: 'Recordatorio no encontrado' });
 
+      if (reminder.type === 'personal' && reminder.createdBy !== staffId) {
+        return res.status(403).json({ error: true, message: 'No tienes permiso para editar este recordatorio' });
+      }
+
       if (reminder.createdBy !== staffId && !['admin', 'owner'].includes(role)) {
         return res.status(403).json({ error: true, message: 'No tienes permiso para editar este recordatorio' });
       }
 
-      if (title?.trim()) reminder.title = title.trim();
-      if (description !== undefined) reminder.description = description?.trim() || null;
-      if (priority) reminder.priority = priority;
-      if (dueDate !== undefined) reminder.dueDate = dueDate || null;
-      // Linked entity (can be cleared by passing linkedEntityType: '')
-      if (linkedEntityType !== undefined) {
-        reminder.linkedEntityType = linkedEntityType || null;
-        reminder.linkedEntityId = linkedEntityId ? String(linkedEntityId) : null;
-        reminder.linkedEntityLabel = linkedEntityLabel?.trim() || null;
-      }
-      await reminder.save();
+      await sequelize.transaction(async (t) => {
+        if (title?.trim()) reminder.title = title.trim();
+        if (description !== undefined) reminder.description = description?.trim() || null;
+        if (priority) reminder.priority = priority;
+        if (dueDate !== undefined) reminder.dueDate = dueDate || null;
+
+        // Linked entity (can be cleared by passing linkedEntityType: '')
+        if (linkedEntityType !== undefined) {
+          reminder.linkedEntityType = linkedEntityType || null;
+          reminder.linkedEntityId = linkedEntityId ? String(linkedEntityId) : null;
+          reminder.linkedEntityLabel = linkedEntityLabel?.trim() || null;
+        }
+
+        let effectiveType = type || reminder.type;
+        if (assignedTo !== undefined && Array.isArray(assignedTo)) {
+          if (effectiveType === 'personal' && assignedTo.length > 0) effectiveType = 'tagged';
+          if (effectiveType === 'tagged' && assignedTo.length === 0) effectiveType = 'personal';
+        }
+
+        if (type !== undefined || assignedTo !== undefined) {
+          reminder.type = effectiveType;
+        }
+
+        await reminder.save({ transaction: t });
+
+        if (type !== undefined || assignedTo !== undefined) {
+          let targetIds = [];
+          if (effectiveType === 'personal') {
+            targetIds = [reminder.createdBy];
+          } else if (effectiveType === 'tagged') {
+            const safeAssigned = Array.isArray(assignedTo) ? assignedTo : [];
+            targetIds = [...new Set([...safeAssigned, reminder.createdBy])];
+          } else if (effectiveType === 'broadcast') {
+            const allStaff = await Staff.findAll({
+              attributes: ['id'],
+              where: { isActive: true },
+              transaction: t,
+            });
+            targetIds = allStaff.map(s => s.id);
+          }
+
+          await ReminderAssignment.destroy({ where: { reminderId: id }, transaction: t });
+
+          if (targetIds.length > 0) {
+            await ReminderAssignment.bulkCreate(
+              targetIds.map(targetId => ({ reminderId: id, staffId: targetId })),
+              { transaction: t }
+            );
+          }
+        }
+      });
 
       const full = await Reminder.findByPk(id, { include: reminderIncludes() });
       res.json({ success: true, reminder: enrichWithMine(full, staffId) });

@@ -123,6 +123,12 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    taggedStaffIds: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      allowNull: false,
+      defaultValue: [],
+      field: 'tagged_staff_ids'
+    },
   }, {
     tableName: 'ReminderComments',
     timestamps: true,

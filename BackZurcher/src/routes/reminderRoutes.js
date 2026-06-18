@@ -26,6 +26,9 @@ router.patch('/:id/complete', ReminderController.toggleComplete);
 // Agregar comentario
 router.post('/:id/comments', ReminderController.addComment);
 
+// Editar comentario
+router.patch('/:id/comments/:commentId', ReminderController.updateComment);
+
 // Eliminar comentario
 router.delete('/:id/comments/:commentId', ReminderController.deleteComment);
 
