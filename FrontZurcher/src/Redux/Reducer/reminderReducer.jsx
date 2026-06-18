@@ -10,6 +10,7 @@ import {
   TOGGLE_COMPLETE_SUCCESS,
   ADD_COMMENT_SUCCESS,
   DELETE_COMMENT_SUCCESS,
+  UPDATE_COMMENT_SUCCESS,
 } from '../Actions/reminderActions';
 
 const initialState = {
@@ -73,10 +74,15 @@ const reminderSlice = createSlice({
       .addMatcher(
         (a) => a.type === TOGGLE_COMPLETE_SUCCESS,
         (state, action) => {
-          const { id, completed, completedAt } = action.payload;
+          const { id, completed, completedAt, staffId } = action.payload;
           const upd = (arr) => arr.map(r => {
             if (r.id !== id) return r;
-            return { ...r, myAssignment: { ...(r.myAssignment || {}), completed, completedAt } };
+            const assignments = (r.assignments || []).map(a => {
+              const assignmentStaffId = a.staff?.id || a.staffId || a.staff_id;
+              if (assignmentStaffId !== staffId) return a;
+              return { ...a, completed, completedAt };
+            });
+            return { ...r, assignments, myAssignment: { ...(r.myAssignment || {}), completed, completedAt } };
           });
           state.reminders = upd(state.reminders);
           state.allReminders = upd(state.allReminders);
@@ -101,6 +107,21 @@ const reminderSlice = createSlice({
           const upd = (arr) => arr.map(r => {
             if (r.id !== reminderId) return r;
             return { ...r, comments: (r.comments || []).filter(c => c.id !== commentId) };
+          });
+          state.reminders = upd(state.reminders);
+          state.allReminders = upd(state.allReminders);
+        }
+      )
+      .addMatcher(
+        (a) => a.type === UPDATE_COMMENT_SUCCESS,
+        (state, action) => {
+          const { reminderId, comment } = action.payload;
+          const upd = (arr) => arr.map(r => {
+            if (r.id !== reminderId) return r;
+            return {
+              ...r,
+              comments: (r.comments || []).map(c => c.id === comment.id ? comment : c),
+            };
           });
           state.reminders = upd(state.reminders);
           state.allReminders = upd(state.allReminders);

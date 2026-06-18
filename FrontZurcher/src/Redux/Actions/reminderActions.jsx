@@ -11,6 +11,7 @@ export const DELETE_REMINDER_SUCCESS = 'DELETE_REMINDER_SUCCESS';
 export const TOGGLE_COMPLETE_SUCCESS = 'TOGGLE_COMPLETE_SUCCESS';
 export const ADD_COMMENT_SUCCESS = 'ADD_COMMENT_SUCCESS';
 export const DELETE_COMMENT_SUCCESS = 'DELETE_COMMENT_SUCCESS';
+export const UPDATE_COMMENT_SUCCESS = 'UPDATE_COMMENT_SUCCESS';
 
 const handleError = (error, fallback) =>
   error.response?.data?.message || error.message || fallback;
@@ -83,9 +84,9 @@ export const toggleComplete = (id) => async (dispatch) => {
   }
 };
 
-export const addComment = (reminderId, message) => async (dispatch) => {
+export const addComment = (reminderId, message, taggedStaffIds = []) => async (dispatch) => {
   try {
-    const response = await api.post(`/reminders/${reminderId}/comments`, { message });
+    const response = await api.post(`/reminders/${reminderId}/comments`, { message, taggedStaffIds });
     dispatch({ type: ADD_COMMENT_SUCCESS, payload: { reminderId, comment: response.data.comment } });
     return response.data.comment;
   } catch (error) {
@@ -101,6 +102,19 @@ export const deleteComment = (reminderId, commentId) => async (dispatch) => {
     dispatch({ type: DELETE_COMMENT_SUCCESS, payload: { reminderId, commentId } });
   } catch (error) {
     dispatch({ type: REMINDER_FAILURE, payload: handleError(error, 'Error eliminando comentario') });
+  }
+};
+
+export const updateComment = (reminderId, commentId, message, taggedStaffIds) => async (dispatch) => {
+  try {
+    const payload = taggedStaffIds === undefined ? { message } : { message, taggedStaffIds };
+    const response = await api.patch(`/reminders/${reminderId}/comments/${commentId}`, payload);
+    dispatch({ type: UPDATE_COMMENT_SUCCESS, payload: { reminderId, comment: response.data.comment } });
+    return response.data.comment;
+  } catch (error) {
+    const msg = handleError(error, 'Error editando comentario');
+    dispatch({ type: REMINDER_FAILURE, payload: msg });
+    throw new Error(msg);
   }
 };
 

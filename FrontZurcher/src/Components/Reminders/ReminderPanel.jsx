@@ -3,13 +3,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchMyReminders,
-  fetchAllReminders,
   createReminder,
   updateReminder,
   deleteReminder,
   toggleComplete,
   addComment,
   deleteComment,
+  updateComment,
   searchWorksForLink,
   searchBudgetsForLink,
 } from '../../Redux/Actions/reminderActions';
@@ -47,14 +47,24 @@ const EMPTY_FORM = {
   description: '',
   priority: 'medium',
   dueDate: '',
+  createType: 'personal',
   assignedTo: [],
-  isBroadcast: false,
   linkedEntityType: '',    // 'work' | 'budget' | ''
   linkedEntityId: '',
   linkedEntityLabel: '',
 };
 
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+const PRIORITY_ORDER = ['low', 'medium', 'high', 'urgent'];
+
+const priorityButtonClass = (key, selected) => {
+  const config = PRIORITY_CONFIG[key] || PRIORITY_CONFIG.medium;
+  if (selected) {
+    return `border-transparent ${config.pill} ring-2 ring-offset-1 ring-slate-300`;
+  }
+  return 'border-slate-200 text-slate-500 hover:bg-slate-50';
+};
 
 const getFleetCompanyFromReminder = (reminder) => {
   if (reminder?.linkedEntityType !== 'fleet') return null;
@@ -69,15 +79,17 @@ const isKbDocReminder = (reminder) => reminder?.linkedEntityType === 'kb_doc';
 export default function ReminderPanel() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { reminders, allReminders, loading } = useSelector(s => s.reminders);
+  const { reminders, loading } = useSelector(s => s.reminders);
   const { currentStaff } = useSelector(s => s.auth);
   const { staffList = [] } = useSelector(s => s.admin);
 
   const isAdmin = ['admin', 'owner'].includes(currentStaff?.role);
+  const isOwner = currentStaff?.role === 'owner';
 
-  const [tab, setTab] = useState('mine');
+  const [tab, setTab] = useState('general');
   const [filterStatus, setFilterStatus] = useState('pending');
   const [filterPriority, setFilterPriority] = useState('');
+  const [sortMode, setSortMode] = useState('dueFirst');
 
   // Link-entity search state
   const [linkSearch, setLinkSearch]   = useState('');
@@ -94,34 +106,72 @@ export default function ReminderPanel() {
 
   const [expandedComments, setExpandedComments] = useState({});
   const [commentInputs, setCommentInputs] = useState({});
+  const [commentTaggedStaffByReminder, setCommentTaggedStaffByReminder] = useState({});
   const [commentLoading, setCommentLoading] = useState({});
+  const [editingCommentByReminder, setEditingCommentByReminder] = useState({});
+  const [commentEditInputByReminder, setCommentEditInputByReminder] = useState({});
+  const [commentEditTaggedStaffByReminder, setCommentEditTaggedStaffByReminder] = useState({});
 
   useEffect(() => {
     dispatch(fetchMyReminders());
-    if (isAdmin) dispatch(fetchAllReminders());
     dispatch(fetchStaff());
-  }, [dispatch, isAdmin]);
+  }, [dispatch]);
 
-  const activeList = tab === 'all' && isAdmin ? allReminders : reminders;
+  const taggedByComment = (r) => {
+    const myId = currentStaff?.id;
+    if (!myId) return false;
+    return (r.comments || []).some(c => Array.isArray(c.taggedStaffIds) && c.taggedStaffIds.includes(myId));
+  };
 
-  const filtered = activeList.filter(r => {
-    if (filterPriority && r.priority !== filterPriority) return false;
-    if (filterStatus === 'pending') {
-      return tab === 'all'
-        ? !r.assignments?.every(a => a.completed)
-        : !r.myAssignment?.completed;
+  const activeList = reminders.filter((r) => {
+    if (tab === 'private') {
+      return r.type === 'personal' && r.createdBy === currentStaff?.id;
     }
-    if (filterStatus === 'completed') {
-      return tab === 'all'
-        ? r.assignments?.every(a => a.completed)
-        : r.myAssignment?.completed;
+    if (tab === 'tagged') {
+      return (r.type === 'tagged' && !!r.myAssignment) || taggedByComment(r);
+    }
+    if (tab === 'general') {
+      return r.type === 'broadcast';
     }
     return true;
   });
 
+  const filtered = activeList.filter(r => {
+    if (filterPriority && r.priority !== filterPriority) return false;
+    if (filterStatus === 'pending') {
+      return !r.myAssignment?.completed;
+    }
+    if (filterStatus === 'completed') {
+      return r.myAssignment?.completed;
+    }
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    const aCreated = new Date(a.createdAt || 0).getTime();
+    const bCreated = new Date(b.createdAt || 0).getTime();
+
+    if (sortMode === 'createdDesc') {
+      return bCreated - aCreated;
+    }
+
+    const hasDueA = !!a.dueDate;
+    const hasDueB = !!b.dueDate;
+    if (hasDueA && !hasDueB) return -1;
+    if (!hasDueA && hasDueB) return 1;
+
+    if (hasDueA && hasDueB) {
+      const aDue = new Date(a.dueDate).getTime();
+      const bDue = new Date(b.dueDate).getTime();
+      if (aDue !== bDue) return aDue - bDue;
+    }
+
+    return bCreated - aCreated;
+  });
+
   const pendingCount = reminders.filter(r => !r.myAssignment?.completed).length;
 
-  const groupedReminders = filtered.reduce((acc, reminder) => {
+  const groupedReminders = sorted.reduce((acc, reminder) => {
     let key, label;
     if (isKbDocReminder(reminder)) {
       key = 'kb_doc';
@@ -186,9 +236,11 @@ export default function ReminderPanel() {
     if (!formData.title.trim()) return toast.error('El título es requerido');
     setFormLoading(true);
     try {
-      let type = 'personal';
-      if (formData.isBroadcast) type = 'broadcast';
-      else if (formData.assignedTo.length > 0) type = 'tagged';
+      const type = formData.createType || 'personal';
+
+      if (type === 'tagged' && formData.assignedTo.length === 0) {
+        return toast.error('Selecciona al menos una persona para recordatorio etiquetado');
+      }
 
       await dispatch(createReminder({
         title: formData.title,
@@ -227,12 +279,19 @@ export default function ReminderPanel() {
 
   // ---- Edit ----
   const startEdit = (r) => {
+    const assignedTo = (r.assignments || [])
+      .map(a => a.staff?.id || a.staffId || a.staff_id)
+      .filter(Boolean)
+      .filter(id => id !== r.createdBy);
+
     setEditingId(r.id);
     setEditForm({
       title: r.title,
       description: r.description || '',
       priority: r.priority,
       dueDate: r.dueDate || '',
+      type: r.type || 'personal',
+      assignedTo,
       linkedEntityType:  r.linkedEntityType  || '',
       linkedEntityId:    r.linkedEntityId    || '',
       linkedEntityLabel: r.linkedEntityLabel || '',
@@ -243,6 +302,8 @@ export default function ReminderPanel() {
     try {
       await dispatch(updateReminder(id, {
         ...editForm,
+        type: editForm.type,
+        assignedTo: editForm.type === 'tagged' ? (editForm.assignedTo || []) : [],
         linkedEntityType:  editForm.linkedEntityType  || null,
         linkedEntityId:    editForm.linkedEntityId    || null,
         linkedEntityLabel: editForm.linkedEntityLabel || null,
@@ -260,10 +321,12 @@ export default function ReminderPanel() {
   const handleAddComment = async (reminderId) => {
     const msg = (commentInputs[reminderId] || '').trim();
     if (!msg) return;
+    const taggedStaffIds = commentTaggedStaffByReminder[reminderId] || [];
     setCommentLoading(p => ({ ...p, [reminderId]: true }));
     try {
-      await dispatch(addComment(reminderId, msg));
+      await dispatch(addComment(reminderId, msg, taggedStaffIds));
       setCommentInputs(p => ({ ...p, [reminderId]: '' }));
+      setCommentTaggedStaffByReminder(p => ({ ...p, [reminderId]: [] }));
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -276,7 +339,33 @@ export default function ReminderPanel() {
     await dispatch(deleteComment(reminderId, commentId));
   };
 
-  const canManage = (r) => r.createdBy === currentStaff?.id || isAdmin;
+  const startEditComment = (reminderId, comment) => {
+    setEditingCommentByReminder(p => ({ ...p, [reminderId]: comment.id }));
+    setCommentEditInputByReminder(p => ({ ...p, [reminderId]: comment.message || '' }));
+    setCommentEditTaggedStaffByReminder(p => ({ ...p, [reminderId]: comment.taggedStaffIds || [] }));
+  };
+
+  const cancelEditComment = (reminderId) => {
+    setEditingCommentByReminder(p => ({ ...p, [reminderId]: null }));
+    setCommentEditInputByReminder(p => ({ ...p, [reminderId]: '' }));
+    setCommentEditTaggedStaffByReminder(p => ({ ...p, [reminderId]: [] }));
+  };
+
+  const saveEditComment = async (reminderId, commentId) => {
+    const message = (commentEditInputByReminder[reminderId] || '').trim();
+    const taggedStaffIds = commentEditTaggedStaffByReminder[reminderId] || [];
+    if (!message) return toast.error('El comentario no puede estar vacío');
+    try {
+      await dispatch(updateComment(reminderId, commentId, message, taggedStaffIds));
+      cancelEditComment(reminderId);
+      toast.success('Comentario actualizado');
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const canEditReminder = (r) => r.createdBy === currentStaff?.id || isAdmin;
+  const canDeleteReminder = () => isOwner;
 
   // ---- Assigned staff selector ----
   const toggleAssigned = (staffId) => {
@@ -320,23 +409,25 @@ export default function ReminderPanel() {
 
           {/* Tabs + Filters row */}
           <div className="flex flex-wrap items-center gap-3 mt-5">
-            {isAdmin && (
-              <div className="flex bg-white/10 rounded-xl p-1 gap-1">
-                {[{ key: 'mine', label: 'Mis recordatorios' }, { key: 'all', label: 'Vista general' }].map(t => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTab(t.key)}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      tab === t.key
-                        ? 'bg-white text-slate-800 shadow'
-                        : 'text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="flex bg-white/10 rounded-xl p-1 gap-1">
+              {[
+                { key: 'private', label: 'Mis privados' },
+                { key: 'tagged', label: 'Etiquetados para mi' },
+                { key: 'general', label: 'Lista general' },
+              ].map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    tab === t.key
+                      ? 'bg-white text-slate-800 shadow'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
             <div className="flex bg-white/10 rounded-xl p-1 gap-1">
               {[{ k: 'pending', v: 'Pendientes' }, { k: 'completed', v: 'Completados' }, { k: 'all', v: 'Todos' }].map(f => (
@@ -353,6 +444,15 @@ export default function ReminderPanel() {
                 </button>
               ))}
             </div>
+
+            <select
+              value={sortMode}
+              onChange={e => setSortMode(e.target.value)}
+              className="px-3 py-2 text-sm rounded-xl bg-white/10 text-slate-300 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 hover:bg-white/15 transition-colors"
+            >
+              <option value="dueFirst" className="text-slate-800">Vencimiento primero</option>
+              <option value="createdDesc" className="text-slate-800">Creacion mas reciente</option>
+            </select>
 
             <select
               value={filterPriority}
@@ -410,15 +510,27 @@ export default function ReminderPanel() {
                     onCancelEdit={() => setEditingId(null)}
                     onToggleComplete={() => handleToggleComplete(r.id)}
                     onDelete={() => handleDelete(r.id)}
-                    canManage={canManage(r)}
+                    canEdit={canEditReminder(r)}
+                    canDelete={canDeleteReminder()}
                     showComments={!!expandedComments[r.id]}
                     onToggleComments={() => toggleComments(r.id)}
                     commentInput={commentInputs[r.id] || ''}
                     onCommentChange={v => setCommentInputs(p => ({ ...p, [r.id]: v }))}
+                    commentTaggedStaffIds={commentTaggedStaffByReminder[r.id] || []}
+                    onCommentTaggedStaffChange={(ids) => setCommentTaggedStaffByReminder(p => ({ ...p, [r.id]: ids }))}
                     onAddComment={() => handleAddComment(r.id)}
                     onDeleteComment={(cId) => handleDeleteComment(r.id, cId)}
+                    editingCommentId={editingCommentByReminder[r.id] || null}
+                    onStartEditComment={(comment) => startEditComment(r.id, comment)}
+                    onCancelEditComment={() => cancelEditComment(r.id)}
+                    commentEditInput={commentEditInputByReminder[r.id] || ''}
+                    onCommentEditInputChange={(value) => setCommentEditInputByReminder(p => ({ ...p, [r.id]: value }))}
+                    commentEditTaggedStaffIds={commentEditTaggedStaffByReminder[r.id] || []}
+                    onCommentEditTaggedStaffChange={(ids) => setCommentEditTaggedStaffByReminder(p => ({ ...p, [r.id]: ids }))}
+                    onSaveEditComment={(commentId) => saveEditComment(r.id, commentId)}
                     commentLoading={!!commentLoading[r.id]}
-                    viewingAll={tab === 'all'}
+                    viewingAll={false}
+                    staffList={staffList}
                     onNavigateLink={() => navigate(
                       r.linkedEntityType === 'work'
                         ? `/work/${r.linkedEntityId}`
@@ -479,19 +591,64 @@ export default function ReminderPanel() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Visibilidad</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => ({ ...p, createType: 'personal', assignedTo: [] }))}
+                    className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      formData.createType === 'personal'
+                        ? 'bg-slate-100 border-slate-400 text-slate-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    Privado (solo yo)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => ({ ...p, createType: 'tagged' }))}
+                    className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      formData.createType === 'tagged'
+                        ? 'bg-indigo-100 border-indigo-400 text-indigo-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    Etiquetado
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => ({ ...p, createType: 'broadcast', assignedTo: [] }))}
+                    className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                      formData.createType === 'broadcast'
+                        ? 'bg-violet-100 border-violet-400 text-violet-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    General (todos)
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Prioridad</label>
-                  <select
-                    value={formData.priority}
-                    onChange={e => setFormData(p => ({ ...p, priority: e.target.value }))}
-                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 text-slate-700 bg-white transition-all"
-                  >
-                    <option value="low">🔵 Baja</option>
-                    <option value="medium">🟡 Media</option>
-                    <option value="high">🟠 Alta</option>
-                    <option value="urgent">🔴 Urgente</option>
-                  </select>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Importancia</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PRIORITY_ORDER.map((key) => {
+                      const cfg = PRIORITY_CONFIG[key];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setFormData(p => ({ ...p, priority: key }))}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${priorityButtonClass(key, formData.priority === key)}`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
+                          {cfg.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Fecha límite</label>
@@ -504,11 +661,11 @@ export default function ReminderPanel() {
                 </div>
               </div>
 
-              {/* Staff tagging — always visible */}
-              {!formData.isBroadcast && (
+              {/* Staff tagging */}
+              {formData.createType === 'tagged' && (
                 <div>
                   <label className="flex items-center justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                    <span><FaTag className="inline mr-1.5" />Etiquetar a (opcional)</span>
+                    <span><FaTag className="inline mr-1.5" />Etiquetar a</span>
                     {formData.assignedTo.length > 0 && (
                       <span className="normal-case text-indigo-600 font-semibold text-xs bg-indigo-50 px-2 py-0.5 rounded-full">
                         {formData.assignedTo.length} seleccionado{formData.assignedTo.length !== 1 ? 's' : ''}
@@ -541,7 +698,7 @@ export default function ReminderPanel() {
                     )}
                   </div>
                   {formData.assignedTo.length === 0 && (
-                    <p className="text-xs text-slate-400 mt-1.5">Sin selección → solo visible para ti</p>
+                    <p className="text-xs text-amber-600 mt-1.5">Selecciona al menos una persona</p>
                   )}
                 </div>
               )}
@@ -641,31 +798,6 @@ export default function ReminderPanel() {
                 )}
               </div>
 
-              {/* Broadcast option — admin/owner only */}
-              {isAdmin && (
-                <label className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all select-none ${
-                  formData.isBroadcast
-                    ? 'border-violet-400 bg-violet-50 shadow-sm shadow-violet-100'
-                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                }`}>
-                  <input
-                    type="checkbox"
-                    checked={formData.isBroadcast}
-                    onChange={e => setFormData(p => ({ ...p, isBroadcast: e.target.checked, assignedTo: [] }))}
-                    className="rounded accent-violet-600 w-4 h-4 flex-shrink-0"
-                  />
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    formData.isBroadcast ? 'bg-violet-200' : 'bg-slate-100'
-                  }`}>
-                    <FaBroadcastTower className={`w-4 h-4 ${formData.isBroadcast ? 'text-violet-600' : 'text-slate-400'}`} />
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Enviar a todos los empleados</span>
-                    <p className="text-xs text-slate-400 mt-0.5">Todos los empleados activos recibirán este recordatorio</p>
-                  </div>
-                </label>
-              )}
-
               <div className="flex gap-3 pt-1">
                 <button
                   type="button"
@@ -708,15 +840,27 @@ function ReminderCard({
   onCancelEdit,
   onToggleComplete,
   onDelete,
-  canManage,
+  canEdit,
+  canDelete,
   showComments,
   onToggleComments,
   commentInput,
   onCommentChange,
+  commentTaggedStaffIds,
+  onCommentTaggedStaffChange,
   onAddComment,
   onDeleteComment,
+  editingCommentId,
+  onStartEditComment,
+  onCancelEditComment,
+  commentEditInput,
+  onCommentEditInputChange,
+  commentEditTaggedStaffIds,
+  onCommentEditTaggedStaffChange,
+  onSaveEditComment,
   commentLoading,
   viewingAll,
+  staffList,
   onNavigateLink,
 }) {
   const pCfg = PRIORITY_CONFIG[r.priority] || PRIORITY_CONFIG.medium;
@@ -738,9 +882,43 @@ function ReminderCard({
       })();
 
   const isOverdue = r.dueDate && !isCompleted && isDateOnlyOverdueInDisplayTz(r.dueDate);
+  const editableStaff = (staffList || [])
+    .filter(s => s.isActive)
+    .filter(s => s.id !== currentStaff?.id);
+
+  const toggleCommentTag = (staffId) => {
+    const current = commentTaggedStaffIds || [];
+    const next = current.includes(staffId)
+      ? current.filter(id => id !== staffId)
+      : [...current, staffId];
+    onCommentTaggedStaffChange(next);
+  };
+
+  const toggleCommentEditTag = (staffId) => {
+    const current = commentEditTaggedStaffIds || [];
+    const next = current.includes(staffId)
+      ? current.filter(id => id !== staffId)
+      : [...current, staffId];
+    onCommentEditTaggedStaffChange(next);
+  };
+
+  const getStaffName = (staffId) => {
+    const match = (staffList || []).find(s => s.id === staffId);
+    return match?.name || 'Staff';
+  };
+
+  const toggleEditAssigned = (staffId) => {
+    setEditForm((prev) => {
+      const current = prev.assignedTo || [];
+      const assignedTo = current.includes(staffId)
+        ? current.filter(id => id !== staffId)
+        : [...current, staffId];
+      return { ...prev, assignedTo };
+    });
+  };
 
   return (
-    <div className={`bg-white rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-200 ${
+    <div className={`group bg-white rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-200 ${
       isCompleted
         ? 'border-l-emerald-400 opacity-60'
         : isOverdue
@@ -781,13 +959,92 @@ function ReminderCard({
                   className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"
                 />
                 <div className="flex flex-wrap gap-2">
-                  <select
-                    value={editForm.priority}
-                    onChange={e => setEditForm(p => ({ ...p, priority: e.target.value }))}
-                    className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, type: 'personal', assignedTo: [] }))}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${
+                      editForm.type === 'personal'
+                        ? 'bg-slate-100 border-slate-400 text-slate-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}
                   >
-                    {Object.entries(PRIORITY_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
+                    Personal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, type: 'tagged' }))}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${
+                      editForm.type === 'tagged'
+                        ? 'bg-indigo-100 border-indigo-400 text-indigo-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    Etiquetado
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, type: 'broadcast', assignedTo: [] }))}
+                    className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${
+                      editForm.type === 'broadcast'
+                        ? 'bg-violet-100 border-violet-400 text-violet-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    General
+                  </button>
+                </div>
+
+                {editForm.type === 'tagged' && (
+                  <div className="border border-slate-200 rounded-xl p-2 max-h-40 overflow-y-auto bg-slate-50">
+                    {editableStaff.length === 0 ? (
+                      <p className="text-xs text-slate-400 p-2">Sin staff disponible para etiquetar</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {editableStaff.map((s) => {
+                          const checked = (editForm.assignedTo || []).includes(s.id);
+                          return (
+                            <label
+                              key={s.id}
+                              className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg cursor-pointer border ${
+                                checked
+                                  ? 'bg-indigo-50 border-indigo-200'
+                                  : 'bg-white border-transparent hover:border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleEditAssigned(s.id)}
+                                  className="accent-indigo-600"
+                                />
+                                <span className="text-xs font-medium text-slate-700">{s.name}</span>
+                              </div>
+                              <span className="text-[10px] uppercase text-slate-400">{s.role}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  {PRIORITY_ORDER.map((key) => {
+                    const cfg = PRIORITY_CONFIG[key];
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setEditForm(p => ({ ...p, priority: key }))}
+                        className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${priorityButtonClass(key, editForm.priority === key)}`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${cfg.dot}`} />
+                        {cfg.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-2">
                   <input
                     type="date"
                     value={editForm.dueDate}
@@ -806,14 +1063,18 @@ function ReminderCard({
                   }`}>
                     {cap(r.title)}
                   </h3>
-                  {canManage && (
+                  {(canEdit || canDelete) && (
                     <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100">
-                      <button onClick={onEdit} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-500 transition-colors">
-                        <FaEdit className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={onDelete} className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-500 transition-colors">
-                        <FaTrash className="w-3.5 h-3.5" />
-                      </button>
+                      {canEdit && (
+                        <button onClick={onEdit} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-indigo-500 transition-colors">
+                          <FaEdit className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={onDelete} className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-400 hover:text-rose-500 transition-colors">
+                          <FaTrash className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -910,14 +1171,18 @@ function ReminderCard({
                   <FaExternalLinkAlt className="w-3.5 h-3.5" />
                 </button>
               )}
-              {canManage && (
+              {(canEdit || canDelete) && (
                 <>
-                  <button onClick={onEdit} className="p-2 hover:bg-slate-100 rounded-xl text-slate-300 hover:text-indigo-500 transition-colors">
-                    <FaEdit className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={onDelete} className="p-2 hover:bg-rose-50 rounded-xl text-slate-300 hover:text-rose-500 transition-colors">
-                    <FaTrash className="w-3.5 h-3.5" />
-                  </button>
+                  {canEdit && (
+                    <button onClick={onEdit} className="p-2 hover:bg-slate-100 rounded-xl text-slate-300 hover:text-indigo-500 transition-colors">
+                      <FaEdit className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={onDelete} className="p-2 hover:bg-rose-50 rounded-xl text-slate-300 hover:text-rose-500 transition-colors">
+                      <FaTrash className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -946,15 +1211,83 @@ function ReminderCard({
                     <span className="text-xs text-slate-400 mr-2">
                       {formatDateInDisplayTz(c.createdAt, { day: 'numeric', month: 'short' })}
                     </span>
-                    <p className="text-slate-700 mt-0.5">{c.message}</p>
+                    {editingCommentId === c.id ? (
+                      <div className="mt-1 space-y-2">
+                        <input
+                          type="text"
+                          value={commentEditInput}
+                          onChange={e => onCommentEditInputChange(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && onSaveEditComment(c.id)}
+                          className="w-full px-3 py-1.5 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          {editableStaff.map(s => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => toggleCommentEditTag(s.id)}
+                              className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                                (commentEditTaggedStaffIds || []).includes(s.id)
+                                  ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                                  : 'border-slate-200 text-slate-500 hover:bg-slate-100'
+                              }`}
+                            >
+                              @{s.name}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onSaveEditComment(c.id)}
+                            className="px-2.5 py-1 text-xs rounded-lg bg-indigo-600 text-white hover:bg-indigo-500"
+                          >
+                            Guardar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={onCancelEditComment}
+                            className="px-2.5 py-1 text-xs rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-slate-700 mt-0.5">{c.message}</p>
+                        {Array.isArray(c.taggedStaffIds) && c.taggedStaffIds.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {c.taggedStaffIds.map(taggedId => (
+                              <span
+                                key={`${c.id}-${taggedId}`}
+                                className="px-2 py-0.5 rounded-full text-[11px] bg-indigo-100 text-indigo-700"
+                              >
+                                @{getStaffName(taggedId)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                   {(c.staffId === currentStaff?.id || isAdmin) && (
-                    <button
-                      onClick={() => onDeleteComment(c.id)}
-                      className="mt-1 p-1.5 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-lg transition-colors flex-shrink-0"
-                    >
-                      <FaTrash className="w-3 h-3" />
-                    </button>
+                    <div className="mt-1 flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => onStartEditComment(c)}
+                        className="p-1.5 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Editar comentario"
+                      >
+                        <FaEdit className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteComment(c.id)}
+                        className="p-1.5 text-slate-300 hover:text-rose-400 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Eliminar comentario"
+                      >
+                        <FaTrash className="w-3 h-3" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -974,6 +1307,22 @@ function ReminderCard({
                 >
                   {commentLoading ? '...' : 'Enviar'}
                 </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {editableStaff.map(s => (
+                  <button
+                    key={`${r.id}-${s.id}`}
+                    type="button"
+                    onClick={() => toggleCommentTag(s.id)}
+                    className={`px-2 py-0.5 rounded-full text-[11px] border ${
+                      (commentTaggedStaffIds || []).includes(s.id)
+                        ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                        : 'border-slate-200 text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    @{s.name}
+                  </button>
+                ))}
               </div>
             </div>
           )}
