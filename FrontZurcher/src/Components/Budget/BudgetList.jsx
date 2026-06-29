@@ -2326,10 +2326,11 @@ const BudgetList = () => {
                               )}
                               {/* ESTADO: SIGNED (incluye firma manual) */}
                               {(budget.status === "signed" || (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath)) && (
-                                <div className="w-full">
+                                <div className="flex flex-col gap-0.5 w-full">
                                   <p className="text-green-800 text-[10px] font-semibold bg-green-200 px-1.5 py-1 rounded text-center whitespace-nowrap">
                                     ✓ Signed
                                   </p>
+                                  {renderPPISignatureOptionsButton(budget)}
                                 </div>
                               )}
                               {/* ESTADO: REJECTED - Puede reenviarse para revisión */}
