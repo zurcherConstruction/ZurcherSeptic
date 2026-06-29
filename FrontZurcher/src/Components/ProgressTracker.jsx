@@ -151,15 +151,15 @@ const ProgressTracker = () => {
     return etapaDef.display;
   };
 
-  // 🆕 Función para exportar a Excel
-  const handleExport = async () => {
+  // Función para exportar a Excel (standard o complete)
+  const handleExport = async (exportType = 'standard') => {
     try {
-      setExporting(true);
-      
-      // Construir query params
+      setExporting(exportType);
+
       const params = new URLSearchParams();
       if (exportFilters.status) params.append('status', exportFilters.status);
       if (exportFilters.applicantEmail) params.append('applicantEmail', exportFilters.applicantEmail);
+      params.append('exportType', exportType);
 
       const response = await fetch(
         `${import.meta.env.VITE_API_URL}/export/works?${params.toString()}`,
@@ -172,12 +172,11 @@ const ProgressTracker = () => {
 
       if (!response.ok) throw new Error('Error al exportar');
 
-      // Descargar archivo
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `works-export-${Date.now()}.xlsx`;
+      a.download = `works-${exportType}-${Date.now()}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -256,14 +255,26 @@ const ProgressTracker = () => {
                 />
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
-                  <strong>Columnas incluidas:</strong> Property Address, Applicant Email, Status, Start Date (cuando se instala), Installation Date (inspección inicial), Final Invoice Date (cuando se paga invoice final)
+              {/* Opción Estándar */}
+              <div className="border border-blue-200 rounded-lg p-3 bg-blue-50">
+                <p className="text-xs font-semibold text-blue-900 mb-1">Estándar</p>
+                <p className="text-xs text-blue-700">
+                  Address · Email · Status · Start Date · Installation Date · Final Invoice Date
+                </p>
+              </div>
+
+              {/* Opción Completa */}
+              <div className="border border-green-200 rounded-lg p-3 bg-green-50">
+                <p className="text-xs font-semibold text-green-900 mb-1">Completo (Control)</p>
+                <p className="text-xs text-green-700">
+                  Address · Permit # · Email · System Type · PBTS · Status · Start Date ·
+                  Initial Insp. (fecha + resultado) · Final Insp. (fecha + resultado) ·
+                  Fee Paid · Final Invoice Date
                 </p>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 p-4 border-t">
+            <div className="flex justify-end gap-3 p-4 border-t flex-wrap">
               <button
                 onClick={() => setShowExportModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -271,11 +282,11 @@ const ProgressTracker = () => {
                 Cancelar
               </button>
               <button
-                onClick={handleExport}
-                disabled={exporting}
-                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                onClick={() => handleExport('standard')}
+                disabled={!!exporting}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {exporting ? (
+                {exporting === 'standard' ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
                     <span>Exportando...</span>
@@ -283,7 +294,24 @@ const ProgressTracker = () => {
                 ) : (
                   <>
                     <FaFileExcel />
-                    <span>Descargar Excel</span>
+                    <span>Estándar</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => handleExport('complete')}
+                disabled={!!exporting}
+                className="px-4 py-2 bg-green-700 hover:bg-green-800 text-white rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {exporting === 'complete' ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    <span>Exportando...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaFileExcel />
+                    <span>Completo</span>
                   </>
                 )}
               </button>
