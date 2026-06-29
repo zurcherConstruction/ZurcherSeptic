@@ -44,6 +44,50 @@ function getPublicPdfUrl(localPath, req) {
   return publicUrl;
 }
 
+function buildBudgetActionDateExpression(statusFilter) {
+  const normalizedStatus = statusFilter && statusFilter !== 'all' ? statusFilter : null;
+
+  if (normalizedStatus === 'draft' || normalizedStatus === 'created') {
+    return 'COALESCE("Budget"."createdAt", "Budget"."updatedAt")';
+  }
+
+  if (normalizedStatus === 'signed') {
+    return 'COALESCE("Budget"."signedAt", "Budget"."updatedAt", "Budget"."createdAt")';
+  }
+
+  if (normalizedStatus === 'approved') {
+    return 'COALESCE("Budget"."updatedAt", "Budget"."createdAt")';
+  }
+
+  if (normalizedStatus === 'en_revision' || normalizedStatus === 'en_seguimiento') {
+    return 'CASE WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForSignatureAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."updatedAt", "Budget"."createdAt") END';
+  }
+
+  return 'CASE WHEN "Budget"."status" IN (\'draft\', \'created\') THEN COALESCE("Budget"."createdAt", "Budget"."updatedAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForSignatureAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'signed\', \'approved\', \'rejected\') THEN COALESCE("Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."date"::date, "Budget"."updatedAt", "Budget"."createdAt") END';
+}
+
+function applyBudgetRealDateFilters(whereClause, statusFilter, month, year) {
+  const actionDateExpression = buildBudgetActionDateExpression(statusFilter);
+
+  if (month && month !== 'all') {
+    const monthNum = parseInt(month, 10);
+    if (!Number.isNaN(monthNum) && monthNum >= 0 && monthNum <= 11) {
+      const monthCondition = literal(`EXTRACT(MONTH FROM ${actionDateExpression}) = ${monthNum + 1}`);
+      whereClause[Op.and] = whereClause[Op.and] || [];
+      whereClause[Op.and].push(monthCondition);
+    }
+  }
+
+  if (year && year !== 'all') {
+    const yearNum = parseInt(year, 10);
+    if (!Number.isNaN(yearNum) && yearNum > 2020 && yearNum <= new Date().getFullYear() + 1) {
+      const yearCondition = literal(`EXTRACT(YEAR FROM ${actionDateExpression}) = ${yearNum}`);
+      whereClause[Op.and] = whereClause[Op.and] || [];
+      whereClause[Op.and].push(yearCondition);
+    }
+  }
+}
+
 function formatMoneyUSD(value) {
   const amount = Number(value || 0);
   return new Intl.NumberFormat('en-US', {
@@ -1935,35 +1979,9 @@ async getBudgets(req, res) {
       whereClause[Op.or] = searchCondition[Op.or];
     }
 
-    // Filtro por mes (aplicar a ambos whereClause)
-    if (month && month !== 'all') {
-      const monthNum = parseInt(month);
-      // ✅ El frontend envía 0-11, necesitamos convertir a 1-12 para SQL EXTRACT(MONTH)
-      if (monthNum >= 0 && monthNum <= 11) {
-        const sqlMonth = monthNum + 1; // Convertir de 0-11 a 1-12
-        const monthCondition = literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${sqlMonth}`);
-        
-        baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
-        baseWhereClause[Op.and].push(monthCondition);
-        
-        whereClause[Op.and] = whereClause[Op.and] || [];
-        whereClause[Op.and].push(monthCondition);
-      }
-    }
-
-    // Filtro por año (aplicar a ambos whereClause)
-    if (year && year !== 'all') {
-      const yearNum = parseInt(year);
-      if (yearNum > 2020 && yearNum <= new Date().getFullYear() + 1) {
-        const yearCondition = literal(`EXTRACT(YEAR FROM CAST("Budget"."date" AS DATE)) = ${yearNum}`);
-        
-        baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
-        baseWhereClause[Op.and].push(yearCondition);
-        
-        whereClause[Op.and] = whereClause[Op.and] || [];
-        whereClause[Op.and].push(yearCondition);
-      }
-    }
+    // Filtro por mes/año usando la fecha real de la acción según el estado
+    applyBudgetRealDateFilters(baseWhereClause, status, month, year);
+    applyBudgetRealDateFilters(whereClause, status, month, year);
 
     // 🎯 Filtro por status SOLO para whereClause (no para estadísticas)
     if (status && status !== 'all') {
@@ -2060,7 +2078,7 @@ async getBudgets(req, res) {
             'permitPdfUrl', 'permitPdfPublicId',
             'optionalDocsUrl', 'optionalDocsPublicId',
             // 🆕 Campos PPI para firma con DocuSign
-            'ppiGeneratedPath', 'ppiDocusignEnvelopeId', 'ppiSentForSignatureAt', 'ppiSignatureStatus',
+            'ppiGeneratedPath', 'ppiDocusignEnvelopeId', 'ppiUploadedAt', 'ppiSentForSignatureAt', 'ppiSignatureStatus',
             'ppiCloudinaryUrl', 'ppiCloudinaryPublicId', 'ppiInspectorType',
             'ppiSignatureStatus', 'ppiSignedAt', 'ppiSignedPdfUrl', 'ppiSignedPdfPublicId',
             // ✅ Flags virtuales para saber si existen PDFs (fallback a BLOB legacy)
@@ -6314,21 +6332,8 @@ async optionalDocs(req, res) {
         }
       }
       
-      // Filtro por mes
-      if (month && month !== 'all') {
-        whereConditions[Op.and] = whereConditions[Op.and] || [];
-        whereConditions[Op.and].push(
-          literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${parseInt(month) + 1}`)
-        );
-      }
-      
-      // Filtro por año
-      if (year && year !== 'all') {
-        whereConditions[Op.and] = whereConditions[Op.and] || [];
-        whereConditions[Op.and].push(
-          literal(`EXTRACT(YEAR FROM CAST("Budget"."date" AS DATE)) = ${parseInt(year)}`)
-        );
-      }
+      // Filtro por mes/año usando la fecha real de la acción según el estado
+      applyBudgetRealDateFilters(whereConditions, status, month, year);
       
       // Filtro por búsqueda (cliente, dirección o email)
       if (search && search.trim()) {

@@ -1823,6 +1823,7 @@ const sendPPIForSignature = async (req, res) => {
   let ppiPath = null;
   try {
     const { idPermit } = req.params;
+    const { allowResendWithoutEdit } = req.body || {};
     
     console.log(`\n📧 === ENVIANDO PPI A DOCUSIGN PARA FIRMA ===`);
     console.log(`🔍 Permit ID: ${idPermit}`);
@@ -1848,6 +1849,23 @@ const sendPPIForSignature = async (req, res) => {
       return res.status(400).json({ 
         error: 'No PPI document found. Please generate PPI first.' 
       });
+    }
+
+    // Permitir reenvío siempre. Si no hay cambios de versión, solo registrar contexto para auditoría.
+    const sentAt = permit.ppiSentForSignatureAt ? new Date(permit.ppiSentForSignatureAt) : null;
+    const uploadedAt = permit.ppiUploadedAt ? new Date(permit.ppiUploadedAt) : null;
+    const isValidDate = (d) => d instanceof Date && !Number.isNaN(d.getTime());
+
+    const alreadySent = isValidDate(sentAt);
+    const hasNewerPPIVersion = alreadySent && isValidDate(uploadedAt) && uploadedAt > sentAt;
+    const canForceResend =
+      allowResendWithoutEdit === true ||
+      allowResendWithoutEdit === 'true' ||
+      allowResendWithoutEdit === 1 ||
+      allowResendWithoutEdit === '1';
+
+    if (alreadySent && !hasNewerPPIVersion && !canForceResend) {
+      console.log('ℹ️ Reenvío PPI sin nueva versión detectada. Se permite por política actual.');
     }
 
     const fs = require('fs');

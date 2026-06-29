@@ -1,5 +1,5 @@
 const path = require('path');
-const { Inspection, Work, Permit, Image, Budget, WorkNote, Staff, sequelize } = require('../data'); // Asegúrate de importar Image
+const { Inspection, Work, Permit, Image, Budget, WorkNote, Staff, Expense, sequelize } = require('../data'); // Asegúrate de importar Image
 const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
@@ -30,6 +30,65 @@ const formatDateOnlyLabel = (dateValue) => {
     month: '2-digit',
     year: 'numeric',
   });
+};
+
+const toDateOnly = (input) => {
+  if (!input) return new Date().toISOString().split('T')[0];
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) return new Date().toISOString().split('T')[0];
+  return parsed.toISOString().split('T')[0];
+};
+
+const WORK_STATUS_ORDER = [
+  'pending',
+  'assigned',
+  'inProgress',
+  'installed',
+  'firstInspectionPending',
+  'approvedInspection',
+  'rejectedInspection',
+  'coverPending',
+  'covered',
+  'finalInspectionPending',
+  'finalApproved',
+  'finalRejected',
+  'invoiceFinal',
+  'paymentReceived',
+  'maintenance',
+  'completed',
+  'cancelled'
+];
+
+const isStatusAtOrAfter = (status, pivotStatus) => {
+  const statusIndex = WORK_STATUS_ORDER.indexOf(status);
+  const pivotIndex = WORK_STATUS_ORDER.indexOf(pivotStatus);
+  if (statusIndex === -1 || pivotIndex === -1) return false;
+  return statusIndex >= pivotIndex;
+};
+
+const shouldPreserveAdvancedStatusOnInitialApproval = (status) => {
+  if (!status) return false;
+  // Si ya está cubierto o en etapas posteriores, no retroceder automáticamente.
+  return isStatusAtOrAfter(status, 'covered');
+};
+
+const validateInitialInspectionApprovalPreconditions = async (work) => {
+  if (!isStatusAtOrAfter(work.status, 'installed')) {
+    return `No se puede aprobar inspección inicial cuando la obra está en "${work.status}". Debe estar en "installed" o posterior.`;
+  }
+
+  const materialsCount = await Expense.count({
+    where: {
+      workId: work.idWork,
+      typeExpense: { [Op.in]: ['Materiales Iniciales', 'Materiales'] }
+    }
+  });
+
+  if (materialsCount === 0) {
+    return 'No se puede aprobar inspección inicial sin compra de materiales registrada (Materiales Iniciales/Materiales).';
+  }
+
+  return null;
 };
 
 const sendInitialInspectionFeeReminderEmail = async (work, options = {}) => {
@@ -297,6 +356,13 @@ const registerQuickInspectionResult = async (req, res) => {
       });
     }
 
+    if (type === 'initial' && finalStatus === 'approved') {
+      const validationError = await validateInitialInspectionApprovalPreconditions(work);
+      if (validationError) {
+        return res.status(400).json({ error: true, message: validationError });
+      }
+    }
+
     // ✅ TRANSACCIÓN ATÓMICA: Inspection.create + work.save juntos
     // Si work.save() falla (timeout), la inspección también se revierte
     // y el usuario puede reintentar sin el bloqueo de "ya existe aprobada"
@@ -335,14 +401,30 @@ const registerQuickInspectionResult = async (req, res) => {
 
       // Determinar nuevo status del work
       if (type === 'initial') {
+        const preserveAdvancedStatus = shouldPreserveAdvancedStatusOnInitialApproval(work.status);
+
         if (finalStatus === 'approved') {
-          work.status = 'coverPending';
-          console.log(`[InspectionController - Quick] Inspección inicial aprobada para work ${work.idWork}. Estado → 'coverPending'.`);
-          notificationKey = 'coverPending';
+          if (!work.installationStartDate) {
+            work.installationStartDate = toDateOnly(dateInspectionPerformed || work.startDate || new Date());
+          }
+
+          if (preserveAdvancedStatus) {
+            console.log(`[InspectionController - Quick] Initial inspection approved for work ${work.idWork} but current status is already advanced (${work.status}). Keeping current status unchanged.`);
+            notificationKey = null;
+          } else {
+            work.status = 'coverPending';
+            console.log(`[InspectionController - Quick] Inspección inicial aprobada para work ${work.idWork}. Estado → 'coverPending'.`);
+            notificationKey = 'coverPending';
+          }
         } else {
-          work.status = 'rejectedInspection';
-          notificationKey = 'initial_inspection_rejected';
-          notificationExtras = { notes };
+          if (preserveAdvancedStatus) {
+            console.log(`[InspectionController - Quick] Initial inspection rejected for work ${work.idWork} but current status is already advanced (${work.status}). Keeping current status unchanged.`);
+            notificationKey = null;
+          } else {
+            work.status = 'rejectedInspection';
+            notificationKey = 'initial_inspection_rejected';
+            notificationExtras = { notes };
+          }
         }
       } else if (type === 'final') {
         const canAutoTransitionFinalStatus = work.status === 'paymentReceived';
@@ -396,7 +478,7 @@ const registerQuickInspectionResult = async (req, res) => {
       await sendNotifications(notificationKey, work, req.app.get('io'), notificationExtras);
     }
 
-    if (type === 'initial' && finalStatus === 'approved') {
+    if (type === 'initial' && finalStatus === 'approved' && work.status === 'coverPending') {
       await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
     }
 
@@ -973,6 +1055,13 @@ const registerInspectionResult = async (req, res) => {
         return res.status(404).json({ error: true, message: 'Obra asociada a la inspección no encontrada.' });
     }
 
+    if (inspection.type === 'initial' && finalStatus === 'approved') {
+      const validationError = await validateInitialInspectionApprovalPreconditions(work);
+      if (validationError) {
+        return res.status(400).json({ error: true, message: validationError });
+      }
+    }
+
   
     const uploadedFilesInfo = [];
     let fileNotes = '';
@@ -1032,18 +1121,28 @@ const registerInspectionResult = async (req, res) => {
   // Actualizar Work.status
     if (finalStatus === 'approved') {
       if (inspection.type === 'initial') {
-        // Automatizar la transición: approvedInspection → coverPending
-        work.status = 'coverPending'; 
-        console.log(`[InspectionController] Inspección inicial aprobada para work ${work.idWork}. Estado cambiado automáticamente de 'approvedInspection' a 'coverPending'.`);
-        
-        // Guardar el trabajo antes de enviar notificaciones
-        await work.save();
-        
-        // Enviar notificaciones para el nuevo estado automático
-        await sendNotifications('coverPending', work, req.app.get('io'));
+        const preserveAdvancedStatus = shouldPreserveAdvancedStatusOnInitialApproval(work.status);
 
-        // Avisar a recept/admin para pago de fees según tipo de sistema
-        await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
+        if (!work.installationStartDate) {
+          work.installationStartDate = toDateOnly(dateInspectionPerformed || work.startDate || new Date());
+        }
+
+        if (preserveAdvancedStatus) {
+          console.log(`[InspectionController - registerResult] Initial inspection approved for work ${work.idWork} but current status is already advanced (${work.status}). Keeping current status unchanged.`);
+        } else {
+          // Automatizar la transición: approvedInspection → coverPending
+          work.status = 'coverPending';
+          console.log(`[InspectionController] Inspección inicial aprobada para work ${work.idWork}. Estado cambiado automáticamente de 'approvedInspection' a 'coverPending'.`);
+
+          // Guardar el trabajo antes de enviar notificaciones
+          await work.save();
+
+          // Enviar notificaciones para el nuevo estado automático
+          await sendNotifications('coverPending', work, req.app.get('io'));
+
+          // Avisar a recept/admin para pago de fees según tipo de sistema
+          await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
+        }
       } else if (inspection.type === 'final') {
         const canAutoTransitionFinalStatus = work.status === 'paymentReceived';
 
@@ -1102,8 +1201,13 @@ const registerInspectionResult = async (req, res) => {
       }
     } else if (finalStatus === 'rejected') {
       if (inspection.type === 'initial') {
-        work.status = 'rejectedInspection';
-        await sendNotifications('initial_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
+        const preserveAdvancedStatus = shouldPreserveAdvancedStatusOnInitialApproval(work.status);
+        if (preserveAdvancedStatus) {
+          console.log(`[InspectionController - registerResult] Initial inspection rejected for work ${work.idWork} but current status is already advanced (${work.status}). Keeping current status unchanged.`);
+        } else {
+          work.status = 'rejectedInspection';
+          await sendNotifications('initial_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
+        }
       } else if (inspection.type === 'final') {
         if (work.status === 'paymentReceived') {
           work.status = 'finalRejected';
