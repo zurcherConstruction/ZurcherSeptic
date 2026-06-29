@@ -282,6 +282,32 @@ const BudgetList = () => {
 
   // 🆕 ESTADO PARA MENÚ DESPLEGABLE DE OPCIONES DE FIRMA
   const [signatureMenuOpen, setSignatureMenuOpen] = useState(null); // ID del budget con menú abierto
+  const [signatureMenuDropUp, setSignatureMenuDropUp] = useState(false);
+
+  const toggleSignatureMenu = (event, budgetId) => {
+    if (signatureMenuOpen === budgetId) {
+      setSignatureMenuOpen(null);
+      setSignatureMenuDropUp(false);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const estimatedMenuHeight = window.innerWidth < 768 ? 230 : 190;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    setSignatureMenuDropUp(spaceBelow < estimatedMenuHeight);
+    setSignatureMenuOpen(budgetId);
+  };
+
+  const getSignatureMenuPanelClass = (isMobile = false) => (
+    `absolute right-0 ${isMobile ? 'min-w-[220px]' : 'min-w-[180px]'} ` +
+    `${signatureMenuDropUp ? 'bottom-full mb-1' : 'top-full mt-1'} ` +
+    `bg-white border border-gray-200 rounded shadow-lg z-50 overflow-hidden`
+  );
+
+  const getPermitIdForBudget = (budget) => (
+    budget?.idPermit || budget?.Permit?.idPermit || budget?.PermitIdPermit || null
+  );
 
   // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
@@ -317,6 +343,7 @@ const BudgetList = () => {
     const handleClickOutside = (event) => {
       if (signatureMenuOpen && !event.target.closest('.signature-menu-wrapper')) {
         setSignatureMenuOpen(null);
+        setSignatureMenuDropUp(false);
       }
     };
 
@@ -873,7 +900,9 @@ const BudgetList = () => {
 
   // 🆕 FUNCIÓN: Reenviar PPI a DocuSign
   const handleResendPPI = async (budget) => {
-    if (!budget.idPermit) {
+    const permitId = getPermitIdForBudget(budget);
+
+    if (!permitId) {
       alert('❌ Este presupuesto no tiene un permiso asociado');
       return;
     }
@@ -886,6 +915,9 @@ const BudgetList = () => {
       ? `\nEnvelope ID: ${budget.Permit.ppiDocusignEnvelopeId}`
       : '';
 
+    // Política actual: permitir reenvío siempre (aunque no haya cambios del PPI).
+    const allowResendWithoutEdit = true;
+
     if (!window.confirm(
       `¿Reenviar PPI a DocuSign para presupuesto #${budget.idBudget}?${statusText}${envelopeText}\n\n` +
       `Se enviará el PPI (Pre-Permit Inspection) al cliente para firma digital.`
@@ -894,7 +926,9 @@ const BudgetList = () => {
     }
 
     try {
-      const response = await api.post(`/permit/${budget.idPermit}/ppi/send-for-signature`);
+      const response = await api.post(`/permit/${permitId}/ppi/send-for-signature`, {
+        allowResendWithoutEdit
+      });
       
       if (response.data.success) {
         alert(
@@ -908,6 +942,36 @@ const BudgetList = () => {
       console.error('Error al reenviar PPI:', error);
       const errorMsg = error.response?.data?.message || error.message;
       alert(`❌ Error al reenviar PPI: ${errorMsg}`);
+    }
+  };
+
+  const handleCopyPPISignLink = async (budget) => {
+    const permitId = getPermitIdForBudget(budget);
+
+    if (!permitId) {
+      alert('❌ Este presupuesto no tiene un permiso asociado');
+      return;
+    }
+
+    try {
+      const baseUrl = (api?.defaults?.baseURL || '').replace(/\/$/, '');
+
+      if (!baseUrl) {
+        throw new Error('No API base URL configured');
+      }
+
+      const signUrl = `${baseUrl}/permit/${permitId}/ppi/sign`;
+      await navigator.clipboard.writeText(signUrl);
+
+      alert(
+        `✅ Link de firma PPI copiado\n\n` +
+        `Permit ID: ${permitId}\n` +
+        `🔗 ${signUrl}\n\n` +
+        `Puedes enviarlo por WhatsApp, SMS o email.`
+      );
+    } catch (error) {
+      console.error('Error al copiar link PPI:', error);
+      alert(`❌ Error al copiar link PPI: ${error.message}`);
     }
   };
   
@@ -1172,6 +1236,226 @@ const BudgetList = () => {
         `${error.response?.data?.message || error.message}`
       );
     }
+  };
+
+  const renderSignatureOptionsButton = (budget, isMobile = false) => {
+    const hasSignatureDocument = Boolean(
+      budget?.docusignEnvelopeId ||
+      budget?.signatureDocumentId ||
+      budget?.signNowDocumentId ||
+      budget?.signatureMethod === 'docusign'
+    );
+
+    if (!hasSignatureDocument) return null;
+
+    return (
+      <div className="relative w-full signature-menu-wrapper">
+        <button
+          onClick={(event) => toggleSignatureMenu(event, budget.idBudget)}
+          className={`inline-flex items-center justify-center rounded font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600 ${
+            isMobile ? 'px-3 py-2 text-sm gap-1' : 'px-2 py-1 text-[10px]'
+          }`}
+          title="Opciones de Firma Budget"
+        >
+          {isMobile ? (
+            <>
+              <span>📋</span>
+              <span>Firma Budget</span>
+              <span>▾</span>
+            </>
+          ) : (
+            '📋 Firma Budget ▾'
+          )}
+        </button>
+
+        {signatureMenuOpen === budget.idBudget && (
+          <div className={getSignatureMenuPanelClass(isMobile)}>
+            <button
+              onClick={() => {
+                handleCopySignatureLink(budget);
+                setSignatureMenuOpen(null);
+              }}
+              className={`w-full text-left hover:bg-blue-50 flex items-center gap-1 ${
+                isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+              }`}
+            >
+              <span>📋</span>
+              <span>Copy Link</span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleRegenerateSignatureLink(budget);
+                setSignatureMenuOpen(null);
+              }}
+              className={`w-full text-left hover:bg-green-50 flex items-center gap-1 border-t ${
+                isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+              }`}
+            >
+              <span>🔄</span>
+              <span>Regenerate Link</span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleResendWithNewSystem(budget);
+                setSignatureMenuOpen(null);
+              }}
+              className={`w-full text-left hover:bg-purple-50 flex items-center gap-1 border-t ${
+                isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+              }`}
+            >
+              <span>📤</span>
+              <span>Resend (New System)</span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleCheckEnvelopeSupport(budget);
+                setSignatureMenuOpen(null);
+              }}
+              className={`w-full text-left hover:bg-gray-50 flex items-center gap-1 border-t ${
+                isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+              }`}
+            >
+              <span>ℹ️</span>
+              <span>Check Info</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderPPISignatureOptionsButton = (budget, isMobile = false) => {
+    const permitId = getPermitIdForBudget(budget);
+    const hasPPI = Boolean(budget?.Permit?.ppiGeneratedPath || budget?.Permit?.ppiCloudinaryUrl);
+    const ppiStatus = budget?.Permit?.ppiSignatureStatus;
+    const ppiMenuKey = `ppi-${budget.idBudget}`;
+
+    if (!permitId || !hasPPI) return null;
+
+    const isSigned = ppiStatus === 'signed' || ppiStatus === 'completed';
+    const isSent = ppiStatus === 'sent';
+
+    const buttonColorClass = isReadOnly
+      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+      : isSigned
+      ? 'bg-green-500 text-white hover:bg-green-600'
+      : isSent
+      ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+      : 'bg-blue-500 text-white hover:bg-blue-600';
+
+    return (
+      <div className="relative w-full signature-menu-wrapper">
+        <button
+          onClick={(event) => toggleSignatureMenu(event, ppiMenuKey)}
+          disabled={isReadOnly}
+          className={`inline-flex items-center justify-center rounded font-medium w-full shadow-sm ${buttonColorClass} ${
+            isMobile ? 'px-3 py-2 text-sm gap-1' : 'px-2 py-1 text-[10px]'
+          }`}
+          title={isReadOnly ? 'View only - No edit permissions' : 'Opciones de Firma PPI'}
+        >
+          {isMobile ? (
+            <>
+              <span>{isSigned ? '✅' : isSent ? '⏳' : '📄'}</span>
+              <span>Firma PPI</span>
+              <span>▾</span>
+            </>
+          ) : (
+            `${isSigned ? '✅' : isSent ? '⏳' : '📄'} Firma PPI ▾`
+          )}
+        </button>
+
+        {signatureMenuOpen === ppiMenuKey && (
+          <div className={getSignatureMenuPanelClass(isMobile)}>
+            <button
+              onClick={() => {
+                handleResendPPI(budget);
+                setSignatureMenuOpen(null);
+              }}
+              className={`w-full text-left hover:bg-blue-50 flex items-center gap-1 ${
+                isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+              }`}
+            >
+              <span>{isSigned || isSent ? '📤' : '📩'}</span>
+              <span>{isSigned || isSent ? 'Resend PPI' : 'Send PPI'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleCopyPPISignLink(budget);
+                setSignatureMenuOpen(null);
+              }}
+              className={`w-full text-left hover:bg-blue-50 flex items-center gap-1 border-t ${
+                isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+              }`}
+            >
+              <span>📋</span>
+              <span>Copy Sign Link</span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleViewPPIOriginal(permitId);
+                setSignatureMenuOpen(null);
+              }}
+              className={`w-full text-left hover:bg-orange-50 flex items-center gap-1 border-t ${
+                isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+              }`}
+            >
+              <span>📄</span>
+              <span>View PPI Original</span>
+            </button>
+
+            {(isSigned && budget?.Permit?.ppiSignedPdfUrl) && (
+              <button
+                onClick={() => {
+                  handleViewPPISigned(permitId);
+                  setSignatureMenuOpen(null);
+                }}
+                className={`w-full text-left hover:bg-green-50 flex items-center gap-1 border-t ${
+                  isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+                }`}
+              >
+                <span>✅</span>
+                <span>View Signed PPI</span>
+              </button>
+            )}
+
+            {(isSigned && budget?.Permit?.ppiSignedPdfUrl) && (
+              <button
+                onClick={() => {
+                  handleDownloadPPISigned(permitId);
+                  setSignatureMenuOpen(null);
+                }}
+                className={`w-full text-left hover:bg-emerald-50 flex items-center gap-1 border-t ${
+                  isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+                }`}
+              >
+                <span>⬇️</span>
+                <span>Download Signed PPI</span>
+              </button>
+            )}
+
+            {budget?.Permit?.ppiDocusignEnvelopeId && !isSigned && (
+              <button
+                onClick={() => {
+                  handleCheckPPISignature(permitId);
+                  setSignatureMenuOpen(null);
+                }}
+                className={`w-full text-left hover:bg-yellow-50 flex items-center gap-1 border-t ${
+                  isMobile ? 'px-4 py-2.5 text-sm' : 'px-3 py-2 text-[10px]'
+                }`}
+              >
+                <span>🔍</span>
+                <span>Check Signature</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
   
   // 🆕 FUNCIÓN: Convertir Draft a Invoice
@@ -1762,38 +2046,7 @@ const BudgetList = () => {
                                     📝 Sign
                                   </button>
                                   
-                                  {/* 🆕 BOTÓN: Reenviar PPI a DocuSign */}
-                                  {budget.idPermit && budget.Permit?.ppiGeneratedPath && (
-                                    <button
-                                      onClick={() => handleResendPPI(budget)}
-                                      disabled={isReadOnly}
-                                      className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm mt-0.5 ${
-                                        isReadOnly 
-                                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                                          : budget.Permit?.ppiSignatureStatus === 'signed'
-                                            ? 'bg-green-500 text-white hover:bg-green-600'
-                                            : budget.Permit?.ppiSignatureStatus === 'sent'
-                                            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                            : 'bg-blue-500 text-white hover:bg-blue-600'
-                                      }`}
-                                      title={
-                                        isReadOnly 
-                                          ? "View only - No edit permissions" 
-                                          : budget.Permit?.ppiSignatureStatus === 'signed'
-                                          ? `PPI Signed - Resend if needed (Envelope: ${budget.Permit?.ppiDocusignEnvelopeId || 'N/A'})`
-                                          : budget.Permit?.ppiSignatureStatus === 'sent'
-                                          ? `PPI Sent - Resend if needed (Envelope: ${budget.Permit?.ppiDocusignEnvelopeId || 'N/A'})`
-                                          : "Send PPI to DocuSign for signature"
-                                      }
-                                    >
-                                      {budget.Permit?.ppiSignatureStatus === 'signed' 
-                                        ? '✅ PPI' 
-                                        : budget.Permit?.ppiSignatureStatus === 'sent'
-                                        ? '⏳ PPI'
-                                        : '📄 PPI'
-                                      }
-                                    </button>
-                                  )}
+                                  {renderPPISignatureOptionsButton(budget)}
                                 </div>
                               )}
                               
@@ -1873,18 +2126,16 @@ const BudgetList = () => {
                                   {!['signed', 'approved'].includes(budget.status) && (
                                     <div className="relative w-full signature-menu-wrapper mb-0.5">
                                       <button
-                                        onClick={() => setSignatureMenuOpen(
-                                          signatureMenuOpen === budget.idBudget ? null : budget.idBudget
-                                        )}
+                                        onClick={(event) => toggleSignatureMenu(event, budget.idBudget)}
                                         className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600"
-                                        title="Signature Options"
+                                        title="Opciones de Firma Budget"
                                       >
-                                        📋 Signature Options ▾
+                                        📋 Firma Budget ▾
                                       </button>
                                       
                                       {/* Menú desplegable */}
                                       {signatureMenuOpen === budget.idBudget && (
-                                        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-hidden">
+                                        <div className={getSignatureMenuPanelClass(false)}>
                                           <button
                                             onClick={() => {
                                               handleCopySignatureLink(budget);
@@ -1973,23 +2224,23 @@ const BudgetList = () => {
                                   <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1.5 py-0.5 rounded text-center">
                                     ✍️ Signing
                                   </p>
+
+                                  {renderPPISignatureOptionsButton(budget)}
                                   
                                   {/* 🆕 OPCIONES DE FIRMA - Menú desplegable (SIEMPRE en sent_for_signature) */}
                                   {!['signed', 'approved'].includes(budget.status) && (
                                     <div className="relative w-full signature-menu-wrapper">
                                       <button
-                                        onClick={() => setSignatureMenuOpen(
-                                          signatureMenuOpen === budget.idBudget ? null : budget.idBudget
-                                        )}
+                                        onClick={(event) => toggleSignatureMenu(event, budget.idBudget)}
                                         className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600"
-                                        title="Signature Options"
+                                        title="Opciones de Firma Budget"
                                       >
-                                        📋 Signature Options ▾
+                                        📋 Firma Budget ▾
                                       </button>
                                       
                                       {/* Menú desplegable */}
                                       {signatureMenuOpen === budget.idBudget && (
-                                        <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-hidden">
+                                        <div className={getSignatureMenuPanelClass(false)}>
                                           <button
                                             onClick={() => {
                                               handleCopySignatureLink(budget);
@@ -2060,10 +2311,17 @@ const BudgetList = () => {
                               )}
                               {/* ESTADO: APPROVED */}
                               {budget.status === "approved" && (
-                                <div className="w-full">
+                                <div className="flex flex-col gap-0.5 w-full">
                                   <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1.5 py-1 rounded text-center whitespace-nowrap">
                                     ✓ Approved
                                   </p>
+
+                                  {/* 🆕 Opciones de firma visibles también en approved */}
+                                  {(budget.docusignEnvelopeId || budget.signatureDocumentId || budget.signNowDocumentId) && (
+                                    renderSignatureOptionsButton(budget)
+                                  )}
+
+                                  {renderPPISignatureOptionsButton(budget)}
                                 </div>
                               )}
                               {/* ESTADO: SIGNED (incluye firma manual) */}
@@ -2114,13 +2372,7 @@ const BudgetList = () => {
                                   
                                   {/* 🆕 BOTÓN: Copiar enlace de firma de DocuSign si existe y no está firmado */}
                                   {budget.docusignEnvelopeId && !['signed', 'approved'].includes(budget.status) && (
-                                    <button
-                                      onClick={() => handleCopySignatureLink(budget)}
-                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600 mb-0.5"
-                                      title="Copy DocuSign signature link to send via WhatsApp/SMS"
-                                    >
-                                      📋 Copy Link
-                                    </button>
+                                    renderSignatureOptionsButton(budget)
                                   )}
                                   
                                   <button
@@ -2776,6 +3028,7 @@ const BudgetList = () => {
                                 >
                                   📝 Send to SignNow
                                 </button>
+                                {renderPPISignatureOptionsButton(budget, true)}
                               </div>
                             )}
 
@@ -2801,20 +3054,18 @@ const BudgetList = () => {
                                 {!['signed', 'approved'].includes(budget.status) && (
                                   <div className="relative w-full signature-menu-wrapper">
                                     <button
-                                      onClick={() => setSignatureMenuOpen(
-                                        signatureMenuOpen === budget.idBudget ? null : budget.idBudget
-                                      )}
+                                      onClick={(event) => toggleSignatureMenu(event, budget.idBudget)}
                                       className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 flex items-center justify-center gap-1"
-                                      title="Signature Options"
+                                      title="Opciones de Firma Budget"
                                     >
                                       <span>📋</span>
-                                      <span>Signature Options</span>
+                                      <span>Firma Budget</span>
                                       <span>▾</span>
                                     </button>
                                     
                                     {/* Menú desplegable */}
                                     {signatureMenuOpen === budget.idBudget && (
-                                      <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                                      <div className={getSignatureMenuPanelClass(true)}>
                                         <button
                                           onClick={() => {
                                             handleCopySignatureLink(budget);
@@ -2910,20 +3161,18 @@ const BudgetList = () => {
                                 {budget.signatureMethod === 'docusign' && (budget.docusignEnvelopeId || budget.signatureDocumentId) && !['signed', 'approved'].includes(budget.status) && (
                                   <div className="relative w-full signature-menu-wrapper">
                                     <button
-                                      onClick={() => setSignatureMenuOpen(
-                                        signatureMenuOpen === budget.idBudget ? null : budget.idBudget
-                                      )}
+                                      onClick={(event) => toggleSignatureMenu(event, budget.idBudget)}
                                       className="w-full px-3 py-2 rounded-lg text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 flex items-center justify-center gap-1"
-                                      title="Signature Options"
+                                      title="Opciones de Firma Budget"
                                     >
                                       <span>📋</span>
-                                      <span>Signature Options</span>
+                                      <span>Firma Budget</span>
                                       <span>▾</span>
                                     </button>
                                     
                                     {/* Menú desplegable */}
                                     {signatureMenuOpen === budget.idBudget && (
-                                      <div className="absolute left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                                      <div className={getSignatureMenuPanelClass(true)}>
                                         <button
                                           onClick={() => {
                                             handleCopySignatureLink(budget);
@@ -2971,6 +3220,8 @@ const BudgetList = () => {
                                     )}
                                   </div>
                                 )}
+
+                                {renderPPISignatureOptionsButton(budget, true)}
                                 
                                 <button
                                   onClick={() =>
@@ -2994,8 +3245,12 @@ const BudgetList = () => {
                             )}
 
                             {budget.status === "approved" && (
-                              <div className="w-full text-center text-green-700 text-xs font-semibold p-2 border rounded bg-green-50">
-                                Approved
+                              <div className="w-full space-y-2">
+                                <div className="w-full text-center text-green-700 text-xs font-semibold p-2 border rounded bg-green-50">
+                                  Approved
+                                </div>
+                                {renderSignatureOptionsButton(budget, true)}
+                                {renderPPISignatureOptionsButton(budget, true)}
                               </div>
                             )}
 

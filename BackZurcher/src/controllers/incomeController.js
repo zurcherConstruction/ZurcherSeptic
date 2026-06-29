@@ -574,10 +574,20 @@ const updateIncome = async (req, res) => {
             transaction: dbTransaction
           }) || 0);
 
+          // Recalcular siempre el total pagado de Final Invoice desde los Income reales.
+          // Esto asegura que las ediciones manuales de ingresos se reflejen en el estado.
+          const totalFinalPayment = parseFloat(await Income.sum('amount', {
+            where: {
+              workId: targetWorkId,
+              typeIncome: 'Factura Pago Final Budget'
+            },
+            transaction: dbTransaction
+          }) || 0);
+
           const originalBudgetTotal = parseFloat(finalInvoice.originalBudgetTotal || 0);
           const subtotalExtras = parseFloat(finalInvoice.subtotalExtras || 0);
           const discount = parseFloat(finalInvoice.discount || 0);
-          const currentPaid = parseFloat(finalInvoice.totalAmountPaid || 0);
+          const currentPaid = totalFinalPayment;
           const newFinalAmountDue = Math.max(0, originalBudgetTotal + subtotalExtras - discount - totalInitialPayment);
 
           let newInvoiceStatus = finalInvoice.status;
@@ -592,12 +602,17 @@ const updateIncome = async (req, res) => {
           await finalInvoice.update({
             initialPaymentMade: totalInitialPayment,
             finalAmountDue: newFinalAmountDue,
+            totalAmountPaid: parseFloat(currentPaid.toFixed(2)),
             status: newInvoiceStatus,
             paymentDate: newInvoiceStatus === 'pending' ? null : finalInvoice.paymentDate,
           }, { transaction: dbTransaction });
 
-          // Si deja de estar paid, mover Work de paymentReceived a invoiceFinal para reabrir saldo.
-          if (work.status === 'paymentReceived' && newInvoiceStatus !== 'paid') {
+          // Sincronizar estado de Work con el estado de pago de Final Invoice.
+          if (newInvoiceStatus === 'paid') {
+            if (work.status !== 'completed' && work.status !== 'cancelled' && work.status !== 'paymentReceived') {
+              await work.update({ status: 'paymentReceived' }, { transaction: dbTransaction });
+            }
+          } else if (work.status === 'paymentReceived') {
             await work.update({ status: 'invoiceFinal' }, { transaction: dbTransaction });
           }
         }
