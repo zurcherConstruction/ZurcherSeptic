@@ -191,9 +191,11 @@ module.exports = {
       const isOwnerOrAdmin = ['admin', 'owner'].includes(role);
 
       let staffList;
+      const BOARD_ROLES = ['admin', 'owner', 'recept', 'finance'];
+
       if (isOwnerOrAdmin) {
         staffList = await Staff.findAll({
-          where: { isActive: true },
+          where: { isActive: true, role: { [Op.in]: BOARD_ROLES } },
           attributes: ['id', 'name', 'role'],
           order: [['name', 'ASC']],
         });
