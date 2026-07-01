@@ -143,6 +143,8 @@ export default function ReminderPanel() {
       return (r.type === 'tagged' && !!r.myAssignment) || taggedByComment(r);
     }
     if (tab === 'general') {
+      // Admin/owner ven todo (broadcast + tagged) agrupado por empleado
+      if (isAdmin) return r.type === 'broadcast' || r.type === 'tagged';
       return r.type === 'broadcast';
     }
     return true;
@@ -226,7 +228,13 @@ export default function ReminderPanel() {
         });
       }
     });
-    return Object.values(groups).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const ROLE_ORDER = { admin: 0, recept: 1, finance: 2, owner: 3 };
+    return Object.values(groups).sort((a, b) => {
+      const ra = ROLE_ORDER[a.role] ?? 99;
+      const rb = ROLE_ORDER[b.role] ?? 99;
+      if (ra !== rb) return ra - rb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
   })();
 
   // ---- Link entity search ----
