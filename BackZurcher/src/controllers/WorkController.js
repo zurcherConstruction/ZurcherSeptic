@@ -202,9 +202,9 @@ const getWorks = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const requestedLimit = req.query.limit;
     
-    // 🎯 FILTRO POR STAFF: Extraer staffId de query params
-    const { staffId } = req.query;
-    
+    // 🎯 FILTROS: Extraer parámetros de query
+    const { staffId, search } = req.query;
+
     // ✅ SOLUCIÓN UNIVERSAL: Permitir "all" para obtener todos los registros
     let limit, offset;
     if (requestedLimit === 'all') {
@@ -216,12 +216,20 @@ const getWorks = async (req, res) => {
       offset = (page - 1) * limit;
     }
 
+    // ✅ Construir WHERE dinámico con soporte de búsqueda
+    const whereClause = {};
+    if (staffId) whereClause.staffId = staffId;
+    if (search && search.trim()) {
+      whereClause[Op.or] = [
+        { propertyAddress: { [Op.iLike]: `%${search.trim()}%` } },
+      ];
+    }
+
     // OPTIMIZACIÓN: Cargar solo lo esencial en la consulta principal
     // Evita locks excesivos al no cargar Expenses ni Receipts en el JOIN principal
     // ✅ Construir opciones de consulta dinámicamente
     const queryOptions = {
-      // 🎯 FILTRO POR STAFF: Agregar WHERE si staffId está presente
-      where: staffId ? { staffId: staffId } : {},
+      where: whereClause,
       include: [
         {
           model: Budget,

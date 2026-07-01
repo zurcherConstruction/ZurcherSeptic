@@ -1,6 +1,8 @@
 const { Reminder, ReminderAssignment, ReminderComment, Staff, sequelize } = require('../data');
 const { Op } = require('sequelize');
 
+const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
+
 // Atributos del staff para incluir
 const STAFF_ATTRS = ['id', 'name', 'role'];
 
@@ -145,14 +147,20 @@ module.exports = {
     }
   },
 
-  // PATCH /reminders/:id/complete — Marcar como completado (solo para mi assignment)
+  // PATCH /reminders/:id/complete — Marcar como completado
+  // Body: { targetStaffId } — solo admin/owner pueden completar en nombre de otro
   async toggleComplete(req, res) {
     try {
-      const staffId = req.staff.id;
+      const myStaffId = req.staff.id;
+      const role = req.staff.role;
       const { id } = req.params;
+      const { targetStaffId } = req.body || {};
+
+      const isOwnerOrAdmin = ['admin', 'owner'].includes(role);
+      const staffIdToUse = (targetStaffId && isOwnerOrAdmin) ? targetStaffId : myStaffId;
 
       const assignment = await ReminderAssignment.findOne({
-        where: { reminderId: id, staffId },
+        where: { reminderId: id, staffId: staffIdToUse },
       });
       if (!assignment) {
         return res.status(404).json({ error: true, message: 'No tienes acceso a este recordatorio' });
@@ -167,11 +175,91 @@ module.exports = {
         completed: assignment.completed,
         completedAt: assignment.completedAt,
         assignmentId: assignment.id,
-        staffId,
+        staffId: staffIdToUse,
       });
     } catch (err) {
       console.error('[ReminderController] toggleComplete:', err);
       res.status(500).json({ error: true, message: 'Error actualizando estado' });
+    }
+  },
+
+  // GET /reminders/board — Tablero agrupado por empleado
+  async getBoardReminders(req, res) {
+    try {
+      const myStaffId = req.staff.id;
+      const role = req.staff.role;
+      const isOwnerOrAdmin = ['admin', 'owner'].includes(role);
+
+      let staffList;
+      if (isOwnerOrAdmin) {
+        staffList = await Staff.findAll({
+          where: { isActive: true },
+          attributes: ['id', 'name', 'role'],
+          order: [['name', 'ASC']],
+        });
+      } else {
+        staffList = [{ id: myStaffId, name: req.staff.name, role: req.staff.role, toJSON: () => ({ id: myStaffId, name: req.staff.name, role: req.staff.role }) }];
+      }
+
+      const staffIds = staffList.map(s => s.id || s.dataValues?.id);
+
+      const assignments = await ReminderAssignment.findAll({
+        where: { staffId: { [Op.in]: staffIds } },
+        include: [{
+          model: Reminder,
+          as: 'reminder',
+          required: true,
+          where: { type: { [Op.ne]: 'personal' } },
+          include: [{ model: Staff, as: 'creator', attributes: ['id', 'name'] }],
+        }],
+        order: [
+          [{ model: Reminder, as: 'reminder' }, 'createdAt', 'DESC'],
+        ],
+      });
+
+      // Group by staffId
+      const staffMap = {};
+      staffList.forEach(s => {
+        const plain = s.toJSON ? s.toJSON() : s;
+        staffMap[plain.id] = { ...plain, reminders: [] };
+      });
+
+      assignments.forEach(a => {
+        const r = a.reminder.toJSON();
+        const assignmentStaffId = a.staffId || a.staff_id;
+        if (!staffMap[assignmentStaffId]) return;
+
+        staffMap[assignmentStaffId].reminders.push({
+          ...r,
+          assignment: {
+            id: a.id,
+            completed: a.completed,
+            completedAt: a.completedAt,
+          },
+        });
+      });
+
+      // Sort reminders inside each card: incomplete first, then by priority, then by dueDate
+      Object.values(staffMap).forEach(staff => {
+        staff.reminders.sort((a, b) => {
+          if (a.assignment.completed !== b.assignment.completed) {
+            return a.assignment.completed ? 1 : -1;
+          }
+          const pa = PRIORITY_ORDER[a.priority] ?? 2;
+          const pb = PRIORITY_ORDER[b.priority] ?? 2;
+          if (pa !== pb) return pa - pb;
+          if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
+          if (a.dueDate) return -1;
+          if (b.dueDate) return 1;
+          return 0;
+        });
+      });
+
+      const board = Object.values(staffMap);
+      return res.json({ success: true, board });
+    } catch (err) {
+      console.error('[ReminderController] getBoardReminders:', err);
+      res.status(500).json({ error: true, message: 'Error obteniendo tablero' });
     }
   },
 

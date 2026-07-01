@@ -133,6 +133,15 @@ const BarraLateral = () => {
       ],
     },
     {
+      name: "Reminders & Tasks",
+      icon: FaBell,
+      color: "text-amber-400",
+      items: [
+        { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
+        { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
+      ],
+    },
+    {
       name: "Fleet & Equipment",
       icon: FaTruck,
       color: "text-cyan-400",
@@ -242,6 +251,15 @@ const BarraLateral = () => {
           ],
         },
         {
+          name: "Reminders & Tasks",
+          icon: FaBell,
+          color: "text-amber-400",
+          items: [
+            { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
+            { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
+          ],
+        },
+        {
           name: "Fleet & Equipment",
           icon: FaTruck,
           color: "text-cyan-400",
@@ -254,9 +272,9 @@ const BarraLateral = () => {
           icon: FaCog,
           color: "text-red-400",
           items: [
-            
+
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
-            { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, 
+            { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook },
             { name: "Signature Documents", path: "/signature-documents", icon: FaFileSignature }, // 🆕 Documentos para Firma
           ],
         },
@@ -289,7 +307,16 @@ const BarraLateral = () => {
             { name: "Works", path: "/works", icon: FaTasks },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
             { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
-            { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, 
+            { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook },
+          ],
+        },
+        {
+          name: "Reminders & Tasks",
+          icon: FaBell,
+          color: "text-amber-400",
+          items: [
+            { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
+            { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
           ],
         },
       ];
@@ -334,8 +361,17 @@ const BarraLateral = () => {
             { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign },
             { name: "Monthly Expenses", path: "/monthly-expenses", icon: FaCalendarAlt }, // 🆕 Gastos Devengados
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
-            { name: "Balance", path: "/balance", icon: FaChartBar },  
+            { name: "Balance", path: "/balance", icon: FaChartBar },
             { name: "Initial Pay", path: "/initialPay", icon: FaMoneyBillWave },
+          ],
+        },
+        {
+          name: "Reminders & Tasks",
+          icon: FaBell,
+          color: "text-amber-400",
+          items: [
+            { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
+            { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
           ],
         },
       ];
@@ -356,7 +392,7 @@ const BarraLateral = () => {
           color: "text-yellow-400",
           items: [
             { name: "Income & Expenses 👁️", path: "/summary", icon: FaFileInvoiceDollar },
-            { name: "Monthly Expenses 👁️", path: "/monthly-expenses", icon: FaCalendarAlt }, // 🆕 Gastos Devengados
+            { name: "Monthly Expenses 👁️", path: "/monthly-expenses", icon: FaCalendarAlt },
           ],
         },
       ];

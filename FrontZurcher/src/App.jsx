@@ -102,12 +102,14 @@ import MarketingCampaigns from './Components/Sales/MarketingCampaigns'; // 🆕 
 import NewsletterDashboard from './Components/Newsletter/NewsletterDashboard'; // 🆕 Newsletter system
 import SignatureDocumentsDashboard from './Components/SignatureDocuments/SignatureDocumentsDashboard'; // 🆕 Signature documents system
 import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Recordatorios
+import ReminderBoard from './Components/Reminders/ReminderBoard'; // 🆕 Tablero de tareas por empleado
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
 import NewLeadForm from './Components/SalesLeads/NewLeadForm'; // 🆕 New lead form
 import KnowledgeBase from './Components/KnowledgeBase/KnowledgeBase'; // 🆕 Base de Conocimiento
 import FleetDashboard from './Components/Fleet/FleetDashboard'; // 🆕 Flota y Maquinaria
 import FleetAssetDetail from './Components/Fleet/FleetAssetDetail'; // 🆕 Detalle de activo de flota
+import AIAssistant from './Components/AIAssistant'; // 🆕 Asistente de IA
 
 function App() {
   const dispatch = useDispatch();
@@ -746,7 +748,7 @@ function App() {
               <Route
                 path="/reminders"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "owner", "recept", "finance", "finance-viewer", "follow-up", "worker", "maintenance"]}>
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept", "finance"]}>
                     <ReminderPanel />
                   </PrivateRoute>
                 }
@@ -776,6 +778,26 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin"]}>
                     <FleetAssetDetail />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 📋 Tablero de tareas por empleado */}
+              <Route
+                path="/reminders-board"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept", "finance"]}>
+                    <ReminderBoard />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🤖 ZurcherAI - Asistente de inteligencia artificial */}
+              <Route
+                path="/ai-assistant"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "finance", "finance-viewer"]}>
+                    <AIAssistant />
                   </PrivateRoute>
                 }
               />

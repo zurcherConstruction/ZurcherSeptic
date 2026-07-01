@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import {
   fetchMyReminders,
   createReminder,
@@ -18,7 +18,8 @@ import {
   FaBell, FaPlus, FaCheck, FaTrash, FaEdit, FaComment,
   FaTimes, FaChevronDown, FaChevronUp, FaUser, FaBroadcastTower,
   FaTag, FaLock, FaExclamationTriangle, FaCalendarAlt,
-  FaExternalLinkAlt, FaSearch, FaHardHat, FaFileAlt, FaTimesCircle, FaBook
+  FaExternalLinkAlt, FaSearch, FaHardHat, FaFileAlt, FaTimesCircle, FaBook,
+  FaClipboardList
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { formatDateOnlyInDisplayTz, formatDateInDisplayTz, isDateOnlyOverdueInDisplayTz } from '../../utils/timezoneDisplay';
@@ -57,6 +58,16 @@ const EMPTY_FORM = {
 const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
 const PRIORITY_ORDER = ['low', 'medium', 'high', 'urgent'];
+
+const TAGGABLE_ROLES = ['admin', 'owner', 'recept', 'finance'];
+
+const BOARD_AVATAR_COLORS = [
+  'from-blue-500 to-indigo-600', 'from-violet-500 to-purple-600',
+  'from-emerald-500 to-teal-600', 'from-rose-500 to-pink-600',
+  'from-amber-500 to-orange-600', 'from-cyan-500 to-sky-600',
+];
+const boardAvatarColor = (name = '') => BOARD_AVATAR_COLORS[name.charCodeAt(0) % BOARD_AVATAR_COLORS.length];
+
 
 const priorityButtonClass = (key, selected) => {
   const config = PRIORITY_CONFIG[key] || PRIORITY_CONFIG.medium;
@@ -116,6 +127,7 @@ export default function ReminderPanel() {
     dispatch(fetchMyReminders());
     dispatch(fetchStaff());
   }, [dispatch]);
+
 
   const taggedByComment = (r) => {
     const myId = currentStaff?.id;
@@ -194,6 +206,28 @@ export default function ReminderPanel() {
     if (b.key === 'general') return 1;
     return a.label.localeCompare(b.label);
   });
+
+  // Lista general → siempre agrupada por empleado
+  const employeeGroups = (() => {
+    if (tab !== 'general') return [];
+    const groups = {};
+    filtered.forEach(r => {
+      const assignees = (r.assignments || []).filter(a => a.staff?.id);
+      if (assignees.length === 0) {
+        const creator = staffList.find(s => s.id === r.createdBy) || currentStaff;
+        const key = `p-${r.createdBy}`;
+        if (!groups[key]) groups[key] = { key, id: r.createdBy, name: creator?.name || 'Yo', role: creator?.role || '', items: [] };
+        if (!groups[key].items.find(e => e.id === r.id)) groups[key].items.push(r);
+      } else {
+        assignees.forEach(a => {
+          const key = `s-${a.staff.id}`;
+          if (!groups[key]) groups[key] = { key, id: a.staff.id, name: a.staff.name, role: a.staff.role || '', items: [] };
+          if (!groups[key].items.find(e => e.id === r.id)) groups[key].items.push(r);
+        });
+      }
+    });
+    return Object.values(groups).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  })();
 
   // ---- Link entity search ----
   const handleLinkSearch = (query, entityType) => {
@@ -377,89 +411,108 @@ export default function ReminderPanel() {
     }));
   };
 
-  const activeStaff = staffList.filter(s => s.isActive && s.id !== currentStaff?.id);
+  const activeStaff = staffList.filter(s => s.isActive && s.id !== currentStaff?.id && TAGGABLE_ROLES.includes(s.role));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       {/* Page Header */}
       <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 shadow-xl">
-        <div className="max-w-5xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 shadow-inner">
+        <div className="max-w-5xl mx-auto px-4 py-4 sm:px-6 sm:py-6">
+
+          {/* Fila título + botones */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-white/10 backdrop-blur items-center justify-center border border-white/20 shadow-inner flex-shrink-0">
                 <FaBell className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Recordatorios</h1>
-                <p className="text-sm text-slate-400 mt-0.5">
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Recordatorios</h1>
+                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
                   {pendingCount > 0
                     ? <span className="text-amber-400 font-medium">{pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}</span>
                     : <span className="text-emerald-400">Todo al día ✓</span>}
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-px"
-            >
-              <FaPlus className="w-3.5 h-3.5" />
-              Nuevo recordatorio
-            </button>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link
+                to="/reminders-board"
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all"
+              >
+                <FaClipboardList className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Ver Tablero</span>
+                <span className="sm:hidden">Tablero</span>
+              </Link>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-1.5 bg-indigo-500 hover:bg-indigo-400 active:bg-indigo-600 text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all shadow-lg"
+              >
+                <FaPlus className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Nuevo recordatorio</span>
+                <span className="sm:hidden">Nuevo</span>
+              </button>
+            </div>
           </div>
 
-          {/* Tabs + Filters row */}
-          <div className="flex flex-wrap items-center gap-3 mt-5">
-            <div className="flex bg-white/10 rounded-xl p-1 gap-1">
+          {/* Filtros */}
+          <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+
+            {/* Tabs */}
+            <div className="flex bg-white/10 rounded-xl p-1 gap-1 flex-shrink-0">
               {[
-                { key: 'private', label: 'Mis privados' },
-                { key: 'tagged', label: 'Etiquetados para mi' },
-                { key: 'general', label: 'Lista general' },
+                { key: 'private', label: 'Privados', full: 'Mis privados' },
+                { key: 'tagged', label: 'Para mí', full: 'Etiquetados para mi' },
+                { key: 'general', label: 'General', full: 'Lista general' },
               ].map(t => (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
-                  className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    tab === t.key
-                      ? 'bg-white text-slate-800 shadow'
-                      : 'text-slate-300 hover:text-white'
+                  className={`px-2.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                    tab === t.key ? 'bg-white text-slate-800 shadow' : 'text-slate-300 hover:text-white'
                   }`}
                 >
-                  {t.label}
+                  <span className="hidden sm:inline">{t.full}</span>
+                  <span className="sm:hidden">{t.label}</span>
                 </button>
               ))}
             </div>
 
-            <div className="flex bg-white/10 rounded-xl p-1 gap-1">
-              {[{ k: 'pending', v: 'Pendientes' }, { k: 'completed', v: 'Completados' }, { k: 'all', v: 'Todos' }].map(f => (
+            {/* Estado */}
+            <div className="flex bg-white/10 rounded-xl p-1 gap-1 flex-shrink-0">
+              {[{ k: 'pending', v: 'Pend.', full: 'Pendientes' }, { k: 'completed', v: 'Comp.', full: 'Completados' }, { k: 'all', v: 'Todos' }].map(f => (
                 <button
                   key={f.k}
                   onClick={() => setFilterStatus(f.k)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    filterStatus === f.k
-                      ? 'bg-white text-slate-800 shadow'
-                      : 'text-slate-300 hover:text-white'
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                    filterStatus === f.k ? 'bg-white text-slate-800 shadow' : 'text-slate-300 hover:text-white'
                   }`}
                 >
-                  {f.v}
+                  <span className="hidden sm:inline">{f.full || f.v}</span>
+                  <span className="sm:hidden">{f.v}</span>
                 </button>
               ))}
             </div>
 
-            <select
-              value={sortMode}
-              onChange={e => setSortMode(e.target.value)}
-              className="px-3 py-2 text-sm rounded-xl bg-white/10 text-slate-300 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 hover:bg-white/15 transition-colors"
-            >
-              <option value="dueFirst" className="text-slate-800">Vencimiento primero</option>
-              <option value="createdDesc" className="text-slate-800">Creacion mas reciente</option>
-            </select>
+            {/* Ordenar — solo en tabs de lista (no en General que es por empleado) */}
+            {tab !== 'general' && (
+              <select
+                value={sortMode}
+                onChange={e => setSortMode(e.target.value)}
+                className="flex-shrink-0 px-2.5 sm:px-3 py-2 text-xs sm:text-sm rounded-xl bg-white/10 text-slate-300 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 hover:bg-white/15 transition-colors"
+              >
+                <option value="dueFirst" className="text-slate-800">Vencimiento</option>
+                <option value="createdDesc" className="text-slate-800">Más reciente</option>
+              </select>
+            )}
 
+            {/* Prioridad */}
             <select
               value={filterPriority}
               onChange={e => setFilterPriority(e.target.value)}
-              className="px-3 py-2 text-sm rounded-xl bg-white/10 text-slate-300 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 hover:bg-white/15 transition-colors"
+              className="flex-shrink-0 px-2.5 sm:px-3 py-2 text-xs sm:text-sm rounded-xl bg-white/10 text-slate-300 border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 hover:bg-white/15 transition-colors"
             >
-              <option value="" className="text-slate-800">Todas las prioridades</option>
+              <option value="" className="text-slate-800">Prioridad</option>
               {Object.entries(PRIORITY_CONFIG).map(([k, v]) => (
                 <option key={k} value={k} className="text-slate-800">{v.label}</option>
               ))}
@@ -469,8 +522,109 @@ export default function ReminderPanel() {
       </div>
 
       {/* Content */}
-      <div className="max-w-5xl mx-auto px-6 py-6">
-        {loading && reminders.length === 0 ? (
+      <div className="max-w-5xl mx-auto px-3 py-4 sm:px-6 sm:py-6">
+
+        {/* ─── Lista general → siempre por empleado ─── */}
+        {tab === 'general' && (
+          employeeGroups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24">
+              <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                <FaBell className="w-8 h-8 text-slate-300" />
+              </div>
+              <p className="text-slate-500 font-medium">Sin recordatorios en esta vista</p>
+              <p className="text-slate-400 text-sm mt-1">Ajusta los filtros o crea un nuevo recordatorio</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {employeeGroups.map(group => {
+                const groupPending = group.items.filter(r => !r.myAssignment?.completed).length;
+                const groupOverdue = group.items.filter(r =>
+                  r.dueDate && !r.myAssignment?.completed && isDateOnlyOverdueInDisplayTz(r.dueDate)
+                ).length;
+                return (
+                  <div key={group.key}>
+                    {/* Cabecera ámbar del empleado */}
+                    <div className={`flex items-center gap-3 mb-4 px-4 py-3 rounded-2xl border-2 ${
+                      groupPending === 0 ? 'bg-emerald-50 border-emerald-200'
+                      : groupOverdue > 0 ? 'bg-amber-50 border-orange-300'
+                      : 'bg-amber-50 border-amber-200'
+                    }`}>
+                      <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${boardAvatarColor(group.name)} text-white font-bold text-sm flex items-center justify-center shadow flex-shrink-0`}>
+                        {group.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-800">{group.name}</p>
+                        <p className="text-[11px] text-slate-500 capitalize">{group.role}</p>
+                      </div>
+                      {groupPending > 0 ? (
+                        <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                          groupOverdue > 0 ? 'bg-red-100 text-red-700' : 'bg-amber-200 text-amber-800'
+                        }`}>
+                          {groupPending} pendiente{groupPending !== 1 ? 's' : ''}
+                        </span>
+                      ) : (
+                        <span className="flex-shrink-0 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                          ✓ Al día
+                        </span>
+                      )}
+                    </div>
+
+                    {/* ReminderCards completos — misma funcionalidad que la lista */}
+                    <div className="space-y-3 sm:pl-4">
+                      {group.items.map(r => (
+                        <ReminderCard
+                          key={r.id}
+                          reminder={r}
+                          currentStaff={currentStaff}
+                          isAdmin={isAdmin}
+                          isEditing={editingId === r.id}
+                          editForm={editForm}
+                          setEditForm={setEditForm}
+                          onEdit={() => startEdit(r)}
+                          onSaveEdit={() => saveEdit(r.id)}
+                          onCancelEdit={() => setEditingId(null)}
+                          onToggleComplete={() => handleToggleComplete(r.id)}
+                          onDelete={() => handleDelete(r.id)}
+                          canEdit={canEditReminder(r)}
+                          canDelete={canDeleteReminder()}
+                          showComments={!!expandedComments[r.id]}
+                          onToggleComments={() => toggleComments(r.id)}
+                          commentInput={commentInputs[r.id] || ''}
+                          onCommentChange={v => setCommentInputs(p => ({ ...p, [r.id]: v }))}
+                          commentTaggedStaffIds={commentTaggedStaffByReminder[r.id] || []}
+                          onCommentTaggedStaffChange={(ids) => setCommentTaggedStaffByReminder(p => ({ ...p, [r.id]: ids }))}
+                          onAddComment={() => handleAddComment(r.id)}
+                          onDeleteComment={(cId) => handleDeleteComment(r.id, cId)}
+                          editingCommentId={editingCommentByReminder[r.id] || null}
+                          onStartEditComment={(comment) => startEditComment(r.id, comment)}
+                          onCancelEditComment={() => cancelEditComment(r.id)}
+                          commentEditInput={commentEditInputByReminder[r.id] || ''}
+                          onCommentEditInputChange={(value) => setCommentEditInputByReminder(p => ({ ...p, [r.id]: value }))}
+                          commentEditTaggedStaffIds={commentEditTaggedStaffByReminder[r.id] || []}
+                          onCommentEditTaggedStaffChange={(ids) => setCommentEditTaggedStaffByReminder(p => ({ ...p, [r.id]: ids }))}
+                          onSaveEditComment={(commentId) => saveEditComment(r.id, commentId)}
+                          commentLoading={!!commentLoading[r.id]}
+                          viewingAll={false}
+                          staffList={staffList}
+                          onNavigateLink={() => navigate(
+                            r.linkedEntityType === 'work'
+                              ? `/work/${r.linkedEntityId}`
+                              : r.linkedEntityType === 'kb_doc'
+                              ? '/knowledge-base'
+                              : '/budgets'
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+
+        {/* ─── Mis privados / Etiquetados → lista clásica ─── */}
+        {tab !== 'general' && (loading && reminders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-slate-400">
             <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-500 rounded-full animate-spin mb-4" />
             <p className="text-sm">Cargando recordatorios...</p>
@@ -544,7 +698,7 @@ export default function ReminderPanel() {
             </div>
           ))}
         </div>
-        )}
+        ))}
       </div>
 
       {/* Create Modal */}
@@ -883,7 +1037,7 @@ function ReminderCard({
 
   const isOverdue = r.dueDate && !isCompleted && isDateOnlyOverdueInDisplayTz(r.dueDate);
   const editableStaff = (staffList || [])
-    .filter(s => s.isActive)
+    .filter(s => s.isActive && TAGGABLE_ROLES.includes(s.role))
     .filter(s => s.id !== currentStaff?.id);
 
   const toggleCommentTag = (staffId) => {

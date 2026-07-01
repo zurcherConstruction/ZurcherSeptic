@@ -58,6 +58,7 @@ const knowledgeBaseRoutes = require('./knowledgeBaseRoutes'); // 🆕 Rutas para
 const newsletterRoutes = require('./newsletterRoutes'); // 🆕 Rutas para sistema de newsletter
 const signatureDocumentRoutes = require('./signatureDocumentRoutes'); // 🆕 Rutas para documentos de firma genéricos
 const fleetRoutes = require('./fleetRoutes'); // 🆕 Rutas para flota y maquinaria
+const aiRoutes = require('./aiRoutes'); // 🆕 IA - consultas en lenguaje natural
 const FinalInvoiceController = require('../controllers/FinalInvoiceController');
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
@@ -129,5 +130,6 @@ router.use('/company-emails', companyEmailRoutes); // 🆕 Ruta para emails masi
 router.use('/knowledge-base', knowledgeBaseRoutes); // 🆕 Ruta para base de conocimiento
 router.use('/fleet', fleetRoutes); // 🆕 Ruta para flota y maquinaria
 router.use('/signature-documents', signatureDocumentRoutes); // 🆕 Ruta para documentos de firma genéricos (SignNow/DocuSign)
+router.use('/ai', aiRoutes); // 🆕 Ruta para consultas de IA en lenguaje natural
 
 module.exports = router;

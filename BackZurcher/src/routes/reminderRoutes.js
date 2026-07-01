@@ -8,6 +8,9 @@ router.use(verifyToken);
 // Mis recordatorios (los que me están asignados)
 router.get('/', ReminderController.getMyReminders);
 
+// Tablero por empleado (owner ve todos, otros ven solo el suyo)
+router.get('/board', ReminderController.getBoardReminders);
+
 // Todos (admin/owner)
 router.get('/all', ReminderController.getAllReminders);
 
