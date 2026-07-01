@@ -1,5 +1,6 @@
 const path = require('path');
-const { Inspection, Work, Permit, Image, Budget, WorkNote, Staff, Expense, sequelize } = require('../data'); // Asegúrate de importar Image
+const { Inspection, Work, Permit, Image, Budget, WorkNote, Staff, Expense, sequelize } = require('../data');
+const { Op } = require('sequelize'); // Asegúrate de importar Image
 const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
