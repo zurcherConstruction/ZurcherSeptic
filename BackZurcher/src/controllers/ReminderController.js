@@ -257,7 +257,13 @@ module.exports = {
         });
       });
 
-      const board = Object.values(staffMap);
+      const ROLE_ORDER = { admin: 0, recept: 1, finance: 2, owner: 3 };
+      const board = Object.values(staffMap).sort((a, b) => {
+        const ra = ROLE_ORDER[a.role] ?? 99;
+        const rb = ROLE_ORDER[b.role] ?? 99;
+        if (ra !== rb) return ra - rb;
+        return (a.name || '').localeCompare(b.name || '');
+      });
       return res.json({ success: true, board });
     } catch (err) {
       console.error('[ReminderController] getBoardReminders:', err);
