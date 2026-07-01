@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchMyReminders, toggleComplete } from '../../Redux/Actions/reminderActions';
-import { FaBell, FaTimes, FaCheck, FaCalendarAlt, FaExternalLinkAlt, FaHardHat, FaFileAlt } from 'react-icons/fa';
+import { FaBell, FaTimes, FaCheck, FaCalendarAlt, FaExternalLinkAlt, FaHardHat, FaFileAlt, FaClipboardList } from 'react-icons/fa';
 import { formatDateOnlyInDisplayTz, isDateOnlyOverdueInDisplayTz } from '../../utils/timezoneDisplay';
 
 const POPUP_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -211,12 +211,21 @@ export default function ReminderPopup() {
             <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
             Se mostrará de nuevo en 1 hora
           </p>
-          <button
-            onClick={handleDismiss}
-            className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-xl font-semibold transition-colors"
-          >
-            Cerrar
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { handleDismiss(); navigate('/reminders-board'); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-xl font-semibold transition-colors"
+            >
+              <FaClipboardList className="w-3 h-3" />
+              Ver tablero
+            </button>
+            <button
+              onClick={handleDismiss}
+              className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm rounded-xl font-semibold transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>
