@@ -431,10 +431,10 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
   const overdue   = isOverdue(detail.dueDate, done);
   const pCfg      = PRIORITY[detail.priority] || PRIORITY.medium;
 
-  // Permisos: owner puede todo; resto solo sobre órdenes que ellos crearon
-  const isCreator     = detail.createdBy === currentStaff?.id;
-  const canEdit       = isOwner || isCreator;
-  const canDelete     = isOwner || isCreator;
+  // Permisos: solo owner elimina; editar solo el creador o owner
+  const isCreator = detail.createdBy === currentStaff?.id;
+  const canEdit   = isOwner || isCreator;
+  const canDelete = isOwner;
 
   const taggableStaff = staffList.filter(s =>
     s.isActive && TAGGABLE_ROLES.includes(s.role) &&
@@ -992,8 +992,8 @@ function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, to
         </div>
       </div>
 
-      {/* Eliminar — solo owner o quien lo creó */}
-      {(isOwner || reminder.createdBy === currentStaffId) && (
+      {/* Eliminar — solo owner */}
+      {isOwner && (
         <button
           onClick={e => { e.stopPropagation(); onDelete(); }}
           disabled={deleting}

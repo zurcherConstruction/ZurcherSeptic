@@ -145,7 +145,7 @@ module.exports = {
         if (type === 'personal') {
           targetIds = [staffId];
         } else if (type === 'tagged' && assignedTo.length > 0) {
-          targetIds = [...new Set([...assignedTo, staffId])]; // incluir creador
+          targetIds = [...new Set(assignedTo)]; // solo los asignados, sin forzar al creador
         } else if (type === 'broadcast') {
           const allStaff = await Staff.findAll({ attributes: ['id'], where: { isActive: true }, transaction: t });
           targetIds = allStaff.map(s => s.id);
