@@ -53,7 +53,7 @@ const getWeekStart = () => {
   return d;
 };
 
-// ─── Modal: Nueva tarea ───────────────────────────────────────────────────────
+// ─── Modal: Nueva orden de trabajo ───────────────────────────────────────────────────────
 
 function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedStaff }) {
   const [form, setForm] = useState({
@@ -154,7 +154,7 @@ function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedS
               <FaPlus className="w-3.5 h-3.5 text-amber-600" />
             </div>
             <h3 className="font-bold text-slate-800 text-base">
-              {preSelectedStaff ? `Tarea para ${preSelectedStaff.name}` : 'Nueva tarea'}
+              {preSelectedStaff ? `Orden de trabajo para ${preSelectedStaff.name}` : 'Nueva orden de trabajo'}
             </h3>
           </div>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
@@ -197,7 +197,7 @@ function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedS
                 const v = e.target.value;
                 setForm(p => ({ ...p, title: v ? v.charAt(0).toUpperCase() + v.slice(1) : v }));
               }}
-              placeholder="Nombre de la tarea..."
+              placeholder="Nombre de la orden..."
               maxLength={40}
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
               autoFocus
@@ -243,8 +243,8 @@ function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedS
             </div>
           </div>
 
-          {/* Destinatarios */}
-          {form.type === 'tagged' && (
+          {/* Destinatarios — oculto cuando se abre desde tarjeta de persona */}
+          {form.type === 'tagged' && !preSelectedStaff && (
             <div>
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Asignar a</label>
               <div className="space-y-1.5 max-h-44 overflow-y-auto">
@@ -313,18 +313,20 @@ function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedS
                   </button>
                 </div>
               ) : (
-                <div className="relative">
-                  <input
-                    value={linkSearch}
-                    onChange={e => handleLinkSearch(e.target.value, form.linkedEntityType)}
-                    placeholder={form.linkedEntityType === 'work' ? 'Buscar por dirección...' : 'Buscar por nombre o dirección...'}
-                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
-                  />
-                  {linkLoading && (
-                    <span className="absolute right-3 top-2.5 text-[10px] text-slate-400">Buscando...</span>
-                  )}
+                <div>
+                  <div className="relative">
+                    <input
+                      value={linkSearch}
+                      onChange={e => handleLinkSearch(e.target.value, form.linkedEntityType)}
+                      placeholder={form.linkedEntityType === 'work' ? 'Buscar por dirección...' : 'Buscar por nombre o dirección...'}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400"
+                    />
+                    {linkLoading && (
+                      <span className="absolute right-3 top-2.5 text-[10px] text-slate-400">Buscando...</span>
+                    )}
+                  </div>
                   {linkResults.length > 0 && (
-                    <div className="absolute left-0 right-0 top-10 bg-white border border-slate-200 rounded-xl shadow-lg z-10 max-h-44 overflow-y-auto">
+                    <div className="mt-1.5 bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                       {linkResults.map(res => {
                         const isWork = !!res.idWork;
                         const label  = isWork ? res.propertyAddress : `${res.applicantName} — ${res.propertyAddress}`;
@@ -333,12 +335,12 @@ function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedS
                             key={isWork ? res.idWork : res.idBudget}
                             type="button"
                             onClick={() => selectLink(res)}
-                            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-amber-50 text-left transition-colors"
+                            className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-amber-50 text-left transition-colors border-b border-slate-50 last:border-0"
                           >
                             {isWork
                               ? <FaHardHat className="w-3 h-3 text-slate-400 flex-shrink-0" />
                               : <FaFileAlt className="w-3 h-3 text-slate-400 flex-shrink-0" />}
-                            <span className="text-sm text-slate-700 truncate">{label}</span>
+                            <span className="text-sm text-slate-700">{label}</span>
                           </button>
                         );
                       })}
@@ -369,7 +371,7 @@ function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedS
             className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
           >
             <FaPlus className="w-3.5 h-3.5" />
-            {saving ? 'Creando...' : 'Crear tarea'}
+            {saving ? 'Creando...' : 'Crear orden'}
           </button>
         </div>
       </div>
@@ -377,7 +379,7 @@ function CreateModal({ onClose, onRefresh, staffList, currentStaff, preSelectedS
   );
 }
 
-// ─── Modal: Detalle de tarea ──────────────────────────────────────────────────
+// ─── Modal: Detalle de orden de trabajo ───────────────────────────────────────
 
 function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffList, onClose, onRefresh }) {
   const navigate = useNavigate();
@@ -429,8 +431,10 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
   const overdue   = isOverdue(detail.dueDate, done);
   const pCfg      = PRIORITY[detail.priority] || PRIORITY.medium;
 
-  // Permisos: editar/eliminar solo el creador o admin/owner
-  const canEditDelete = isOwner || detail.createdBy === currentStaff?.id;
+  // Permisos: owner puede todo; resto solo sobre órdenes que ellos crearon
+  const isCreator     = detail.createdBy === currentStaff?.id;
+  const canEdit       = isOwner || isCreator;
+  const canDelete     = isOwner || isCreator;
 
   const taggableStaff = staffList.filter(s =>
     s.isActive && TAGGABLE_ROLES.includes(s.role) &&
@@ -493,7 +497,7 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
         linkedEntityId:    editForm.linkedEntityId    || null,
         linkedEntityLabel: editForm.linkedEntityLabel || null,
       });
-      toast.success('Tarea actualizada');
+      toast.success('Orden actualizada');
       setEditMode(false);
       await fetchDetail();
       onRefresh();
@@ -580,7 +584,7 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                 <div className="w-7 h-7 rounded-xl bg-amber-100 flex items-center justify-center">
                   <FaEdit className="w-3 h-3 text-amber-600" />
                 </div>
-                <span className="font-bold text-slate-800">Editar tarea</span>
+                <span className="font-bold text-slate-800">Editar orden</span>
               </div>
               <button onClick={() => setEditMode(false)} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                 <FaTimes className="w-4 h-4" />
@@ -772,20 +776,20 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                 </div>
 
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  {canEditDelete && (
-                    <>
+                  {canEdit && (
                       <button onClick={enterEdit}
                         className="p-1.5 text-slate-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"
                         title="Editar">
                         <FaEdit className="w-3.5 h-3.5" />
                       </button>
+                    )}
+                  {canDelete && (
                       <button onClick={handleDelete} disabled={deleting}
                         className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                         title="Eliminar">
                         <FaTrash className="w-3.5 h-3.5" />
                       </button>
-                    </>
-                  )}
+                    )}
                   <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                     <FaTimes className="w-4 h-4" />
                   </button>
@@ -908,7 +912,7 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
 
 // ─── Fila de recordatorio ─────────────────────────────────────────────────────
 
-function ReminderRow({ reminder, onToggle, onDelete, isOwner, toggling, deleting, onOpenDetail }) {
+function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, toggling, deleting, onOpenDetail }) {
   const { assignment } = reminder;
   const done    = assignment?.completed;
   const overdue = isOverdue(reminder.dueDate, done);
@@ -988,17 +992,19 @@ function ReminderRow({ reminder, onToggle, onDelete, isOwner, toggling, deleting
         </div>
       </div>
 
-      {/* Eliminar */}
-      <button
-        onClick={e => { e.stopPropagation(); onDelete(); }}
-        disabled={deleting}
-        className={`flex-shrink-0 p-1 rounded-lg text-slate-200 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 ${
-          deleting ? 'opacity-50 cursor-wait' : ''
-        }`}
-        title="Eliminar recordatorio"
-      >
-        <FaTrash className="w-3 h-3" />
-      </button>
+      {/* Eliminar — solo owner o quien lo creó */}
+      {(isOwner || reminder.createdBy === currentStaffId) && (
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          disabled={deleting}
+          className={`flex-shrink-0 p-1 rounded-lg text-slate-200 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 ${
+            deleting ? 'opacity-50 cursor-wait' : ''
+          }`}
+          title="Eliminar orden"
+        >
+          <FaTrash className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
 }
@@ -1040,7 +1046,7 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
       await api.patch(`/reminders/${rId}/complete`, buildBody());
       onRefresh();
     } catch {
-      toast.error('Error al actualizar tarea');
+      toast.error('Error al actualizar orden');
     } finally {
       setToggling(p => ({ ...p, [rId]: false }));
     }
@@ -1055,12 +1061,12 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
         await api.post(`/reminders/${rId}/comments`, { message: confirmComment.trim() });
       }
       await api.patch(`/reminders/${rId}/complete`, buildBody());
-      toast.success('Tarea completada');
+      toast.success('Orden completada');
       setConfirmModal(null);
       setConfirmComment('');
       onRefresh();
     } catch {
-      toast.error('Error al completar la tarea');
+      toast.error('Error al completar la orden');
     } finally {
       setConfirming(false);
     }
@@ -1118,7 +1124,7 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
           <button
             onClick={() => onCreateFor(staffData)}
             className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-600 transition-colors"
-            title={`Nueva tarea para ${staffData.name}`}
+            title={`Nueva orden de trabajo para ${staffData.name}`}
           >
             <FaPlus className="w-3 h-3" />
           </button>
@@ -1132,7 +1138,7 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
             {reminders.length === 0 ? (
               <>
                 <FaClipboardList className="w-6 h-6 mb-2 opacity-40" />
-                <p className="text-xs">Sin tareas asignadas</p>
+                <p className="text-xs">Sin órdenes asignadas</p>
               </>
             ) : (
               <>
@@ -1149,6 +1155,7 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
               onToggle={() => r.assignment?.completed ? handleToggle(r) : setConfirmModal(r)}
               onDelete={() => handleDelete(r)}
               isOwner={isOwner}
+              currentStaffId={currentStaffId}
               toggling={!!toggling[r.id]}
               deleting={!!deleting[r.id]}
               onOpenDetail={() => onOpenDetail(r, staffData.id)}
@@ -1175,7 +1182,7 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
                 <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center">
                   <FaCheck className="w-3.5 h-3.5 text-emerald-600" />
                 </div>
-                <h3 className="font-bold text-slate-800 text-base">¿Confirmar tarea completada?</h3>
+                <h3 className="font-bold text-slate-800 text-base">¿Confirmar orden completada?</h3>
               </div>
               <p className="text-sm text-slate-500 ml-9 line-clamp-2">"{confirmModal.title}"</p>
             </div>
@@ -1277,7 +1284,7 @@ export default function ReminderBoard() {
                 <FaBell className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Tablero de Tareas</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Órdenes de Trabajo</h1>
                 <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
                   {loading ? 'Cargando...' : (
                     <>
@@ -1318,13 +1325,13 @@ export default function ReminderBoard() {
                 ))}
               </div>
 
-              {/* Nueva tarea */}
+              {/* Nueva orden de trabajo */}
               <button
                 onClick={() => setCreateTarget('general')}
                 className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all shadow-sm"
               >
                 <FaPlus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Nueva tarea</span>
+                <span className="hidden sm:inline">Nueva orden de trabajo</span>
               </button>
 
               {/* Refresh */}
@@ -1372,7 +1379,7 @@ export default function ReminderBoard() {
         )}
       </div>
 
-      {/* Modal crear tarea */}
+      {/* Modal crear orden de trabajo */}
       {createTarget && (
         <CreateModal
           onClose={() => setCreateTarget(null)}
@@ -1383,7 +1390,7 @@ export default function ReminderBoard() {
         />
       )}
 
-      {/* Modal detalle de tarea */}
+      {/* Modal detalle de orden de trabajo */}
       {detailTarget && (
         <DetailModal
           reminderId={detailTarget.reminderId}

@@ -234,9 +234,13 @@ module.exports = {
           model: Reminder,
           as: 'reminder',
           required: true,
-          // Owner/admin ven todas las tarjetas → excluir privados de los demás
-          // Staff normal solo ve su propia tarjeta → puede ver sus propios privados
-          where: isOwnerOrAdmin ? { type: { [Op.ne]: 'personal' } } : {},
+          // Owner/admin ven todas las tarjetas → excluir privados ajenos, pero mostrar los propios
+          where: isOwnerOrAdmin ? {
+            [Op.or]: [
+              { type: { [Op.ne]: 'personal' } },
+              { type: 'personal', createdBy: myStaffId },
+            ],
+          } : {},
           include: [{ model: Staff, as: 'creator', attributes: ['id', 'name'] }],
         }],
         order: [
