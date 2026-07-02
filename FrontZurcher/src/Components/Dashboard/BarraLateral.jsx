@@ -256,7 +256,6 @@ const BarraLateral = () => {
           color: "text-amber-400",
           items: [
             { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
-            { name: "Routing de Alertas", path: "/notification-routing", icon: FaCog },
           ],
         },
         {
