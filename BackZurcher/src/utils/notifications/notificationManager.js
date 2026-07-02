@@ -4,6 +4,7 @@ const { sendEmail } = require('./emailService');
 const { Notification, Staff } = require('../../data');
 const { Expo } = require('expo-server-sdk');
 const { filterDuplicates, registerSent } = require('./notificationDeduplicator');
+const { createRoutedReminder } = require('../createRoutedReminder');
 let expo = new Expo();
 
 const getCanonicalRecipientEmail = (staff) => {
@@ -149,6 +150,9 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
       
       // 🛡️ Registrar los correos enviados exitosamente
       registerSent(filteredStaff, status, entityId);
+
+      // 📌 Crear recordatorio automático para el responsable configurado
+      await createRoutedReminder(status, work || budget || {});
     }
 
     // --- Notificaciones Push ---

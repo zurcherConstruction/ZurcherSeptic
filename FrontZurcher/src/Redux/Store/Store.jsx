@@ -33,6 +33,7 @@ import knowledgeBaseReducer from '../Reducer/knowledgeBaseReducer'; // 🆕 Know
 import newsletterReducer from '../Reducers/newsletterReducer'; // 🆕 Newsletter reducer
 import signatureDocumentReducer from '../Reducers/signatureDocumentReducer'; // 🆕 Signature Documents reducer
 import fleetReducer from '../Reducer/fleetReducer'; // 🆕 Fleet & Equipment reducer
+import notificationRoutingReducer from '../Reducer/notificationRoutingReducer'; // 🆕 Routing de alertas automáticas
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -67,6 +68,7 @@ const rootReducer = combineReducers({
   newsletter: newsletterReducer, // 🆕 Newsletter reducer
   signatureDocuments: signatureDocumentReducer, // 🆕 Signature Documents reducer
   fleet: fleetReducer, // 🆕 Fleet & Equipment reducer
+  notificationRouting: notificationRoutingReducer, // 🆕 Routing de alertas automáticas
 });
 
 export const store = configureStore({

@@ -93,6 +93,29 @@ module.exports = {
     }
   },
 
+  // GET /reminders/:id — Detalle completo de un recordatorio
+  async getReminderById(req, res) {
+    try {
+      const { id } = req.params;
+      const staffId = req.staff.id;
+      const isOwnerOrAdmin = ['admin', 'owner'].includes(req.staff.role);
+
+      const reminder = await Reminder.findByPk(id, { include: reminderIncludes() });
+      if (!reminder) return res.status(404).json({ error: true, message: 'No encontrado' });
+
+      const r = reminder.toJSON();
+      const hasAssignment = r.assignments?.some(a => (a.staffId || a.staff_id) === staffId);
+      if (!hasAssignment && !isOwnerOrAdmin && r.createdBy !== staffId) {
+        return res.status(403).json({ error: true, message: 'Sin acceso' });
+      }
+
+      return res.json({ success: true, reminder: enrichWithMine(r, staffId) });
+    } catch (err) {
+      console.error('[ReminderController] getReminderById:', err);
+      res.status(500).json({ error: true, message: 'Error obteniendo recordatorio' });
+    }
+  },
+
   // POST /reminders — Crear recordatorio
   async createReminder(req, res) {
     try {
@@ -211,7 +234,9 @@ module.exports = {
           model: Reminder,
           as: 'reminder',
           required: true,
-          where: { type: { [Op.ne]: 'personal' } },
+          // Owner/admin ven todas las tarjetas → excluir privados de los demás
+          // Staff normal solo ve su propia tarjeta → puede ver sus propios privados
+          where: isOwnerOrAdmin ? { type: { [Op.ne]: 'personal' } } : {},
           include: [{ model: Staff, as: 'creator', attributes: ['id', 'name'] }],
         }],
         order: [

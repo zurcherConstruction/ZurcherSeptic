@@ -14,6 +14,9 @@ router.get('/board', ReminderController.getBoardReminders);
 // Todos (admin/owner)
 router.get('/all', ReminderController.getAllReminders);
 
+// Detalle completo de un recordatorio
+router.get('/:id', ReminderController.getReminderById);
+
 // Crear recordatorio
 router.post('/', ReminderController.createReminder);
 

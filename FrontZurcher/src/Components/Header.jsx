@@ -97,8 +97,8 @@ const Header = () => {
             {/* Recordatorios */}
             <div className="relative">
               <button
-                onClick={() => navigate('/reminders')}
-                title="Recordatorios"
+                onClick={() => navigate('/reminders-board')}
+                title="Tablero de Tareas"
                 className="relative p-2 md:p-3 rounded-xl bg-gray-700 hover:bg-gray-600 transition-all duration-300 group border border-gray-600 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
                 <FaClipboardList className="w-5 h-5 text-gray-300 group-hover:text-orange-400 transition-colors duration-300" />
