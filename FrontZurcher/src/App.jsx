@@ -104,6 +104,7 @@ import SignatureDocumentsDashboard from './Components/SignatureDocuments/Signatu
 import ReminderBoard from './Components/Reminders/ReminderBoard'; // 🆕 Tablero de tareas por empleado
 import NotificationRoutingSettings from './Components/Settings/NotificationRoutingSettings'; // 🆕 Routing de alertas automáticas
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
+import FloatingMyOrders from './Components/Reminders/FloatingMyOrders'; // 🆕 Panel flotante de órdenes propias
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
 import NewLeadForm from './Components/SalesLeads/NewLeadForm'; // 🆕 New lead form
 import KnowledgeBase from './Components/KnowledgeBase/KnowledgeBase'; // 🆕 Base de Conocimiento
@@ -167,6 +168,7 @@ function App() {
     <>
       {shouldShowLayout && <Header />}
       {shouldShowLayout && <ReminderPopup />}
+      {shouldShowLayout && <FloatingMyOrders />}
       <LoadingSpinner />
       <div className={`flex ${shouldShowLayout ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
         {shouldShowLayout && <BarraLateral />}
