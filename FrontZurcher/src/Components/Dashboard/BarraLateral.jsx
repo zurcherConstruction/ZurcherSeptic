@@ -133,12 +133,12 @@ const BarraLateral = () => {
       ],
     },
     {
-      name: "Reminders & Tasks",
-      icon: FaBell,
+      name: "Tablero de Tareas",
+      icon: FaClipboardList,
       color: "text-amber-400",
       items: [
-        { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
         { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
+        { name: "Routing de Alertas", path: "/notification-routing", icon: FaCog },
       ],
     },
     {
@@ -251,12 +251,12 @@ const BarraLateral = () => {
           ],
         },
         {
-          name: "Reminders & Tasks",
-          icon: FaBell,
+          name: "Tablero de Tareas",
+          icon: FaClipboardList,
           color: "text-amber-400",
           items: [
-            { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
             { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
+            { name: "Routing de Alertas", path: "/notification-routing", icon: FaCog },
           ],
         },
         {
@@ -311,11 +311,10 @@ const BarraLateral = () => {
           ],
         },
         {
-          name: "Reminders & Tasks",
-          icon: FaBell,
+          name: "Tablero de Tareas",
+          icon: FaClipboardList,
           color: "text-amber-400",
           items: [
-            { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
             { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
           ],
         },
@@ -366,11 +365,10 @@ const BarraLateral = () => {
           ],
         },
         {
-          name: "Reminders & Tasks",
-          icon: FaBell,
+          name: "Tablero de Tareas",
+          icon: FaClipboardList,
           color: "text-amber-400",
           items: [
-            { name: "Panel Recordatorios", path: "/reminders", icon: FaBell },
             { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
           ],
         },

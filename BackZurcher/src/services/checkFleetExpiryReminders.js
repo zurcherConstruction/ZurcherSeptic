@@ -8,6 +8,7 @@ const {
   ReminderAssignment,
 } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
+const { getRoutedStaff } = require('../utils/getRoutedStaff');
 
 const ALERT_DAYS = Number(process.env.FLEET_EXPIRY_ALERT_DAYS || 30);
 
@@ -130,15 +131,9 @@ const checkFleetExpiryReminders = async () => {
     today.setHours(0, 0, 0, 0);
     const maxDate = addDays(today, ALERT_DAYS);
 
-    const owners = await Staff.findAll({
-      where: { role: 'owner', isActive: true },
-      attributes: ['id', 'name', 'email'],
-    });
-
-    if (!owners.length) {
-      console.log('⚠️ [CRON - FLEET REMINDERS] No hay owners activos para notificar');
-      return;
-    }
+    // Routing configurable: usa el responsable asignado a cada tipo de evento
+    const registrationOwners = await getRoutedStaff('fleet_registration');
+    const insuranceOwners    = await getRoutedStaff('fleet_insurance');
 
     const assets = await FleetAsset.findAll({
       where: {
@@ -178,6 +173,7 @@ const checkFleetExpiryReminders = async () => {
 
         if (expiryDate < today || expiryDate > maxDate) continue;
 
+        const owners = kind.key === 'registration' ? registrationOwners : insuranceOwners;
         const created = await createReminderAndNotifyOwners({
           owners,
           asset,
@@ -206,10 +202,7 @@ const checkFleetMaintenanceAlerts = async () => {
     today.setHours(0, 0, 0, 0);
     const maxDate = addDays(today, ALERT_DAYS);
 
-    const owners = await Staff.findAll({
-      where: { role: 'owner', isActive: true },
-      attributes: ['id', 'name', 'email'],
-    });
+    const owners = await getRoutedStaff('fleet_maintenance');
 
     if (!owners.length) return;
 

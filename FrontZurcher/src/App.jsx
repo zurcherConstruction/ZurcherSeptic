@@ -101,8 +101,8 @@ import SalesDashboard from './Components/Sales/SalesDashboard'; // 🆕 Dashboar
 import MarketingCampaigns from './Components/Sales/MarketingCampaigns'; // 🆕 Email marketing campaigns
 import NewsletterDashboard from './Components/Newsletter/NewsletterDashboard'; // 🆕 Newsletter system
 import SignatureDocumentsDashboard from './Components/SignatureDocuments/SignatureDocumentsDashboard'; // 🆕 Signature documents system
-import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Recordatorios
 import ReminderBoard from './Components/Reminders/ReminderBoard'; // 🆕 Tablero de tareas por empleado
+import NotificationRoutingSettings from './Components/Settings/NotificationRoutingSettings'; // 🆕 Routing de alertas automáticas
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
 import NewLeadForm from './Components/SalesLeads/NewLeadForm'; // 🆕 New lead form
@@ -744,15 +744,6 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-              {/* Recordatorios */}
-              <Route
-                path="/reminders"
-                element={
-                  <PrivateRoute allowedRoles={["admin", "owner", "recept", "finance"]}>
-                    <ReminderPanel />
-                  </PrivateRoute>
-                }
-              />
 
               {/* 🆕 Signature Documents - Firma Electrónica */}
               <Route
@@ -788,6 +779,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner", "recept", "finance"]}>
                     <ReminderBoard />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* ⚙️ Routing de alertas automáticas */}
+              <Route
+                path="/notification-routing"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner"]}>
+                    <NotificationRoutingSettings />
                   </PrivateRoute>
                 }
               />

@@ -1640,6 +1640,11 @@ const changeWorkStatus = async (req, res) => {
       sendClientPortalLinkOnInProgress(idWork, updatedWork?.propertyAddress || work?.propertyAddress);
     }
 
+    // Disparar notificaciones y recordatorios automáticos
+    sendNotifications(targetStatus, updatedWork || work, req.app.get('io'), { userId: req.staff?.id }).catch(err => {
+      console.error('[changeWorkStatus] Error en sendNotifications:', err.message);
+    });
+
     console.log(`✅ Estado cambiado exitosamente: ${currentStatus} → ${targetStatus} para work ${idWork}`);
 
     res.status(200).json({

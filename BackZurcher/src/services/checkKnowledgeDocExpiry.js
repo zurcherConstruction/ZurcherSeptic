@@ -7,6 +7,7 @@
 const { Op } = require('sequelize');
 const { KnowledgeDocument, KnowledgeCategory, Staff, Reminder, ReminderAssignment } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
+const { getRoutedStaff } = require('../utils/getRoutedStaff');
 
 const ALERT_DAYS = Number(process.env.KNOWLEDGE_DOC_EXPIRY_ALERT_DAYS || 30);
 
@@ -104,13 +105,10 @@ const checkKnowledgeDocExpiry = async () => {
     today.setHours(0, 0, 0, 0);
     const alertDate = addDays(today, ALERT_DAYS);
 
-    const owners = await Staff.findAll({
-      where: { role: 'owner', isActive: true },
-      attributes: ['id', 'name', 'email'],
-    });
+    const owners = await getRoutedStaff('kb_doc_expiry');
 
     if (!owners.length) {
-      console.log('⚠️ [CRON - KB EXPIRY] No hay owners activos para notificar');
+      console.log('⚠️ [CRON - KB EXPIRY] No hay responsable configurado para notificar');
       return;
     }
 
