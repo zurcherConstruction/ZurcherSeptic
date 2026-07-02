@@ -211,7 +211,7 @@ module.exports = {
     try {
       const myStaffId = req.staff.id;
       const role = req.staff.role;
-      const isOwnerOrAdmin = ['admin', 'owner'].includes(role);
+      const isOwnerOrAdmin = ['admin', 'owner', 'recept'].includes(role);
 
       let staffList;
       const BOARD_ROLES = ['admin', 'owner', 'recept', 'finance'];
