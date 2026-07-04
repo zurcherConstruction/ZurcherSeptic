@@ -15,8 +15,8 @@ const ZONES = {
     name: 'La Belle',
     color: 'orange',
     keywords: [
-      'la belle', 'labelle', 'la bell', 'labell',
-      'la. belle', 'l belle', ' belle '
+      'la belle', 'labelle', 'labell',
+      'la. belle', 'l belle'
     ]
   },
   'Lehigh': {
