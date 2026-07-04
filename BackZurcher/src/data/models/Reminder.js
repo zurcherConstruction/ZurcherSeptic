@@ -134,11 +134,50 @@ module.exports = (sequelize) => {
     timestamps: true,
   });
 
+  // --- ReminderRead: registro de última lectura por staff por reminder ---
+  const ReminderRead = sequelize.define('ReminderRead', {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    reminderId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: { model: 'Reminders', key: 'id' },
+      onDelete: 'CASCADE',
+      field: 'reminder_id',
+    },
+    staffId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: { model: 'Staffs', key: 'id' },
+      onDelete: 'CASCADE',
+      field: 'staff_id',
+    },
+    lastReadAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+      field: 'last_read_at',
+    },
+  }, {
+    tableName: 'ReminderReads',
+    timestamps: false,
+    indexes: [{ unique: true, fields: ['reminder_id', 'staff_id'] }],
+  });
+
   // Associations definidas en associate hook
+  ReminderRead.associate = (models) => {
+    ReminderRead.belongsTo(models.Reminder, { foreignKey: 'reminder_id' });
+    ReminderRead.belongsTo(models.Staff,    { foreignKey: 'staff_id' });
+  };
+
   Reminder.associate = (models) => {
     Reminder.belongsTo(models.Staff, { foreignKey: 'created_by', as: 'creator' });
     Reminder.hasMany(models.ReminderAssignment, { foreignKey: 'reminder_id', as: 'assignments' });
-    Reminder.hasMany(models.ReminderComment, { foreignKey: 'reminder_id', as: 'comments' });
+    Reminder.hasMany(models.ReminderComment,    { foreignKey: 'reminder_id', as: 'comments' });
+    Reminder.hasMany(models.ReminderRead,       { foreignKey: 'reminder_id', as: 'reads' });
   };
 
   ReminderAssignment.associate = (models) => {

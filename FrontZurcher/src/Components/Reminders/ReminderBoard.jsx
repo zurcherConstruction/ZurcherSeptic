@@ -386,9 +386,10 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
   const [detail, setDetail]         = useState(null);
   const [loading, setLoading]       = useState(true);
   const [newComment, setNewComment] = useState('');
-  const [commenting, setCommenting] = useState(false);
-  const [completing, setCompleting] = useState(false);
-  const [deleting, setDeleting]     = useState(false);
+  const [commenting,     setCommenting]     = useState(false);
+  const [completing,     setCompleting]     = useState(false);
+  const [deleting,       setDeleting]       = useState(false);
+  const [confirmDelete,  setConfirmDelete]  = useState(false);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [tagging, setTagging]       = useState(false);
 
@@ -405,13 +406,17 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
     try {
       const { data } = await api.get(`/reminders/${reminderId}`);
       setDetail(data.reminder);
+      // Marcar como leído y refrescar board para que desaparezca el badge
+      api.post(`/reminders/${reminderId}/read`)
+        .then(() => onRefresh())
+        .catch(() => {});
     } catch {
       toast.error('Error cargando detalle');
       onClose();
     } finally {
       setLoading(false);
     }
-  }, [reminderId, onClose]);
+  }, [reminderId, onClose, onRefresh]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
 
@@ -556,7 +561,6 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`¿Eliminar "${detail.title}"?`)) return;
     setDeleting(true);
     try {
       await api.delete(`/reminders/${detail.id}`);
@@ -784,12 +788,26 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                       </button>
                     )}
                   {canDelete && (
-                      <button onClick={handleDelete} disabled={deleting}
+                    confirmDelete ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-slate-500 mr-1">¿Eliminar?</span>
+                        <button onClick={handleDelete} disabled={deleting}
+                          className="text-[11px] font-bold px-2 py-1 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition-colors disabled:opacity-50">
+                          {deleting ? '...' : 'Sí'}
+                        </button>
+                        <button onClick={() => setConfirmDelete(false)}
+                          className="text-[11px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmDelete(true)}
                         className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                         title="Eliminar">
                         <FaTrash className="w-3.5 h-3.5" />
                       </button>
-                    )}
+                    )
+                  )}
                   <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
                     <FaTimes className="w-4 h-4" />
                   </button>
@@ -917,6 +935,7 @@ function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, to
   const done    = assignment?.completed;
   const overdue = isOverdue(reminder.dueDate, done);
   const pCfg    = PRIORITY[reminder.priority] || PRIORITY.medium;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div
@@ -992,10 +1011,31 @@ function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, to
         </div>
       </div>
 
+      {/* Badge comentarios no leídos */}
+      {reminder.unreadComments > 0 && (
+        <span className="flex-shrink-0 flex items-center gap-0.5 bg-sky-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+          <FaComment className="w-2 h-2" />
+          {reminder.unreadComments}
+        </span>
+      )}
+
       {/* Eliminar — solo owner */}
       {isOwner && (
+        confirmDelete ? (
+          <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => { onDelete(); setConfirmDelete(false); }}
+              disabled={deleting}
+              className="text-[10px] font-bold px-2 py-1 rounded-lg bg-rose-500 text-white hover:bg-rose-600 transition-colors"
+            >Sí</button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+            >No</button>
+          </div>
+        ) : (
         <button
-          onClick={e => { e.stopPropagation(); onDelete(); }}
+          onClick={e => { e.stopPropagation(); setConfirmDelete(true); }}
           disabled={deleting}
           className={`flex-shrink-0 p-1 rounded-lg text-slate-200 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100 ${
             deleting ? 'opacity-50 cursor-wait' : ''
@@ -1004,6 +1044,7 @@ function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, to
         >
           <FaTrash className="w-3 h-3" />
         </button>
+        )
       )}
     </div>
   );
@@ -1073,7 +1114,6 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
   };
 
   const handleDelete = async (reminder) => {
-    if (!window.confirm(`¿Eliminar "${reminder.title}"?`)) return;
     const rId = reminder.id;
     setDeleting(p => ({ ...p, [rId]: true }));
     try {
@@ -1266,7 +1306,9 @@ export default function ReminderBoard() {
     (sum, s) => sum + (s.reminders || []).filter(r => isOverdue(r.dueDate, r.assignment?.completed)).length, 0
   );
 
-  const handleOpenDetail = (reminder, staffId) => {
+  const handleRefresh     = useCallback(() => fetchBoard(true), [fetchBoard]);
+  const handleCloseDetail = useCallback(() => setDetailTarget(null), []);
+  const handleOpenDetail  = (reminder, staffId) => {
     setDetailTarget({ reminderId: reminder.id, targetStaffId: staffId });
   };
 
@@ -1398,8 +1440,8 @@ export default function ReminderBoard() {
           isOwner={isOwner}
           currentStaff={currentStaff}
           staffList={staffList}
-          onClose={() => setDetailTarget(null)}
-          onRefresh={() => fetchBoard(true)}
+          onClose={handleCloseDetail}
+          onRefresh={handleRefresh}
         />
       )}
     </div>

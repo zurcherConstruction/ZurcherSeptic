@@ -1,4 +1,4 @@
-const { Reminder, ReminderAssignment, ReminderComment, Staff, sequelize } = require('../data');
+const { Reminder, ReminderAssignment, ReminderComment, ReminderRead, Staff, sequelize } = require('../data');
 const { Op } = require('sequelize');
 
 const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
@@ -52,6 +52,7 @@ module.exports = {
         include: [{
           model: Reminder,
           as: 'reminder',
+          required: true,
           include: [
             { model: Staff, as: 'creator', attributes: STAFF_ATTRS },
             { model: ReminderAssignment, as: 'assignments', include: [{ model: Staff, as: 'staff', attributes: STAFF_ATTRS }] },
@@ -61,7 +62,7 @@ module.exports = {
         order: [[{ model: Reminder, as: 'reminder' }, 'createdAt', 'DESC']],
       });
 
-      const reminders = assignments.map(a => {
+      const reminders = assignments.filter(a => a.reminder).map(a => {
         const r = a.reminder.toJSON();
         r.myAssignment = { completed: a.completed, completedAt: a.completedAt, id: a.id };
         return r;
@@ -98,14 +99,15 @@ module.exports = {
     try {
       const { id } = req.params;
       const staffId = req.staff.id;
-      const isOwnerOrAdmin = ['admin', 'owner'].includes(req.staff.role);
+      // Admin, owner y recept pueden ver cualquier orden del board
+      const canViewAll = ['admin', 'owner', 'recept'].includes(req.staff.role);
 
       const reminder = await Reminder.findByPk(id, { include: reminderIncludes() });
       if (!reminder) return res.status(404).json({ error: true, message: 'No encontrado' });
 
       const r = reminder.toJSON();
       const hasAssignment = r.assignments?.some(a => (a.staffId || a.staff_id) === staffId);
-      if (!hasAssignment && !isOwnerOrAdmin && r.createdBy !== staffId) {
+      if (!hasAssignment && !canViewAll && r.createdBy !== staffId) {
         return res.status(403).json({ error: true, message: 'Sin acceso' });
       }
 
@@ -234,14 +236,17 @@ module.exports = {
           model: Reminder,
           as: 'reminder',
           required: true,
-          // Owner/admin ven todas las tarjetas → excluir privados ajenos, pero mostrar los propios
           where: isOwnerOrAdmin ? {
             [Op.or]: [
               { type: { [Op.ne]: 'personal' } },
               { type: 'personal', createdBy: myStaffId },
             ],
           } : {},
-          include: [{ model: Staff, as: 'creator', attributes: ['id', 'name'] }],
+          include: [
+            { model: Staff, as: 'creator', attributes: ['id', 'name'] },
+            { model: ReminderComment, as: 'comments', attributes: ['id', 'staffId', 'createdAt'] },
+            { model: ReminderRead, as: 'reads', attributes: ['staffId', 'lastReadAt'] },
+          ],
         }],
         order: [
           [{ model: Reminder, as: 'reminder' }, 'createdAt', 'DESC'],
@@ -260,8 +265,20 @@ module.exports = {
         const assignmentStaffId = a.staffId || a.staff_id;
         if (!staffMap[assignmentStaffId]) return;
 
+        // Badge desde la perspectiva del viewer (myStaffId), no del asignado
+        const myRead = r.reads?.find(rd => rd.staffId === myStaffId);
+        const lastReadAt = myRead ? new Date(myRead.lastReadAt) : null;
+        const unreadComments = (r.comments || []).filter(c => {
+          if (c.staffId === myStaffId) return false; // mis propios comentarios no cuentan
+          if (!lastReadAt) return true;
+          return new Date(c.createdAt) > lastReadAt;
+        }).length;
+
         staffMap[assignmentStaffId].reminders.push({
           ...r,
+          comments: undefined, // no necesitamos el detalle en el board
+          reads: undefined,
+          unreadComments,
           assignment: {
             id: a.id,
             completed: a.completed,
@@ -300,6 +317,24 @@ module.exports = {
     }
   },
 
+  // POST /reminders/:id/read — Marca los comentarios como leídos para el staff autenticado
+  async markAsRead(req, res) {
+    try {
+      const staffId = req.staff.id;
+      const { id: reminderId } = req.params;
+
+      await ReminderRead.upsert(
+        { reminderId, staffId, lastReadAt: new Date() },
+        { conflictFields: ['reminder_id', 'staff_id'] }
+      );
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[ReminderController] markAsRead:', err.message);
+      res.status(500).json({ error: true, message: 'Error marcando como leído' });
+    }
+  },
+
   // DELETE /reminders/:id — Eliminar (solo owner)
   async deleteReminder(req, res) {
     try {
@@ -333,9 +368,10 @@ module.exports = {
       }
 
       // Verificar que el staff tiene acceso al recordatorio
+      const role = req.staff.role;
       const { reminder, allowed } = await canViewReminder(id, staffId);
       if (!reminder) return res.status(404).json({ error: true, message: 'Recordatorio no encontrado' });
-      if (!allowed) {
+      if (!allowed && !['admin', 'owner', 'recept'].includes(role)) {
         return res.status(403).json({ error: true, message: 'No tienes acceso a este recordatorio' });
       }
 
