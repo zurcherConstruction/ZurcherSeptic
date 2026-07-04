@@ -22,13 +22,13 @@ const ZONES = {
   'La Belle': {
     name: 'La Belle',
     color: 'orange',
-    zipCodes: ['33935', '33975'],
-    cities: ['la belle', 'labelle', 'la bell', 'labell']
+    zipCodes: ['33935', '33936', '33975'],
+    cities: ['la belle', 'labelle', 'labell']
   },
   'Lehigh': {
     name: 'Lehigh Acres',
     color: 'purple',
-    zipCodes: ['33936', '33971', '33972', '33973', '33974', '33976'],
+    zipCodes: ['33971', '33972', '33973', '33974', '33976'],
     cities: ['lehigh', 'lehigh acres', 'lehigh acre']
   },
   'North Port': {
@@ -56,10 +56,10 @@ const ZONES = {
     cities: ['deltona']
   },
   'Poinciana': {
-    name: 'Poinciana',
+    name: 'Poinciana / Kissimmee',
     color: 'rose',
     zipCodes: ['34758', '34759'],
-    cities: ['poinciana']
+    cities: ['poinciana', 'kissimmee']
   },
   'Orlando': {
     name: 'Orlando',
