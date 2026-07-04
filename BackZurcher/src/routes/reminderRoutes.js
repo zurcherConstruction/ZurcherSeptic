@@ -29,6 +29,9 @@ router.delete('/:id', ReminderController.deleteReminder);
 // Marcar/desmarcar completado (mi assignment)
 router.patch('/:id/complete', ReminderController.toggleComplete);
 
+// Marcar comentarios como leídos (solo actualiza para el staff autenticado)
+router.post('/:id/read', ReminderController.markAsRead);
+
 // Agregar comentario
 router.post('/:id/comments', ReminderController.addComment);
 

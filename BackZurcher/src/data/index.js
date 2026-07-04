@@ -101,7 +101,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, NotificationRouting } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, ReminderRead, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, NotificationRouting } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -869,6 +869,10 @@ Reminder.hasMany(ReminderComment, { foreignKey: 'reminder_id', as: 'comments' })
 ReminderComment.belongsTo(Reminder, { foreignKey: 'reminder_id', as: 'reminder' });
 ReminderComment.belongsTo(Staff, { foreignKey: 'staff_id', as: 'author' });
 Staff.hasMany(ReminderComment, { foreignKey: 'staff_id', as: 'reminderComments' });
+
+Reminder.hasMany(ReminderRead, { foreignKey: 'reminder_id', as: 'reads' });
+ReminderRead.belongsTo(Reminder, { foreignKey: 'reminder_id' });
+ReminderRead.belongsTo(Staff, { foreignKey: 'staff_id' });
 
 // ========================= MARKETING CAMPAIGN ASSOCIATIONS ========================= //
 MarketingCampaign.belongsTo(Staff, { foreignKey: 'sentByStaffId', as: 'sentBy' });
