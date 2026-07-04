@@ -481,6 +481,7 @@ const registerQuickInspectionResult = async (req, res) => {
 
     if (type === 'initial' && finalStatus === 'approved' && work.status === 'coverPending') {
       await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
+      await sendNotifications('initial_inspection_approved', work, req.app.get('io'));
     }
 
     // Programar visitas de mantenimiento (ATU final aprobado)
@@ -1140,6 +1141,7 @@ const registerInspectionResult = async (req, res) => {
 
           // Enviar notificaciones para el nuevo estado automático
           await sendNotifications('coverPending', work, req.app.get('io'));
+          await sendNotifications('initial_inspection_approved', work, req.app.get('io'));
 
           // Avisar a recept/admin para pago de fees según tipo de sistema
           await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
