@@ -150,10 +150,10 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
       
       // 🛡️ Registrar los correos enviados exitosamente
       registerSent(filteredStaff, status, entityId);
-
-      // 📌 Crear recordatorio automático para el responsable configurado
-      await createRoutedReminder(status, work || budget || {});
     }
+
+    // 📌 Crear recordatorio automático (independiente del email)
+    await createRoutedReminder(status, work || budget || {});
 
     // --- Notificaciones Push ---
     const appDetails = await getNotificationDetailsApp(status, work, budget, context);

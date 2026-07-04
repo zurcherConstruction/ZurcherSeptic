@@ -34,10 +34,10 @@ module.exports = (sequelize) => {
       field: 'due_date'
     },
     linkedEntityType: {
-      type: DataTypes.STRING(10),
+      type: DataTypes.STRING(20),
       allowNull: true,
       field: 'linked_entity_type',
-      comment: 'work | budget'
+      comment: 'work | budget | workCalendar'
     },
     linkedEntityId: {
       type: DataTypes.STRING(50),

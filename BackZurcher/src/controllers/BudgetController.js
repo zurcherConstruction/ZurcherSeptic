@@ -3270,6 +3270,17 @@ async optionalDocs(req, res) {
       await transaction.commit();
       console.log(`✅ Budget ${idBudget} actualizado correctamente`);
 
+      // 📌 Orden de trabajo automática al crear nuevo work pendiente
+      if (workRecord) {
+        setImmediate(async () => {
+          try {
+            await sendNotifications('pending', workRecord, req.io);
+          } catch (err) {
+            console.error('❌ Error creando orden automática para work pendiente:', err.message);
+          }
+        });
+      }
+
       // --- 9. Responder al Frontend ---
       // Volver a buscar el budget fuera de la transacción para obtener el estado final MÁS actualizado
       const finalBudgetResponseData = await Budget.findByPk(idBudget, {
@@ -3472,6 +3483,7 @@ async optionalDocs(req, res) {
         transaction
       });
       
+      let isNewWork = false;
       if (!existingWork) {
         existingWork = await Work.create({
           propertyAddress: budget.propertyAddress,
@@ -3482,6 +3494,7 @@ async optionalDocs(req, res) {
           initialPayment: amountForIncome,
           staffId: req.user?.id
         }, { transaction });
+        isNewWork = true;
         console.log(`✅ Work creado para Budget #${budget.idBudget} - ID: ${existingWork.idWork}`);
       } else {
         // Actualizar monto si cambió Y asegurar que tenga idPermit
@@ -3597,6 +3610,17 @@ async optionalDocs(req, res) {
       }
 
       await transaction.commit();
+
+      // 📌 Orden de trabajo automática al crear nuevo work pendiente
+      if (isNewWork) {
+        setImmediate(async () => {
+          try {
+            await sendNotifications('pending', existingWork, req.io);
+          } catch (err) {
+            console.error('❌ Error creando orden automática para work pendiente:', err.message);
+          }
+        });
+      }
 
       // 📧 Enviar recibo de confirmación de pago al cliente (sin bloquear el flujo)
       const clientEmail = budget.Permit?.applicantEmail;
