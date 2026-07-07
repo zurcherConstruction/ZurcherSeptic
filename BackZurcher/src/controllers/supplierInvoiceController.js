@@ -2121,6 +2121,7 @@ const getVendorsSummary = async (req, res) => {
         'totalAmount',
         'paidAmount',
         'paymentStatus',
+        'verified',
         'notes'
       ],
       order: [['vendor', 'ASC'], ['issueDate', 'ASC']]
@@ -2155,6 +2156,7 @@ const getVendorsSummary = async (req, res) => {
         paidAmount: invoice.paidAmount,
         pendingAmount: pendingAmount.toFixed(2),
         paymentStatus: invoice.paymentStatus,
+        verified: invoice.verified,
         notes: invoice.notes
       });
     });
@@ -3722,6 +3724,7 @@ const getInvoicesByWorkId = async (req, res) => {
           'notes',
           'invoicePdfPath',
           'invoicePdfPublicId',
+          'verified',
           'createdAt'
         ]
       }]
@@ -3747,6 +3750,24 @@ const getInvoicesByWorkId = async (req, res) => {
   }
 };
 
+/**
+ * Marcar/desmarcar invoice como verificado desde el perfil del work
+ * PATCH /api/supplier-invoices/:id/verify
+ */
+const verifyInvoice = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const invoice = await SupplierInvoice.findByPk(id);
+    if (!invoice) return res.status(404).json({ error: true, message: 'Invoice no encontrado' });
+
+    await invoice.update({ verified: !invoice.verified });
+    res.json({ success: true, verified: invoice.verified });
+  } catch (err) {
+    console.error('[verifyInvoice]', err.message);
+    res.status(500).json({ error: true, message: 'Error al actualizar verificación' });
+  }
+};
+
 module.exports = {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -3768,5 +3789,6 @@ module.exports = {
   createAmexTransaction, // 💳 NUEVO transacciones de AMEX
   reverseAmexPayment, // 🔄 NUEVO revertir pagos de AMEX
   getAmexBalance, // 💳 NUEVO balance de AMEX
-  getInvoicesByWorkId // 🆕 NUEVO obtener invoices por work
+  getInvoicesByWorkId, // 🆕 NUEVO obtener invoices por work
+  verifyInvoice,
 };
