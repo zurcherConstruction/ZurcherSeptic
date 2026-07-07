@@ -51,26 +51,8 @@ const getMonthlySalesIndicators = async (req, res) => {
       }],
     });
 
-    // ── 2. Instalaciones del año: primer 'installed' en el año para cualquier work
-    const yearInstallHistories = await WorkStateHistory.findAll({
-      where: {
-        toStatus:  'installed',
-        changedAt: { [Op.between]: [yearStart, yearEnd] },
-      },
-      attributes: ['workId', 'changedAt'],
-    });
-
-    // Primera fecha de installed por work (dentro del año)
-    const firstInstallInYear = {};
-    for (const h of yearInstallHistories) {
-      const wid = h.workId;
-      if (!firstInstallInYear[wid] || new Date(h.changedAt) < new Date(firstInstallInYear[wid])) {
-        firstInstallInYear[wid] = h.changedAt;
-      }
-    }
-
-    // ── 3. Para el backlog necesitamos TODOS los works no cancelados creados hasta el fin del año
-    //     y la fecha en que fueron instalados (si es que lo fueron, en cualquier año)
+    // ── 2. Para el backlog: works no cancelados creados desde MINIMUM_DATE hasta fin del año.
+    //     El backlog arranca en cero en enero 2026 (no se arrastra de años anteriores).
     const allWorks = await Work.findAll({
       where: {
         createdAt: { [Op.gte]: MINIMUM_DATE, [Op.lte]: yearEnd },
@@ -100,7 +82,7 @@ const getMonthlySalesIndicators = async (req, res) => {
       }
     }
 
-    // ── 4. Calcular por mes
+    // ── 3. Calcular por mes
     const now          = new Date();
     // Para el año actual solo incluir meses hasta hoy; para años anteriores todos los 12
     const maxMonth = now.getFullYear() === targetYear ? now.getMonth() + 1 : 12;
@@ -132,9 +114,9 @@ const getMonthlySalesIndicators = async (req, res) => {
         count,
       }));
 
-      // Instalados este mes (cualquier work que llegó a 'installed' en este mes)
+      // Instalados este mes: works >= MINIMUM_DATE que llegaron a 'installed' por primera vez en este mes
       let instalados = 0;
-      for (const installedAt of Object.values(firstInstallInYear)) {
+      for (const installedAt of Object.values(firstInstallEver)) {
         const d = new Date(installedAt);
         if (d >= monthStart && d <= monthEnd) instalados++;
       }
