@@ -69,7 +69,7 @@ const BarraLateral = () => {
       items: [
         { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
         { name: "Sales Dashboard", path: "/sales-dashboard", icon: FaChartBar },
-        
+        { name: "Sales Indicators", path: "/sales-indicators", icon: FaChartPie },
       ],
     },
     {
