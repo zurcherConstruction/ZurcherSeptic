@@ -25,7 +25,8 @@ const {
   createAmexTransaction, // 💳 NUEVO transacciones AMEX
   reverseAmexPayment, // 🔄 NUEVO revertir pagos de AMEX
   getAmexBalance, // 💳 NUEVO balance AMEX
-  getInvoicesByWorkId // 🆕 NUEVO obtener invoices por work
+  getInvoicesByWorkId, // 🆕 NUEVO obtener invoices por work
+  verifyInvoice,
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -152,6 +153,7 @@ router.get('/:id', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), 
  * @access  Private
  */
 router.patch('/:id/pay', registerPayment);
+router.patch('/:id/verify', allowRoles(['admin', 'owner', 'finance']), verifyInvoice);
 
 /**
  * @route   POST /api/supplier-invoices/:id/upload-invoice
