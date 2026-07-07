@@ -1052,7 +1052,7 @@ function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, to
 
 // ─── Tarjeta de staff ─────────────────────────────────────────────────────────
 
-function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh, onOpenDetail, onCreateFor }) {
+function StaffCard({ staffData, viewMode, isOwner, currentStaffId, onRefresh, onOpenDetail, onCreateFor }) {
   const [toggling,  setToggling]  = useState({});
   const [deleting,  setDeleting]  = useState({});
   const [confirmModal,   setConfirmModal]   = useState(null);
@@ -1062,13 +1062,15 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
   const reminders  = staffData.reminders || [];
   const weekStart  = getWeekStart();
 
-  const visible = showThisWeek
-    ? reminders.filter(r => {
-        if (!r.assignment?.completed) return true;
-        if (!r.assignment?.completedAt) return true;
-        return new Date(r.assignment.completedAt) >= weekStart;
-      })
-    : reminders.filter(r => !r.assignment?.completed);
+  const visible = viewMode === 'all'
+    ? reminders
+    : viewMode === 'week'
+      ? reminders.filter(r => {
+          if (!r.assignment?.completed) return true;
+          if (!r.assignment?.completedAt) return true;
+          return new Date(r.assignment.completedAt) >= weekStart;
+        })
+      : reminders.filter(r => !r.assignment?.completed);
 
   const pendingCount   = reminders.filter(r => !r.assignment?.completed).length;
   const overdueCount   = reminders.filter(r => isOverdue(r.dueDate, r.assignment?.completed)).length;
@@ -1205,7 +1207,7 @@ function StaffCard({ staffData, showThisWeek, isOwner, currentStaffId, onRefresh
       </div>
 
       {/* Footer */}
-      {!showThisWeek && completedThisWeek > 0 && (
+      {viewMode === 'pending' && completedThisWeek > 0 && (
         <div className="px-4 py-2 border-t border-amber-200">
           <p className="text-[11px] text-slate-400 text-center">
             + {completedThisWeek} completado{completedThisWeek !== 1 ? 's' : ''} esta semana
@@ -1273,10 +1275,10 @@ export default function ReminderBoard() {
   const { staffList = [] }  = useSelector(s => s.admin);
   const isOwner = ['admin', 'owner'].includes(currentStaff?.role);
 
-  const [board,        setBoard]        = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [showThisWeek, setShowThisWeek] = useState(false);
-  const [refreshing,   setRefreshing]   = useState(false);
+  const [board,      setBoard]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [viewMode,   setViewMode]   = useState('pending'); // 'pending' | 'week' | 'all'
+  const [refreshing, setRefreshing] = useState(false);
   const [createTarget, setCreateTarget] = useState(null); // null=cerrado | 'general' | staffData
   const [detailTarget, setDetailTarget] = useState(null); // { reminderId, targetStaffId }
 
@@ -1346,17 +1348,18 @@ export default function ReminderBoard() {
 
             {/* Acciones */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Toggle semana */}
+              {/* Toggle vista */}
               <div className="flex bg-white/10 rounded-xl p-1 gap-1">
                 {[
-                  { k: false, label: 'Pendientes', short: 'Pend.' },
-                  { k: true,  label: 'Esta semana', short: 'Semana' },
+                  { k: 'pending', label: 'Pendientes', short: 'Pend.' },
+                  { k: 'week',    label: 'Esta semana', short: 'Semana' },
+                  { k: 'all',     label: 'Historial',   short: 'Todo' },
                 ].map(opt => (
                   <button
-                    key={String(opt.k)}
-                    onClick={() => setShowThisWeek(opt.k)}
+                    key={opt.k}
+                    onClick={() => setViewMode(opt.k)}
                     className={`px-2.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all ${
-                      showThisWeek === opt.k
+                      viewMode === opt.k
                         ? 'bg-white text-slate-800 shadow'
                         : 'text-slate-300 hover:text-white'
                     }`}
@@ -1409,7 +1412,7 @@ export default function ReminderBoard() {
               <StaffCard
                 key={staffData.id}
                 staffData={staffData}
-                showThisWeek={showThisWeek}
+                viewMode={viewMode}
                 isOwner={isOwner}
                 currentStaffId={currentStaff?.id}
                 onRefresh={() => fetchBoard(true)}
