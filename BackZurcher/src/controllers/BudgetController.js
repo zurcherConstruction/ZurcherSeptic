@@ -723,13 +723,16 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
       console.log(`👤 Usuario solicitante: ${req.user?.email || 'No identificado'}`);
 
-      // Buscar el presupuesto con información del solicitante
+      // Buscar el presupuesto con información del solicitante y sus items
       console.log('🔍 Buscando presupuesto en la base de datos...');
       const budget = await Budget.findByPk(idBudget, {
-        include: [{
-          model: Permit,
-          attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
-        }],
+        include: [
+          {
+            model: Permit,
+            attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
+          },
+          { model: BudgetLineItem, as: 'lineItems' }
+        ],
         transaction
       });
 
@@ -1401,10 +1404,13 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       console.log(`📋 ID Presupuesto: ${idBudget}`);
 
       const budget = await Budget.findByPk(idBudget, {
-        include: [{
-          model: Permit,
-          attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
-        }]
+        include: [
+          {
+            model: Permit,
+            attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
+          },
+          { model: BudgetLineItem, as: 'lineItems' }
+        ]
       });
 
       if (!budget) {
@@ -1421,7 +1427,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         });
       }
 
-      // Generar PDF del presupuesto
+      // Generar PDF del presupuesto (con lineItems incluidos)
       console.log('📄 Generando PDF del presupuesto...');
       const pdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
 
@@ -1728,17 +1734,24 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         });
       }
 
-      // Si ya existe el archivo localmente, servirlo directamente
+      // Si ya existe el archivo localmente, validar que no esté corrupto antes de servirlo
       if (budget.signedPdfPath && fs.existsSync(budget.signedPdfPath)) {
-        console.log(`✅ Sirviendo PDF firmado existente: ${budget.signedPdfPath}`);
-        
-        // Establecer headers ANTES de enviar el archivo
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'inline'); // ← inline para visualizar, no descargar
-        
-        // Leer y enviar el archivo
-        const fileStream = fs.createReadStream(budget.signedPdfPath);
-        return fileStream.pipe(res);
+        const fileStats = fs.statSync(budget.signedPdfPath);
+        const fileSizeKB = fileStats.size / 1024;
+
+        // Un PDF firmado válido siempre pesa más de 20KB. Si pesa menos, está corrupto → re-descargar
+        if (fileSizeKB > 20) {
+          console.log(`✅ Sirviendo PDF firmado existente: ${budget.signedPdfPath} (${fileSizeKB.toFixed(1)} KB)`);
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', 'inline');
+          const fileStream = fs.createReadStream(budget.signedPdfPath);
+          return fileStream.pipe(res);
+        }
+
+        // Archivo corrupto — borrarlo y re-descargar desde DocuSign
+        console.warn(`⚠️ PDF firmado corrupto (${fileSizeKB.toFixed(1)} KB), re-descargando desde DocuSign...`);
+        fs.unlinkSync(budget.signedPdfPath);
+        await budget.update({ signedPdfPath: null });
       }
 
       // Si no existe localmente, descargarlo de SignNow

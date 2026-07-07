@@ -751,8 +751,9 @@ class DocuSignService {
         'combined' // 'combined' o el documentId específico
       );
 
-      // results es un Buffer
-      fs.writeFileSync(savePath, results);
+      // results puede ser un string Latin-1 en el SDK v8.x → convertir a Buffer binario correcto
+      const fileBuffer = Buffer.isBuffer(results) ? results : Buffer.from(results, 'binary');
+      fs.writeFileSync(savePath, fileBuffer);
 
       console.log(`✅ Documento firmado guardado en: ${savePath}`);
       return savePath;
