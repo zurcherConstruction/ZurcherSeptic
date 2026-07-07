@@ -1,6 +1,10 @@
 const { Op } = require('sequelize');
 const { Work, WorkStateHistory, Budget } = require('../data');
 
+// Works antes de esta fecha no están completos en el sistema
+const MINIMUM_DATE = '2026-01-01T00:00:00.000Z';
+const MINIMUM_YEAR = 2026;
+
 const monthFormatter = new Intl.DateTimeFormat('es', { month: 'long' });
 const getMonthName = (year, month) =>
   monthFormatter.format(new Date(year, month - 1, 1));
@@ -27,7 +31,7 @@ const LEAD_SOURCE_LABELS = {
 const getMonthlySalesIndicators = async (req, res) => {
   try {
     const { year } = req.query;
-    const targetYear = parseInt(year) || new Date().getFullYear();
+    const targetYear = Math.max(parseInt(year) || new Date().getFullYear(), MINIMUM_YEAR);
 
     const yearStart = `${targetYear}-01-01T00:00:00.000Z`;
     const yearEnd   = `${targetYear}-12-31T23:59:59.999Z`;
@@ -69,7 +73,7 @@ const getMonthlySalesIndicators = async (req, res) => {
     //     y la fecha en que fueron instalados (si es que lo fueron, en cualquier año)
     const allWorks = await Work.findAll({
       where: {
-        createdAt: { [Op.lte]: yearEnd },
+        createdAt: { [Op.gte]: MINIMUM_DATE, [Op.lte]: yearEnd },
         status:    { [Op.ne]: 'cancelled' },
       },
       attributes: ['idWork', 'createdAt'],
@@ -174,14 +178,15 @@ const getMonthlySalesIndicators = async (req, res) => {
 const getAvailableYears = async (req, res) => {
   try {
     const works = await Work.findAll({
+      where: { createdAt: { [Op.gte]: MINIMUM_DATE } },
       attributes: ['createdAt'],
-      order: [['createdAt', 'ASC']],
     });
 
     const currentYear = new Date().getFullYear();
-    const yearsSet    = new Set([currentYear]);
+    const yearsSet    = new Set([Math.max(currentYear, MINIMUM_YEAR)]);
     for (const w of works) {
-      yearsSet.add(new Date(w.createdAt).getFullYear());
+      const y = new Date(w.createdAt).getFullYear();
+      if (y >= MINIMUM_YEAR) yearsSet.add(y);
     }
 
     res.json({ years: Array.from(yearsSet).sort((a, b) => b - a) });
