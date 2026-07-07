@@ -60,6 +60,7 @@ const signatureDocumentRoutes = require('./signatureDocumentRoutes'); // 🆕 Ru
 const fleetRoutes = require('./fleetRoutes'); // 🆕 Rutas para flota y maquinaria
 const aiRoutes = require('./aiRoutes'); // 🆕 IA - consultas en lenguaje natural
 const notificationRoutingRoutes = require('./notificationRoutingRoutes'); // 🆕 Routing de alertas automáticas
+const salesIndicatorsRoutes = require('./salesIndicatorsRoutes'); // 🆕 Indicadores mensuales de ventas
 const FinalInvoiceController = require('../controllers/FinalInvoiceController');
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
@@ -133,5 +134,6 @@ router.use('/fleet', fleetRoutes); // 🆕 Ruta para flota y maquinaria
 router.use('/signature-documents', signatureDocumentRoutes); // 🆕 Ruta para documentos de firma genéricos (SignNow/DocuSign)
 router.use('/ai', aiRoutes); // 🆕 Ruta para consultas de IA en lenguaje natural
 router.use('/notification-routing', notificationRoutingRoutes); // 🆕 Routing de alertas automáticas por responsable
+router.use('/sales-indicators', salesIndicatorsRoutes); // 🆕 Indicadores mensuales de ventas/instalados/backlog
 
 module.exports = router;
