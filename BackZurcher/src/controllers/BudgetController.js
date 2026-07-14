@@ -1466,11 +1466,10 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
 
       // Enviar correo con botón de firma
       console.log('📧 Enviando correo con enlace de firma...');
-      const EmailService = require('../services/EmailService');
       const frontendUrl = process.env.FRONTEND_URL || 'https://zurcher-construction.vercel.app';
       const signButtonUrl = `${frontendUrl}/sign-budget/${budget.idBudget}`;
 
-      await EmailService.sendEmail({
+      await sendEmail({
         to: budget.Permit.applicantEmail,
         subject: emailSubject,
         html: `
