@@ -6875,12 +6875,12 @@ async optionalDocs(req, res) {
         }
 
         await budget.update({
-          status: 'created',
+          status: 'client_approved', // client_approved aparece en Initial Pay; 'created' quedaba excluido
           reviewedAt: new Date(),
           invoiceNumber: invoiceNumber,
           convertedToInvoiceAt: budget.convertedToInvoiceAt || new Date(),
-          manuallyApprovedBy: approvedByStaffId, // 🆕 Registrar quién aprobó manualmente
-          manuallyApprovedAt: new Date() // 🆕 Registrar cuándo se aprobó manualmente
+          manuallyApprovedBy: approvedByStaffId,
+          manuallyApprovedAt: new Date()
         }, { transaction });
 
       } else {
