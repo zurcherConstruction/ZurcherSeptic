@@ -39,8 +39,9 @@ const getMonthlySalesIndicators = async (req, res) => {
     // ── 1. Ventas del año: works creados en el año objetivo (no cancelados)
     const yearWorks = await Work.findAll({
       where: {
-        createdAt: { [Op.between]: [yearStart, yearEnd] },
-        status:    { [Op.ne]: 'cancelled' },
+        createdAt:       { [Op.between]: [yearStart, yearEnd] },
+        status:          { [Op.notIn]: ['cancelled'] },
+        propertyAddress: { [Op.notILike]: 'DEMO%' },
       },
       attributes: ['idWork', 'createdAt', 'idBudget'],
       include: [{
@@ -51,12 +52,14 @@ const getMonthlySalesIndicators = async (req, res) => {
       }],
     });
 
-    // ── 2. Para el backlog: works no cancelados creados desde MINIMUM_DATE hasta fin del año.
-    //     El backlog arranca en cero en enero 2026 (no se arrastra de años anteriores).
+    // ── 2. Para el backlog: works de instalación activos (no cancelados, no mantenimiento, no demos).
+    //     Excluir: cancelled, maintenance, paymentReceived y works de prueba (DEMO).
+    const EXCLUDED_FROM_BACKLOG = ['cancelled', 'maintenance', 'paymentReceived'];
     const allWorks = await Work.findAll({
       where: {
-        createdAt: { [Op.gte]: MINIMUM_DATE, [Op.lte]: yearEnd },
-        status:    { [Op.ne]: 'cancelled' },
+        createdAt:        { [Op.gte]: MINIMUM_DATE, [Op.lte]: yearEnd },
+        status:           { [Op.notIn]: EXCLUDED_FROM_BACKLOG },
+        propertyAddress:  { [Op.notILike]: 'DEMO%' },
       },
       attributes: ['idWork', 'createdAt'],
     });

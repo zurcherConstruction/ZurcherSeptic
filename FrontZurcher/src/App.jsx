@@ -112,6 +112,9 @@ import KnowledgeBase from './Components/KnowledgeBase/KnowledgeBase'; // 🆕 Ba
 import FleetDashboard from './Components/Fleet/FleetDashboard'; // 🆕 Flota y Maquinaria
 import FleetAssetDetail from './Components/Fleet/FleetAssetDetail'; // 🆕 Detalle de activo de flota
 import AIAssistant from './Components/AIAssistant'; // 🆕 Asistente de IA
+import CustomInvoiceList from './Components/CustomInvoices/CustomInvoiceList'; // 🆕 Custom Invoices
+import CustomInvoiceBuilder from './Components/CustomInvoices/CustomInvoiceBuilder'; // 🆕 Custom Invoice Builder
+import CustomInvoicePublicView from './Components/CustomInvoices/CustomInvoicePublicView'; // 🆕 Public invoice view
 
 function App() {
   const dispatch = useDispatch();
@@ -160,7 +163,8 @@ function App() {
   const isSimpleWorkApproveRoute = location.pathname.startsWith("/simple-work-approve/");
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
   const isClientPortalRoute = location.pathname.startsWith("/client-portal/");
-  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute || isSimpleWorkApproveRoute;
+  const isInvoicePublicRoute = location.pathname.startsWith("/invoice/");
+  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute || isSimpleWorkApproveRoute || isInvoicePublicRoute;
 
   // Determinar si mostrar header y sidebar
   const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
@@ -203,6 +207,9 @@ function App() {
               
               {/* 🆕 Ruta pública para portal de clientes (protegida por token) */}
               <Route path="/client-portal/:token" element={<ClientPortalDashboard />} />
+
+              {/* 🆕 Ruta pública para custom invoices (acceso por token) */}
+              <Route path="/invoice/:token" element={<CustomInvoicePublicView />} />
 
               {/* Rutas privadas */}
               <Route
@@ -811,6 +818,32 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner", "finance", "finance-viewer"]}>
                     <AIAssistant />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Custom Invoices */}
+              <Route
+                path="/custom-invoices"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "finance", "finance-viewer"]}>
+                    <CustomInvoiceList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/custom-invoices/new"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "finance"]}>
+                    <CustomInvoiceBuilder />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/custom-invoices/:id"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "finance", "finance-viewer"]}>
+                    <CustomInvoiceBuilder />
                   </PrivateRoute>
                 }
               />

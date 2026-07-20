@@ -61,6 +61,8 @@ const fleetRoutes = require('./fleetRoutes'); // 🆕 Rutas para flota y maquina
 const aiRoutes = require('./aiRoutes'); // 🆕 IA - consultas en lenguaje natural
 const notificationRoutingRoutes = require('./notificationRoutingRoutes'); // 🆕 Routing de alertas automáticas
 const salesIndicatorsRoutes = require('./salesIndicatorsRoutes'); // 🆕 Indicadores mensuales de ventas
+const customInvoiceRoutes = require('./customInvoiceRoutes'); // 🆕 Facturas personalizadas
+const { publicView, clientApprove } = require('../controllers/CustomInvoiceController');
 const FinalInvoiceController = require('../controllers/FinalInvoiceController');
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
@@ -85,6 +87,9 @@ router.use('/ppi', ppiPublicRoutes); // 🆕 Rutas públicas de firma de PPI
 router.use('/simple-works', simpleWorkPublicRoutes); // 🆕 Aprobación pública de SimpleWork
 router.use('/newsletter', newsletterRoutes); // 🆕 Sistema de newsletter (incluye rutas públicas: subscribe, public-unsubscribe)
 router.get('/final-invoice/review/:token', FinalInvoiceController.trackAndRedirectGoogleReview); // 🆕 Tracking click Google Review
+// Public custom invoice endpoints (no auth required)
+router.get('/invoice/:token', publicView);
+router.post('/invoice/:token/approve', clientApprove);
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');
@@ -135,5 +140,6 @@ router.use('/signature-documents', signatureDocumentRoutes); // 🆕 Ruta para d
 router.use('/ai', aiRoutes); // 🆕 Ruta para consultas de IA en lenguaje natural
 router.use('/notification-routing', notificationRoutingRoutes); // 🆕 Routing de alertas automáticas por responsable
 router.use('/sales-indicators', salesIndicatorsRoutes); // 🆕 Indicadores mensuales de ventas/instalados/backlog
+router.use('/custom-invoices', customInvoiceRoutes); // 🆕 Facturas personalizadas (INV, QUO, PRO, CRN, REC)
 
 module.exports = router;
