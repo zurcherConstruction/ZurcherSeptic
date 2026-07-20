@@ -477,7 +477,7 @@ const BarraLateral = () => {
           </div>
         </button>
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
-          openSections[section.name] ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          openSections[section.name] ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'
         }`}>
           <ul className="pl-4 pr-2 space-y-1">
             {section.items.map((item) => (
