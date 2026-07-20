@@ -123,6 +123,7 @@ const BarraLateral = () => {
       items: [
         { name: "Initial Pay", path: "/initialPay", icon: FaMoneyBillWave },
         { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+        { name: "Custom Invoices", path: "/custom-invoices", icon: FaFileInvoiceDollar },
         { name: "Supplier Invoices", path: "/supplier-invoices", icon: FaFileInvoice },
         { name: "Bank Accounts", path: "/bank-accounts", icon: FaUniversity }, // 🏦 NUEVO
         { name: "Balance", path: "/balance", icon: FaChartBar },
@@ -247,6 +248,7 @@ const BarraLateral = () => {
           items: [
             // Solo Upload Vouchers para admin
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+            { name: "Custom Invoices", path: "/custom-invoices", icon: FaFileInvoiceDollar },
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
           ],
         },
@@ -353,6 +355,7 @@ const BarraLateral = () => {
           color: "text-yellow-400",
           items: [
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+            { name: "Custom Invoices", path: "/custom-invoices", icon: FaFileInvoiceDollar },
             { name: "Supplier Invoices", path: "/supplier-invoices", icon: FaFileInvoice },
             { name: "Bank Accounts", path: "/bank-accounts", icon: FaUniversity }, // 🏦 FINANCE
             { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
