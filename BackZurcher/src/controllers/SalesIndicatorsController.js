@@ -66,23 +66,28 @@ const getMonthlySalesIndicators = async (req, res) => {
 
     const allWorkIds = allWorks.map(w => w.idWork);
 
-    const allInstallHistories = allWorkIds.length > 0
-      ? await WorkStateHistory.findAll({
-          where: {
-            toStatus: 'installed',
-            workId:   { [Op.in]: allWorkIds },
-          },
-          attributes: ['workId', 'changedAt'],
-        })
-      : [];
+    // ── Query global de instalaciones: incluye works de cualquier año y cualquier status
+    //    (incluso paymentReceived o works creados en 2025 instalados en 2026)
+    //    Se usa para contar "instalados" por mes correctamente.
+    const globalInstallHistories = await WorkStateHistory.findAll({
+      where: { toStatus: 'installed' },
+      attributes: ['workId', 'changedAt'],
+    });
 
-    // Primera fecha de installed por work (all time)
-    const firstInstallEver = {};
-    for (const h of allInstallHistories) {
+    // Primera fecha de installed por work — scope global (para contar instalados)
+    const firstInstallGlobal = {};
+    for (const h of globalInstallHistories) {
       const wid = h.workId;
-      if (!firstInstallEver[wid] || new Date(h.changedAt) < new Date(firstInstallEver[wid])) {
-        firstInstallEver[wid] = h.changedAt;
+      if (!firstInstallGlobal[wid] || new Date(h.changedAt) < new Date(firstInstallGlobal[wid])) {
+        firstInstallGlobal[wid] = h.changedAt;
       }
+    }
+
+    // Primera fecha de installed — solo para works del backlog (allWorkIds)
+    // Se usa para calcular si un work activo ya fue instalado al cierre de un mes
+    const firstInstallEver = {};
+    for (const wid of allWorkIds) {
+      if (firstInstallGlobal[wid]) firstInstallEver[wid] = firstInstallGlobal[wid];
     }
 
     // ── 3. Calcular por mes
@@ -117,9 +122,10 @@ const getMonthlySalesIndicators = async (req, res) => {
         count,
       }));
 
-      // Instalados este mes: works >= MINIMUM_DATE que llegaron a 'installed' por primera vez en este mes
+      // Instalados este mes: TODOS los works (cualquier año/status) que llegaron a
+      // 'installed' por primera vez en este mes calendario
       let instalados = 0;
-      for (const installedAt of Object.values(firstInstallEver)) {
+      for (const installedAt of Object.values(firstInstallGlobal)) {
         const d = new Date(installedAt);
         if (d >= monthStart && d <= monthEnd) instalados++;
       }
