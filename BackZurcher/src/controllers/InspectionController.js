@@ -428,7 +428,7 @@ const registerQuickInspectionResult = async (req, res) => {
           }
         }
       } else if (type === 'final') {
-        const canAutoTransitionFinalStatus = work.status === 'paymentReceived';
+        const canAutoTransitionFinalStatus = work.status === 'paymentReceived' || work.status === 'finalRejected';
 
         if (!canAutoTransitionFinalStatus) {
           console.log(`[InspectionController - Quick] Work ${work.idWork} has final result (${finalStatus}) but is not paid (status=${work.status}). Keeping status unchanged; manual tracking required.`);
@@ -1147,7 +1147,7 @@ const registerInspectionResult = async (req, res) => {
           await sendInitialInspectionFeeReminderEmail(work, { inspectionId: inspection.idInspection });
         }
       } else if (inspection.type === 'final') {
-        const canAutoTransitionFinalStatus = work.status === 'paymentReceived';
+        const canAutoTransitionFinalStatus = work.status === 'paymentReceived' || work.status === 'finalRejected';
 
         if (!canAutoTransitionFinalStatus) {
           console.log(`[InspectionController - registerResult] Work ${work.idWork} has final result approved but is not paid (status=${work.status}). Keeping status unchanged; manual tracking required.`);
