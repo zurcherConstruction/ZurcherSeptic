@@ -69,10 +69,7 @@ const getInspectionFollowUp = (work, inspections = [], inspectionType = 'initial
   const activeInspection = latestOpenInspection || (isResultCompleted ? latestInspection : null);
 
   const requestedDate = parseDateValue(
-    activeInspection?.dateRequestedToInspectors ||
-    (!latestInspection && inspectionType === 'initial'
-      ? (work?.installationStartDate || work?.startDate)
-      : null)
+    activeInspection?.dateRequestedToInspectors || null
   );
   const scheduledDate = parseDateValue(activeInspection?.inspectorScheduledDate);
   const trackingReferenceDate = scheduledDate || requestedDate;

@@ -141,12 +141,15 @@ const ProgressTracker = () => {
   const getDisplayName = (status) => {
     const etapaDef = etapas.find((e) => e.backend === status);
     if (!etapaDef) {
-        if (status === "rejectedInspection") return "Inspection Rejected";
-        if (status === "finalRejected") return "Final Insp. Rejected";
-        if (status === "approvedInspection") return "Inspection Approved";
-        if (status === "finalApproved") return "Completado ✅";
-        if (status === "covered") return "Covered - Awaiting Invoice";
-        return "Estado Desconocido";
+      if (status === "pending")                  return "Pending";
+      if (status === "firstInspectionPending")   return "Initial Insp. Pending";
+      if (status === "approvedInspection")       return "Inspection Approved";
+      if (status === "rejectedInspection")       return "Inspection Rejected";
+      if (status === "finalInspectionPending")   return "Final Insp. Pending";
+      if (status === "finalApproved")            return "Completed ✅";
+      if (status === "finalRejected")            return "Final Insp. Rejected";
+      if (status === "covered")                  return "Covered - Awaiting Invoice";
+      return status || "Unknown";
     }
     return etapaDef.display;
   };
@@ -505,26 +508,32 @@ const ProgressTracker = () => {
           let quickInspectionFollowUpAlert = null;
           const followUp = getInspectionFollowUp(work, Array.isArray(inspections) ? inspections : []);
           if (statusesAfterInitialInspection.has(status) && !followUp.isResultCompleted) {
+            const requestedLabel = followUp.requestedDate ? formatDateShort(followUp.requestedDate, { includeYear: false }) : null;
+            const scheduledLabel = followUp.scheduledDate ? formatDateShort(followUp.scheduledDate, { includeYear: false }) : null;
 
             if (followUp.state === 'overdue') {
               quickInspectionFollowUpAlert = (
                 <div className="flex items-center justify-center mt-2 text-xs text-red-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-red-500 animate-pulse" />
-                  Inspeccion inicial pedida {followUp.requestedDate ? formatDateShort(followUp.requestedDate, { includeYear: false }) : 'sin fecha'}, programada {followUp.dueDate ? formatDateShort(followUp.dueDate, { includeYear: false }) : 'sin fecha'}{followUp.inspectorEmail ? ` (${followUp.inspectorEmail})` : ''}
+                  {requestedLabel ? `Inspección inicial pedida el ${requestedLabel}` : 'Inspección inicial pedida'}
+                  {scheduledLabel ? ` · Programada ${scheduledLabel}` : ''}
+                  {followUp.inspectorEmail ? ` (${followUp.inspectorEmail})` : ''}
                 </div>
               );
             } else if (followUp.state === 'requested') {
               quickInspectionFollowUpAlert = (
                 <div className="flex items-center justify-center mt-2 text-xs text-blue-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-blue-500" />
-                  Inspeccion inicial pedida {followUp.requestedDate ? formatDateShort(followUp.requestedDate, { includeYear: false }) : 'sin fecha'}, programada {followUp.dueDate ? formatDateShort(followUp.dueDate, { includeYear: false }) : 'sin fecha'}{followUp.inspectorEmail ? ` (${followUp.inspectorEmail})` : ''}
+                  {requestedLabel ? `Inspección inicial pedida el ${requestedLabel}` : 'Inspección inicial pedida'}
+                  {scheduledLabel ? ` · Programada ${scheduledLabel}` : ''}
+                  {followUp.inspectorEmail ? ` (${followUp.inspectorEmail})` : ''}
                 </div>
               );
             } else if (followUp.state === 'pending_request') {
               quickInspectionFollowUpAlert = (
                 <div className="flex items-center justify-center mt-2 text-xs text-amber-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-amber-500" />
-                  Falta cargar fecha solicitada al inspector
+                  {status === 'installed' ? 'Pedir inspección inicial' : 'Falta cargar fecha solicitada al inspector'}
                 </div>
               );
             }
@@ -533,25 +542,32 @@ const ProgressTracker = () => {
           let finalInspectionFollowUpAlert = null;
           const finalFollowUp = getInspectionFollowUp(work, Array.isArray(inspections) ? inspections : [], 'final');
           if (statusesAfterFinalInspection.has(status) && !finalFollowUp.isResultCompleted) {
+            const finalRequestedLabel = finalFollowUp.requestedDate ? formatDateShort(finalFollowUp.requestedDate, { includeYear: false }) : null;
+            const finalScheduledLabel = finalFollowUp.scheduledDate ? formatDateShort(finalFollowUp.scheduledDate, { includeYear: false }) : null;
+
             if (finalFollowUp.state === 'overdue') {
               finalInspectionFollowUpAlert = (
                 <div className="flex items-center justify-center text-xs text-red-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-red-500 animate-pulse" />
-                  Inspeccion final pedida {finalFollowUp.requestedDate ? formatDateShort(finalFollowUp.requestedDate, { includeYear: false }) : 'sin fecha'}, programada {finalFollowUp.dueDate ? formatDateShort(finalFollowUp.dueDate, { includeYear: false }) : 'sin fecha'}{finalFollowUp.inspectorEmail ? ` (${finalFollowUp.inspectorEmail})` : ''}
+                  {finalRequestedLabel ? `Inspección final pedida el ${finalRequestedLabel}` : 'Inspección final pedida'}
+                  {finalScheduledLabel ? ` · Programada ${finalScheduledLabel}` : ''}
+                  {finalFollowUp.inspectorEmail ? ` (${finalFollowUp.inspectorEmail})` : ''}
                 </div>
               );
             } else if (finalFollowUp.state === 'requested') {
               finalInspectionFollowUpAlert = (
                 <div className="flex items-center justify-center text-xs text-blue-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-blue-500" />
-                  Inspeccion final pedida {finalFollowUp.requestedDate ? formatDateShort(finalFollowUp.requestedDate, { includeYear: false }) : 'sin fecha'}, programada {finalFollowUp.dueDate ? formatDateShort(finalFollowUp.dueDate, { includeYear: false }) : 'sin fecha'}{finalFollowUp.inspectorEmail ? ` (${finalFollowUp.inspectorEmail})` : ''}
+                  {finalRequestedLabel ? `Inspección final pedida el ${finalRequestedLabel}` : 'Inspección final pedida'}
+                  {finalScheduledLabel ? ` · Programada ${finalScheduledLabel}` : ''}
+                  {finalFollowUp.inspectorEmail ? ` (${finalFollowUp.inspectorEmail})` : ''}
                 </div>
               );
             } else if (finalFollowUp.state === 'pending_request') {
               finalInspectionFollowUpAlert = (
                 <div className="flex items-center justify-center text-xs text-amber-700 font-semibold">
                   <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-amber-500" />
-                  Falta cargar fecha solicitada de inspeccion final
+                  Falta cargar fecha solicitada de inspección final
                 </div>
               );
             }
