@@ -1447,12 +1447,33 @@ const getMonthlyChecklist = async (req, res) => {
 
     const checklist = expenses.map(expense => {
       const expensePayments = paymentsByExpense[expense.idFixedExpense] || [];
-      const monthPaidAmount = expensePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
       const totalAmount = parseFloat(expense.totalAmount);
+      const nextDue = expense.nextDueDate ? expense.nextDueDate.toString().slice(0, 10) : null;
+      const isDueThisMonthOrBefore = !nextDue || nextDue <= monthEnd;
 
-      const isPaidThisMonth = expense.variableAmount
-        ? monthPaidAmount > 0
-        : monthPaidAmount >= totalAmount - 0.01;
+      let monthPaidAmount = expensePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      let isPaidThisMonth;
+
+      if (expensePayments.length > 0) {
+        // Hay registros en FixedExpensePayments → fuente de verdad
+        isPaidThisMonth = expense.variableAmount
+          ? monthPaidAmount > 0
+          : monthPaidAmount >= totalAmount - 0.01;
+      } else if (
+        isDueThisMonthOrBefore &&
+        (expense.paymentStatus === 'paid' || expense.paymentStatus === 'paid_via_credit_card')
+      ) {
+        // Sin FixedExpensePayment pero el gasto está marcado como pagado (pagado desde pantalla anterior)
+        monthPaidAmount = parseFloat(expense.paidAmount || 0);
+        isPaidThisMonth = true;
+      } else {
+        monthPaidAmount = 0;
+        isPaidThisMonth = false;
+      }
+
+      // Solo mostrar si vence este mes/antes O ya tiene un pago registrado este mes
+      const showInChecklist = monthPaidAmount > 0 || isDueThisMonthOrBefore;
+      if (!showInChecklist) return null;
 
       const obj = expense.toJSON ? expense.toJSON() : { ...expense };
       return {
@@ -1460,16 +1481,17 @@ const getMonthlyChecklist = async (req, res) => {
         monthPayments: expensePayments,
         monthPaidAmount: parseFloat(monthPaidAmount.toFixed(2)),
         isPaidThisMonth,
-        isPartiallyPaid: !isPaidThisMonth && monthPaidAmount > 0
+        isPartiallyPaid: !isPaidThisMonth && monthPaidAmount > 0,
+        isDueThisMonthOrBefore
       };
-    });
+    }).filter(Boolean);
 
     const totalExpenses = checklist.length;
     const paidCount = checklist.filter(e => e.isPaidThisMonth).length;
     const totalAmountSum = checklist.reduce((sum, e) => sum + parseFloat(e.totalAmount || 0), 0);
     const paidAmountSum = checklist
       .filter(e => e.isPaidThisMonth)
-      .reduce((sum, e) => sum + parseFloat(e.totalAmount || 0), 0);
+      .reduce((sum, e) => sum + e.monthPaidAmount, 0);
 
     return res.json({
       month: targetMonth,
