@@ -197,6 +197,12 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Número de cuenta o referencia del servicio'
     },
+    variableAmount: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Si el monto varía cada período (totalAmount actúa como referencia)'
+    },
     notes: {
       type: DataTypes.TEXT,
       allowNull: true,

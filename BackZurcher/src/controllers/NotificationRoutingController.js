@@ -22,6 +22,9 @@ const EVENT_TYPES = [
 
   // ── Legal ────────────────────────────────────────────────────────────────
   { key: 'notice_to_owner_35',               label: 'Notice to Owner – día 35 (10 días para vencer)', category: 'Legal' },
+
+  // ── Financiero ────────────────────────────────────────────────────────────
+  { key: 'unpaid_fixed_expenses',            label: 'Gastos Fijos sin pagar este mes',                category: 'Financiero' },
 ];
 
 const NotificationRoutingController = {
