@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { fetchNotificationRoutings, saveNotificationRoutings } from '../../Redux/Actions/notificationRoutingActions';
 import { fetchStaff } from '../../Redux/Actions/adminActions';
 
-const CATEGORIES = ['Obras', 'Presupuestos', 'Flota', 'Knowledge Base', 'Legal'];
+const CATEGORIES = ['Obras', 'Presupuestos', 'Flota', 'Knowledge Base', 'Legal', 'Financiero'];
 
 const ROLE_LABELS = {
   owner: 'Owner',

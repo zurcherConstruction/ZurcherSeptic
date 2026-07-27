@@ -152,7 +152,9 @@ const addPartialPayment = async (req, res) => {
     const remainingAmount = totalAmount - paidAmount;
     const paymentAmount = parseFloat(amount);
 
-    console.log('💰 Montos:', { totalAmount, paidAmount, remainingAmount, paymentAmount });
+    console.log('💰 Montos (registro):', { totalAmount, paidAmount, remainingAmount, paymentAmount });
+    // Nota: paidAmount/remainingAmount del registro pueden estar desincronizados entre períodos.
+    // La validación real usa los pagos del período actual (calculados después de determinar el período).
 
     // 🆕 IMPORTANTE: Calcular período automáticamente si no viene en los datos
     // Esto permite múltiples pagos parciales del mismo período
@@ -277,7 +279,7 @@ const addPartialPayment = async (req, res) => {
     const totalPaidSoFar = existingPayments
       .filter(p => p.periodStart === calculatedPeriodStart && p.periodEnd === calculatedPeriodEnd)
       .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-    const wouldExceedTotal = totalPaidSoFar + paymentAmount > totalAmount + 0.01;
+    const wouldExceedTotal = !fixedExpense.variableAmount && (totalPaidSoFar + paymentAmount > totalAmount + 0.01);
 
     if (exactDuplicate && wouldExceedTotal) {
       // 🚨 Verificar si el pago es muy reciente (< 2 minutos)
@@ -326,14 +328,16 @@ const addPartialPayment = async (req, res) => {
       }
     }
 
-    // Validar que no se pague más del total SOLO si estamos creando el expense desde el backend
-    // Si viene del frontend (skipExpenseCreation=true), el frontend ya validó y actualizó el balance
-    if (!skipExpenseCreation && paymentAmount > remainingAmount + 0.01) { // Tolerancia para decimales
-      return res.status(400).json({ 
-        message: `El pago de $${paymentAmount} excede el saldo restante de $${remainingAmount.toFixed(2)}`,
+    // Validar que no se pague más del total (solo para montos fijos)
+    // Usar el total pagado REAL del período (source of truth), no FixedExpense.paidAmount
+    // que puede estar desincronizado si el reset del período anterior no se ejecutó
+    const periodRemainingAmount = totalAmount - totalPaidSoFar;
+    if (!skipExpenseCreation && !fixedExpense.variableAmount && paymentAmount > periodRemainingAmount + 0.01) {
+      return res.status(400).json({
+        message: `El pago de $${paymentAmount} excede el saldo restante del período ($${periodRemainingAmount.toFixed(2)})`,
         totalAmount: totalAmount.toFixed(2),
-        paidAmount: paidAmount.toFixed(2),
-        remainingAmount: remainingAmount.toFixed(2)
+        periodPaidAmount: totalPaidSoFar.toFixed(2),
+        periodRemainingAmount: periodRemainingAmount.toFixed(2)
       });
     }
 
@@ -469,7 +473,10 @@ const addPartialPayment = async (req, res) => {
     // 💳 Si se pagó con tarjeta: estado especial 'paid_via_credit_card' (tarjeta pendiente de liquidar)
     const usedCreditCard = isCreditCardPayment(paymentMethod || fixedExpense.paymentMethod);
     let newPaymentStatus;
-    if (newPaidAmount >= totalAmount) {
+    if (fixedExpense.variableAmount) {
+      // Monto variable: cualquier pago = período pagado
+      newPaymentStatus = usedCreditCard ? 'paid_via_credit_card' : 'paid';
+    } else if (newPaidAmount >= totalAmount) {
       newPaymentStatus = usedCreditCard ? 'paid_via_credit_card' : 'paid';
     } else if (newPaidAmount > 0) {
       newPaymentStatus = 'partial';

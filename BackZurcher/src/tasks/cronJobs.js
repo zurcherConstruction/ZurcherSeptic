@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const archiveBudgets = require("./archiveBudgets");
 const { sendScheduledNewsletters, processRecurringNewsletters } = require("./newsletterScheduler");
 const { checkKnowledgeDocExpiry } = require("../services/checkKnowledgeDocExpiry");
+const { checkUnpaidFixedExpenses } = require("../services/checkUnpaidFixedExpenses");
 
 // Solo activar el cron si la variable de entorno lo indica
 if (process.env.ENABLE_AUTO_ARCHIVE === 'true') {
@@ -39,10 +40,18 @@ cron.schedule("0 8 * * *", () => {
 });
 console.log("✅ Cron de vencimientos KB activado (diario a las 08:00).");
 
+// Gastos Fijos — Alerta mensual de impagos (todos los días a las 8:00 AM, una sola notificación por mes)
+cron.schedule("0 8 * * *", () => {
+  console.log("⏰ [CRON] Verificando gastos fijos sin pagar...");
+  checkUnpaidFixedExpenses();
+});
+console.log("✅ Cron de gastos fijos impagos activado (diario a las 08:00).");
+
 // Exportar función para ejecución manual
-module.exports = { 
+module.exports = {
   archiveBudgets,
   sendScheduledNewsletters,
   processRecurringNewsletters,
-  checkKnowledgeDocExpiry
+  checkKnowledgeDocExpiry,
+  checkUnpaidFixedExpenses
 };

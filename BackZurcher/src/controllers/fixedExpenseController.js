@@ -1406,6 +1406,91 @@ const getMonthlySummary = async (req, res) => {
   }
 };
 
+/**
+ * 📋 Checklist mensual de gastos fijos
+ * GET /api/fixed-expenses/monthly-checklist?month=YYYY-MM
+ */
+const getMonthlyChecklist = async (req, res) => {
+  try {
+    const { month } = req.query;
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+    const parts = targetMonth.split('-').map(Number);
+    const year = parts[0];
+    const monthNum = parts[1];
+
+    if (!year || !monthNum || monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ message: 'Formato de mes inválido. Use YYYY-MM' });
+    }
+
+    const monthStart = `${year}-${String(monthNum).padStart(2, '0')}-01`;
+    const lastDay = new Date(Date.UTC(year, monthNum, 0)).getUTCDate();
+    const monthEnd = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    const expenses = await FixedExpense.findAll({
+      where: { isActive: true },
+      order: [['category', 'ASC'], ['name', 'ASC']]
+    });
+
+    const payments = await FixedExpensePayment.findAll({
+      where: {
+        periodStart: { [Op.between]: [monthStart, monthEnd] }
+      },
+      attributes: ['fixedExpenseId', 'idPayment', 'amount', 'paymentMethod', 'paymentDate', 'periodStart', 'periodEnd'],
+      raw: true
+    });
+
+    const paymentsByExpense = {};
+    payments.forEach(p => {
+      if (!paymentsByExpense[p.fixedExpenseId]) paymentsByExpense[p.fixedExpenseId] = [];
+      paymentsByExpense[p.fixedExpenseId].push(p);
+    });
+
+    const checklist = expenses.map(expense => {
+      const expensePayments = paymentsByExpense[expense.idFixedExpense] || [];
+      const monthPaidAmount = expensePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      const totalAmount = parseFloat(expense.totalAmount);
+
+      const isPaidThisMonth = expense.variableAmount
+        ? monthPaidAmount > 0
+        : monthPaidAmount >= totalAmount - 0.01;
+
+      const obj = expense.toJSON ? expense.toJSON() : { ...expense };
+      return {
+        ...obj,
+        monthPayments: expensePayments,
+        monthPaidAmount: parseFloat(monthPaidAmount.toFixed(2)),
+        isPaidThisMonth,
+        isPartiallyPaid: !isPaidThisMonth && monthPaidAmount > 0
+      };
+    });
+
+    const totalExpenses = checklist.length;
+    const paidCount = checklist.filter(e => e.isPaidThisMonth).length;
+    const totalAmountSum = checklist.reduce((sum, e) => sum + parseFloat(e.totalAmount || 0), 0);
+    const paidAmountSum = checklist
+      .filter(e => e.isPaidThisMonth)
+      .reduce((sum, e) => sum + parseFloat(e.totalAmount || 0), 0);
+
+    return res.json({
+      month: targetMonth,
+      monthStart,
+      monthEnd,
+      checklist,
+      summary: {
+        total: totalExpenses,
+        paid: paidCount,
+        unpaid: totalExpenses - paidCount,
+        totalAmount: totalAmountSum.toFixed(2),
+        paidAmount: paidAmountSum.toFixed(2),
+        pendingAmount: (totalAmountSum - paidAmountSum).toFixed(2)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error en getMonthlyChecklist:', error);
+    return res.status(500).json({ message: 'Error obteniendo checklist mensual', error: error.message });
+  }
+};
+
 module.exports = {
   createFixedExpense,
   getAllFixedExpenses,
@@ -1418,6 +1503,7 @@ module.exports = {
   getUnpaidFixedExpenses,
   getFixedExpensesByPaymentStatus,
   getMonthlySummary,
+  getMonthlyChecklist,
   calculateNextDueDate // 🆕 Exportar función para uso en payment controller
 };
 
