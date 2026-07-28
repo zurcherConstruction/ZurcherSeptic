@@ -51,6 +51,7 @@ const getMonthLabel = (yyyyMm) => {
 };
 
 const getCurrentMonth = () => new Date().toISOString().slice(0, 7);
+const getDefaultExportFrom = () => `${new Date().getFullYear()}-01`;
 
 // ─────────────────────────────────────────────
 // Sub-componentes (fuera del componente padre)
@@ -284,6 +285,11 @@ const FixedExpensesManager = () => {
   const [payForm, setPayForm] = useState({ amount: '', paymentDate: '', paymentMethod: '', notes: '', receiptFile: null });
   const [payLoading, setPayLoading] = useState(false);
 
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFrom, setExportFrom] = useState(getDefaultExportFrom);
+  const [exportTo, setExportTo] = useState(getCurrentMonth);
+  const [exportLoading, setExportLoading] = useState(false);
+
   useEffect(() => { dispatch(fetchStaff()); }, [dispatch]);
 
   const loadChecklist = useCallback(async () => {
@@ -489,6 +495,31 @@ const FixedExpensesManager = () => {
       view === 'checklist' ? loadChecklist() : loadAllExpenses();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error desactivando gasto fijo');
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (!exportFrom || !exportTo) { toast.error('Seleccioná los períodos'); return; }
+    if (exportFrom > exportTo) { toast.error('"Desde" debe ser anterior o igual a "Hasta"'); return; }
+    try {
+      setExportLoading(true);
+      const res = await api.get(`/export/fixed-expenses?from=${exportFrom}&to=${exportTo}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      const label = exportFrom === exportTo ? exportFrom : `${exportFrom}_a_${exportTo}`;
+      link.href = url;
+      link.setAttribute('download', `gastos-fijos-${label}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setShowExportModal(false);
+      toast.success('Excel descargado');
+    } catch (err) {
+      console.error('Error exportando:', err);
+      toast.error('Error al generar el Excel');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -757,12 +788,19 @@ const FixedExpensesManager = () => {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Gastos Fijos</h1>
           <p className="text-gray-500 text-sm mt-1">Control mensual de gastos recurrentes</p>
         </div>
-        <button onClick={openCreateModal}
-          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition text-sm md:text-base">
-          <PlusIcon className="h-4 w-4 md:h-5 md:w-5" />
-          <span className="hidden sm:inline">Nuevo Gasto</span>
-          <span className="sm:hidden">Nuevo</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowExportModal(true)}
+            className="border border-gray-300 text-gray-600 hover:bg-gray-100 px-3 py-2 rounded-lg flex items-center gap-2 transition text-sm">
+            <DocumentArrowDownIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Exportar Excel</span>
+          </button>
+          <button onClick={openCreateModal}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition text-sm md:text-base">
+            <PlusIcon className="h-4 w-4 md:h-5 md:w-5" />
+            <span className="hidden sm:inline">Nuevo Gasto</span>
+            <span className="sm:hidden">Nuevo</span>
+          </button>
+        </div>
       </div>
 
       {/* View tabs */}
@@ -936,6 +974,56 @@ const FixedExpensesManager = () => {
               submitLabel="Crear Gasto"
               staffList={staffList}
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── Export modal ── */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+            <div className="p-5 border-b flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <DocumentArrowDownIcon className="h-5 w-5 text-green-600" />
+                <h2 className="text-lg font-bold text-gray-900">Exportar a Excel</h2>
+              </div>
+              <button onClick={() => setShowExportModal(false)} className="text-gray-400 hover:text-gray-600">
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-500">Seleccioná el rango de períodos a exportar. El Excel incluye detalle por gasto y resumen mensual.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                <input
+                  type="month"
+                  value={exportFrom}
+                  onChange={e => setExportFrom(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                <input
+                  type="month"
+                  value={exportTo}
+                  onChange={e => setExportTo(e.target.value)}
+                  min={exportFrom}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={() => setShowExportModal(false)}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50 transition">
+                  Cancelar
+                </button>
+                <button onClick={handleExportExcel} disabled={exportLoading}
+                  className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition">
+                  <DocumentArrowDownIcon className="h-4 w-4" />
+                  {exportLoading ? 'Generando...' : 'Descargar'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

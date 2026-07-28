@@ -1449,13 +1449,16 @@ const getMonthlyChecklist = async (req, res) => {
       const expensePayments = paymentsByExpense[expense.idFixedExpense] || [];
       const totalAmount = parseFloat(expense.totalAmount);
       const nextDue = expense.nextDueDate ? expense.nextDueDate.toString().slice(0, 10) : null;
-      const isDueThisMonthOrBefore = !nextDue || nextDue <= monthEnd;
+
+      // Frecuencias que vencen todos los meses siempre se muestran.
+      // Para quarterly/semiannual/annual/one_time usamos nextDueDate como filtro.
+      const alwaysMonthly = ['monthly', 'biweekly', 'weekly'].includes(expense.frequency);
+      const isDueThisMonthOrBefore = alwaysMonthly || !nextDue || nextDue <= monthEnd;
 
       let monthPaidAmount = expensePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
       let isPaidThisMonth;
 
       if (expensePayments.length > 0) {
-        // Hay registros en FixedExpensePayments → fuente de verdad
         isPaidThisMonth = expense.variableAmount
           ? monthPaidAmount > 0
           : monthPaidAmount >= totalAmount - 0.01;
@@ -1463,7 +1466,6 @@ const getMonthlyChecklist = async (req, res) => {
         isDueThisMonthOrBefore &&
         (expense.paymentStatus === 'paid' || expense.paymentStatus === 'paid_via_credit_card')
       ) {
-        // Sin FixedExpensePayment pero el gasto está marcado como pagado (pagado desde pantalla anterior)
         monthPaidAmount = parseFloat(expense.paidAmount || 0);
         isPaidThisMonth = true;
       } else {
@@ -1471,7 +1473,7 @@ const getMonthlyChecklist = async (req, res) => {
         isPaidThisMonth = false;
       }
 
-      // Solo mostrar si vence este mes/antes O ya tiene un pago registrado este mes
+      // Solo ocultar expenses no-periódicos que aún no vencen este mes y sin pago
       const showInChecklist = monthPaidAmount > 0 || isDueThisMonthOrBefore;
       if (!showInChecklist) return null;
 
