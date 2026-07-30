@@ -659,8 +659,13 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       doc.text("NO INITIAL PAYMENT REQUIRED", totalsStartX, currentTotalY, { width: totalsRightEdge - totalsStartX, align: 'left' });
     } else {
       doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      const yAfterPercentageDraft = doc.y;
       doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
       doc.text(`$${initialPaymentAmt.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      if (budgetData.deferredPayment) {
+        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor('#E67E22');
+        doc.text('* No upfront payment required', totalsStartX, yAfterPercentageDraft + 3, { width: totalsRightEdge - totalsStartX, align: 'left' });
+      }
     }
   } else {
     // ✅ EN INVOICE: BALANCE DUE ES TEXTO PEQUEÑO
@@ -677,9 +682,15 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     if (isZeroPayment) {
       doc.text("NO INITIAL PAYMENT REQUIRED", totalsStartX, currentTotalY, { width: totalsRightEdge - totalsStartX, align: 'left' });
     } else {
+      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
       doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      const yAfterPercentage = doc.y;
       doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
       doc.text(`$${initialPaymentAmt.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      if (budgetData.deferredPayment) {
+        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor('#E67E22');
+        doc.text('* No upfront payment required', totalsStartX, yAfterPercentage + 4, { width: totalsRightEdge - totalsStartX, align: 'left' });
+      }
     }
   }
 

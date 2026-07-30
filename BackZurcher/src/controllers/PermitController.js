@@ -459,9 +459,20 @@ const createPermit = async (req, res, next) => {
         applicationNo: permit.applicationNo || '',
         ppiPropertyOwnerEmail: permit.ppiPropertyOwnerEmail || 'admin@zurcherseptic.com',
         ppiPropertyOwnerPhone: permit.ppiPropertyOwnerPhone || '+1 (407) 419-4495',
-        ppiAuthorizationType: permit.ppiAuthorizationType || 'initial'
+        ppiAuthorizationType: permit.ppiAuthorizationType || 'initial',
+        // Part 4 - Inspector Data
+        ppiInspectorName: permit.ppiInspectorName || '',
+        ppiInspectorBusiness: permit.ppiInspectorBusiness || '',
+        ppiInspectorEmail: permit.ppiInspectorEmail || '',
+        ppiInspectorPhone: permit.ppiInspectorPhone || '',
+        ppiInspectorMailingAddress: permit.ppiInspectorMailingAddress || '',
+        ppiInspectorCity: permit.ppiInspectorCity || '',
+        ppiInspectorState: permit.ppiInspectorState || 'FL',
+        ppiInspectorZipCode: permit.ppiInspectorZipCode || '',
+        ppiInspectorQualificationType: permit.ppiInspectorQualificationType || '',
+        ppiInspectorLicenseNumber: permit.ppiInspectorLicenseNumber || ''
       };
-      
+
       // Preparar datos del cliente
       const clientDataForPPI = {
         name: permit.applicant || permit.applicantName || '',
@@ -1344,7 +1355,18 @@ const updatePermitFields = async (req, res, next) => {
       parcelNo,
       applicationNo,
       // 🆕 Campos PPI Part 3
-      ppiAuthorizationType
+      ppiAuthorizationType,
+      // 🆕 Campos PPI Part 4 - Inspector Data
+      ppiInspectorName,
+      ppiInspectorBusiness,
+      ppiInspectorEmail,
+      ppiInspectorPhone,
+      ppiInspectorMailingAddress,
+      ppiInspectorCity,
+      ppiInspectorState,
+      ppiInspectorZipCode,
+      ppiInspectorQualificationType,
+      ppiInspectorLicenseNumber
     } = req.body;
 
     console.log(`🔧 Actualizando Permit ${idPermit}...`);
@@ -1460,6 +1482,18 @@ const updatePermitFields = async (req, res, next) => {
     
     // 🆕 Campos PPI Part 3
     if (ppiAuthorizationType !== undefined) updateData.ppiAuthorizationType = ppiAuthorizationType;
+
+    // 🆕 Campos PPI Part 4 - Inspector Data
+    if (ppiInspectorName !== undefined) updateData.ppiInspectorName = ppiInspectorName || null;
+    if (ppiInspectorBusiness !== undefined) updateData.ppiInspectorBusiness = ppiInspectorBusiness || null;
+    if (ppiInspectorEmail !== undefined) updateData.ppiInspectorEmail = ppiInspectorEmail || null;
+    if (ppiInspectorPhone !== undefined) updateData.ppiInspectorPhone = ppiInspectorPhone || null;
+    if (ppiInspectorMailingAddress !== undefined) updateData.ppiInspectorMailingAddress = ppiInspectorMailingAddress || null;
+    if (ppiInspectorCity !== undefined) updateData.ppiInspectorCity = ppiInspectorCity || null;
+    if (ppiInspectorState !== undefined) updateData.ppiInspectorState = ppiInspectorState || null;
+    if (ppiInspectorZipCode !== undefined) updateData.ppiInspectorZipCode = ppiInspectorZipCode || null;
+    if (ppiInspectorQualificationType !== undefined) updateData.ppiInspectorQualificationType = ppiInspectorQualificationType || null;
+    if (ppiInspectorLicenseNumber !== undefined) updateData.ppiInspectorLicenseNumber = ppiInspectorLicenseNumber || null;
 
     // Aplicar actualizaciones
     Object.assign(permit, updateData);
@@ -1585,7 +1619,18 @@ const generatePPIPreview = async (req, res) => {
       applicationNo: permit.applicationNo || '',
       ppiPropertyOwnerEmail: permit.ppiPropertyOwnerEmail || 'admin@zurcherseptic.com',
       ppiPropertyOwnerPhone: permit.ppiPropertyOwnerPhone || '+1 (407) 419-4495',
-      ppiAuthorizationType: permit.ppiAuthorizationType || 'initial'
+      ppiAuthorizationType: permit.ppiAuthorizationType || 'initial',
+      // Part 4 - Inspector Data
+      ppiInspectorName: permit.ppiInspectorName || '',
+      ppiInspectorBusiness: permit.ppiInspectorBusiness || '',
+      ppiInspectorEmail: permit.ppiInspectorEmail || '',
+      ppiInspectorPhone: permit.ppiInspectorPhone || '',
+      ppiInspectorMailingAddress: permit.ppiInspectorMailingAddress || '',
+      ppiInspectorCity: permit.ppiInspectorCity || '',
+      ppiInspectorState: permit.ppiInspectorState || 'FL',
+      ppiInspectorZipCode: permit.ppiInspectorZipCode || '',
+      ppiInspectorQualificationType: permit.ppiInspectorQualificationType || '',
+      ppiInspectorLicenseNumber: permit.ppiInspectorLicenseNumber || ''
     };
 
     // Preparar datos del cliente (usando applicant en vez de applicantName)
@@ -2796,7 +2841,19 @@ const updatePPIAddress = async (req, res) => {
       ppiStreetAddress: permit.ppiStreetAddress,
       city: permit.city,
       state: permit.state,
-      zipCode: permit.zipCode
+      zipCode: permit.zipCode,
+      ppiAuthorizationType: permit.ppiAuthorizationType || 'initial',
+      // Part 4 - Inspector Data
+      ppiInspectorName: permit.ppiInspectorName || '',
+      ppiInspectorBusiness: permit.ppiInspectorBusiness || '',
+      ppiInspectorEmail: permit.ppiInspectorEmail || '',
+      ppiInspectorPhone: permit.ppiInspectorPhone || '',
+      ppiInspectorMailingAddress: permit.ppiInspectorMailingAddress || '',
+      ppiInspectorCity: permit.ppiInspectorCity || '',
+      ppiInspectorState: permit.ppiInspectorState || 'FL',
+      ppiInspectorZipCode: permit.ppiInspectorZipCode || '',
+      ppiInspectorQualificationType: permit.ppiInspectorQualificationType || '',
+      ppiInspectorLicenseNumber: permit.ppiInspectorLicenseNumber || ''
     };
 
     const clientDataForPPI = {

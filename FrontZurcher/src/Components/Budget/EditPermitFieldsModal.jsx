@@ -40,7 +40,18 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
     parcelNo: '',
     applicationNo: '',
     // 🆕 Campos PPI Part 3
-    ppiAuthorizationType: 'initial', // initial, rescind, amend
+    ppiAuthorizationType: 'initial',
+    // 🆕 Campos PPI Part 4 - Inspector Data
+    ppiInspectorName: '',
+    ppiInspectorBusiness: '',
+    ppiInspectorEmail: '',
+    ppiInspectorPhone: '',
+    ppiInspectorMailingAddress: '',
+    ppiInspectorCity: '',
+    ppiInspectorState: 'FL',
+    ppiInspectorZipCode: '',
+    ppiInspectorQualificationType: '',
+    ppiInspectorLicenseNumber: '',
   });
 
   const [newEmail, setNewEmail] = useState('');
@@ -119,6 +130,17 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
         applicationNo: permit.applicationNo || '',
         // 🆕 Campos PPI Part 3
         ppiAuthorizationType: permit.ppiAuthorizationType || 'initial',
+        // 🆕 Campos PPI Part 4 - Inspector Data
+        ppiInspectorName: permit.ppiInspectorName || '',
+        ppiInspectorBusiness: permit.ppiInspectorBusiness || '',
+        ppiInspectorEmail: permit.ppiInspectorEmail || '',
+        ppiInspectorPhone: permit.ppiInspectorPhone || '',
+        ppiInspectorMailingAddress: permit.ppiInspectorMailingAddress || '',
+        ppiInspectorCity: permit.ppiInspectorCity || '',
+        ppiInspectorState: permit.ppiInspectorState || 'FL',
+        ppiInspectorZipCode: permit.ppiInspectorZipCode || '',
+        ppiInspectorQualificationType: permit.ppiInspectorQualificationType || '',
+        ppiInspectorLicenseNumber: permit.ppiInspectorLicenseNumber || '',
       });
     } catch (err) {
       console.error('Error loading permit:', err);
@@ -999,6 +1021,138 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
                     <strong>Amend:</strong> Cambiar a diferente Inspector Privado (sin fee)
                   </span>
                 </label>
+              </div>
+            </div>
+          </section>
+
+          {/* 🆕 Sección PPI Part 4 - Inspector Information */}
+          <section>
+            <h3 className="text-lg font-semibold mb-1 text-gray-700">🔍 PPI Part 4 - Private Provider Inspector</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Opcional — dejá vacío si el inspector lo completará. Estos datos se imprimen en la Sección 4 del PPI.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Inspector Name</label>
+                <input
+                  type="text"
+                  name="ppiInspectorName"
+                  value={formData.ppiInspectorName}
+                  onChange={handleInputChange}
+                  placeholder="Full name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Business / Company</label>
+                <input
+                  type="text"
+                  name="ppiInspectorBusiness"
+                  value={formData.ppiInspectorBusiness}
+                  onChange={handleInputChange}
+                  placeholder="Business name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  name="ppiInspectorEmail"
+                  value={formData.ppiInspectorEmail}
+                  onChange={handleInputChange}
+                  placeholder="inspector@email.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  name="ppiInspectorPhone"
+                  value={formData.ppiInspectorPhone}
+                  onChange={handleInputChange}
+                  placeholder="(555) 000-0000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mailing Address</label>
+              <input
+                type="text"
+                name="ppiInspectorMailingAddress"
+                value={formData.ppiInspectorMailingAddress}
+                onChange={handleInputChange}
+                placeholder="Street address"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input
+                  type="text"
+                  name="ppiInspectorCity"
+                  value={formData.ppiInspectorCity}
+                  onChange={handleInputChange}
+                  placeholder="Fort Myers"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                <input
+                  type="text"
+                  name="ppiInspectorState"
+                  value={formData.ppiInspectorState}
+                  onChange={handleInputChange}
+                  placeholder="FL"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code</label>
+                <input
+                  type="text"
+                  name="ppiInspectorZipCode"
+                  value={formData.ppiInspectorZipCode}
+                  onChange={handleInputChange}
+                  placeholder="33901"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Qualification Type</label>
+                <select
+                  name="ppiInspectorQualificationType"
+                  value={formData.ppiInspectorQualificationType}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Select --</option>
+                  <option value="CEHP">Certified Environmental Health Professional</option>
+                  <option value="PE">Professional Engineer</option>
+                  <option value="MSTC">Master Septic Tank Contractor</option>
+                  <option value="PES">Professional Engineer Staff</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">License Number</label>
+                <input
+                  type="text"
+                  name="ppiInspectorLicenseNumber"
+                  value={formData.ppiInspectorLicenseNumber}
+                  onChange={handleInputChange}
+                  placeholder="PE12345"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
             </div>
           </section>

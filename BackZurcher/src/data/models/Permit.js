@@ -276,7 +276,63 @@ module.exports = (sequelize) => {
       },
       comment: 'Tipo de autorización: initial, rescind, o amend'
     },
-    
+
+    // Part 4 - Inspector Data (manually entered)
+    ppiInspectorName: {
+      type: DataTypes.STRING(200),
+      allowNull: true,
+      comment: 'Part 4: Full name of the Private Provider Inspector'
+    },
+    ppiInspectorBusiness: {
+      type: DataTypes.STRING(200),
+      allowNull: true,
+      comment: 'Part 4: Business name of the inspector'
+    },
+    ppiInspectorEmail: {
+      type: DataTypes.STRING(150),
+      allowNull: true,
+      comment: 'Part 4: Inspector email'
+    },
+    ppiInspectorPhone: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Part 4: Inspector phone'
+    },
+    ppiInspectorMailingAddress: {
+      type: DataTypes.STRING(300),
+      allowNull: true,
+      comment: 'Part 4: Inspector mailing address (street)'
+    },
+    ppiInspectorCity: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: 'Part 4: Inspector city'
+    },
+    ppiInspectorState: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      defaultValue: 'FL',
+      comment: 'Part 4: Inspector state'
+    },
+    ppiInspectorZipCode: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      comment: 'Part 4: Inspector zip code'
+    },
+    ppiInspectorQualificationType: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      validate: {
+        isIn: [['CEHP', 'PE', 'MSTC', 'PES']]
+      },
+      comment: 'Part 4: Qualification type (CEHP, PE, MSTC, PES)'
+    },
+    ppiInspectorLicenseNumber: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: 'Part 4: Inspector license number'
+    },
+
     // Part 4 - Inspector Type & Generated Files
     ppiInspectorType: {
       type: DataTypes.STRING(50),
