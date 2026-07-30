@@ -201,9 +201,14 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
       doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
         .text("INITIAL PAYMENT", initialPaymentX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
       doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-      const percentageText = parseFloat(initialPaymentPercentage) === 100 ? "TOTAL" : `${parseFloat(initialPaymentPercentage)}% REQUIRE TO START`;
-      doc.text(percentageText, initialPaymentX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
-      doc.text(`$${parseFloat(initialPayment).toFixed(2)}`, initialPaymentX_Invoice, doc.y, { width: columnWidth_Invoice });
+      const ipPct = parseFloat(initialPaymentPercentage);
+      if (ipPct === 0) {
+        doc.text("NOT REQUIRED", initialPaymentX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
+      } else {
+        const percentageText = ipPct === 100 ? "TOTAL" : `${ipPct}% REQUIRE TO START`;
+        doc.text(percentageText, initialPaymentX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
+        doc.text(`$${parseFloat(initialPayment).toFixed(2)}`, initialPaymentX_Invoice, doc.y, { width: columnWidth_Invoice });
+      }
     }
     finalYCol3_Invoice = doc.y;
 
@@ -629,11 +634,14 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.moveDown(1.2); // ✅ ESPACIO DESPUÉS DE LA LÍNEA
 
   // ✅ CALCULAR VALORES PARA INITIAL PAYMENT
-  const initialPaymentPct = budgetData.initialPaymentPercentage || 100;
-  const initialPaymentAmt = budgetData.initialPayment || priceAfterDiscountAlreadyApplied;
-  const percentageText = parseFloat(initialPaymentPct) === 100 
-    ? "INITIAL PAYMENT (TOTAL)" 
-    : `INITIAL PAYMENT (${parseFloat(initialPaymentPct)}%)`;
+  const rawPct = budgetData.initialPaymentPercentage;
+  const initialPaymentPct = (rawPct != null) ? parseFloat(rawPct) : 100;
+  const rawAmt = budgetData.initialPayment;
+  const initialPaymentAmt = (rawAmt != null) ? parseFloat(rawAmt) : priceAfterDiscountAlreadyApplied;
+  const isZeroPayment = initialPaymentPct === 0;
+  const percentageText = initialPaymentPct === 100
+    ? "INITIAL PAYMENT (TOTAL)"
+    : `INITIAL PAYMENT (${initialPaymentPct}%)`;
 
   if (isDraft) {
     // ✅ EN BUDGET (DRAFT): BALANCE DUE ES PROMINENTE Y RESALTADO
@@ -647,9 +655,18 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     // ✅ INITIAL PAYMENT - TEXTO PEQUEÑO Y MENOS PROMINENTE
     currentTotalY = doc.y;
     doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    if (isZeroPayment) {
+      doc.text("NO INITIAL PAYMENT REQUIRED", totalsStartX, currentTotalY, { width: totalsRightEdge - totalsStartX, align: 'left' });
+    } else {
+      doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      const yAfterPercentageDraft = doc.y;
+      doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text(`$${initialPaymentAmt.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      if (budgetData.deferredPayment) {
+        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor('#E67E22');
+        doc.text('* No upfront payment required', totalsStartX, yAfterPercentageDraft + 3, { width: totalsRightEdge - totalsStartX, align: 'left' });
+      }
+    }
   } else {
     // ✅ EN INVOICE: BALANCE DUE ES TEXTO PEQUEÑO
     currentTotalY = doc.y;
@@ -662,9 +679,19 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     // ✅ INITIAL PAYMENT - PROMINENTE Y RESALTADO
     currentTotalY = doc.y;
     doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
-    doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
-    doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    if (isZeroPayment) {
+      doc.text("NO INITIAL PAYMENT REQUIRED", totalsStartX, currentTotalY, { width: totalsRightEdge - totalsStartX, align: 'left' });
+    } else {
+      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
+      doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      const yAfterPercentage = doc.y;
+      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
+      doc.text(`$${initialPaymentAmt.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      if (budgetData.deferredPayment) {
+        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor('#E67E22');
+        doc.text('* No upfront payment required', totalsStartX, yAfterPercentage + 4, { width: totalsRightEdge - totalsStartX, align: 'left' });
+      }
+    }
   }
 
   const yAfterTotals = doc.y;
@@ -753,6 +780,117 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   }
 }
 
+const DEFAULT_TERMS_SECTIONS = [
+  {
+    number: "1.",
+    title: "Acceptance of Terms and Conditions",
+    content: "The Client declares to have read, understood, and accepted the terms and conditions set forth in this agreement. Acceptance of these terms is mandatory for the provision of the septic system installation service."
+  },
+  {
+    number: "2.",
+    title: "Scope of Work:",
+    subtitle: "The Provider agrees to:",
+    bulletPoints: [
+      "Install the septic system according to the approved plans and local regulatory standards.",
+      "Supply all labor, materials, and equipment necessary for the installation.",
+      "Conduct functionality tests upon completion to ensure the system operates correctly."
+    ],
+    subtitle2: "The Provider does not include, unless expressly agreed in writing:",
+    bulletPoints2: [
+      "Electrical work, landscaping, irrigation, fencing, or removal of trees/sod.",
+      "Additional engineering tests (such as percolation or soil tests).",
+      "Haul-off of debris beyond what is standard for the installation.",
+      "Damage repairs to driveways, walkways, sprinklers, cables, or unmarked underground lines."
+    ]
+  },
+  {
+    number: "3.",
+    title: "Client's Obligations:",
+    subtitle: "The Client agrees to:",
+    bulletPoints: [
+      "Provide full access to the property and keep the area clear of debris or obstructions.",
+      "Supply any required documents (e.g., site plan, floor plan) to facilitate permitting or inspection.",
+      "Be responsible for any unmarked private underground lines.",
+      "Obtain required permits, unless otherwise agreed in writing.",
+      "Avoid parking or placing heavy loads on the system area after installation, as this may cause system failure and void the warranty."
+    ]
+  },
+  {
+    number: "4.",
+    title: "Payment Terms:",
+    bulletPoints: [
+      "A 60% deposit is required prior to the start of work.",
+      "The remaining 40% must be paid immediately after the initial inspection has been passed and the work has been covered by our team.",
+      "Permit fees must be paid in advance and are non-refundable."
+    ]
+  },
+  {
+    number: "5.",
+    title: "Execution Timeline:",
+    content: "Work will begin on the agreed-upon date, subject to weather conditions or delays beyond the Provider's control. In the event of encountering unsuitable soil or rock conditions, additional charges may apply and will be discussed with the Client before proceeding."
+  },
+  {
+    number: "6.",
+    title: "Change Orders and Additional Work:",
+    content: "Any changes to the scope of work requested by the Client must be agreed upon in writing through a Change Order. Additional work beyond the agreed scope will be billed at the Provider's standard rates."
+  },
+  {
+    number: "7.",
+    title: "Lift Station and Additional Costs:",
+    bulletPoints: [
+      "If a gravity flow system cannot be achieved and a lift station is required for the system installation, a lift station, pump, and audiovisual alarm will be installed for a cost of $2,750.",
+      "This cost does not include sod installation or any electrical work required to power the lift station, if applicable.",
+    ],
+    subtitle2: "Price Changes and Notification:",
+    bulletPoints2: [
+      "Due to market volatility and material availability, prices are subject to change.",
+      "If a price adjustment is necessary, a written notification will be provided prior to starting any additional work with the updated pricing.",
+    ]
+  },
+  {
+    number: "8.",
+    title: "Warranty:",
+    content: "The installation of the drainfield is covered by a one (1) year limited warranty from the date of the initial inspection, provided the system is used in accordance with the conditions established in the health department permit. Component parts are subject to the manufacturer's warranty. Damage caused by misuse, neglect, or unauthorized modifications will void the warranty."
+  },
+  {
+    number: "9.",
+    title: "Limitation of Liability:",
+    subtitle: "The Provider is not responsible for:",
+    bulletPoints: [
+      "Any damage to landscaping, private utility lines, or other structures caused during standard installation work.",
+      "Any direct, indirect, incidental, or consequential damages resulting from the use or misuse of the installed septic system.",
+      "The system's performance if affected by external factors such as surface water, improper use, or lack of maintenance."
+    ]
+  },
+  {
+    number: "10.",
+    title: "Contract Termination:",
+    subtitle: "This agreement may be terminated:",
+    bulletPoints: [
+      "By mutual consent of both parties.",
+      "By either party, in the event of material breach, with written notice.",
+      "By the Client, at any time, with written notice; however, the Client shall be responsible for payment for all work completed and costs incurred up to the cancellation date."
+    ]
+  },
+  {
+    number: "11.",
+    title: "Additional Material Costs (if not included)",
+    content: "In the event that soil and sand are not included in this invoice, the Client understands and accepts that additional materials may be required to complete the work after the inspection. The estimated cost per truckload is as follows:",
+    bulletPoints: [
+      "Soil: between $250 and $300, depending on the location of the project.",
+      "Sand: between $370 and $450, depending on the location of the project."
+    ]
+  },
+  {
+    title: "NOTE:",
+    content: "Attorneys' Fees and Costs. In the event of any dispute, claim, or litigation arising out of, or related in any way to, this Agreement or the transaction contemplated herein, the prevailing party shall be entitled to recover from the non-prevailing party all attorneys' fees, court costs, expert witness fees, and expenses actually incurred, whether before or after the filing of a lawsuit, and including any appeals, arbitration, mediation, or bankruptcy proceedings."
+  },
+  {
+    title: "Client Acknowledgment:",
+    content: "By signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein."
+  }
+];
+
 function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate, isDraft = false) {
   _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS", formattedDate, formattedExpirationDate);
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
@@ -769,117 +907,19 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
   doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK).text('The following is hereby agreed:', NEW_PAGE_MARGIN, doc.y);
   doc.moveDown(0.5);
 
-  const termsSections = [
-    {
-      number: "1.",
-      title: "Acceptance of Terms and Conditions",
-      content: "The Client declares to have read, understood, and accepted the terms and conditions set forth in this agreement. Acceptance of these terms is mandatory for the provision of the septic system installation service."
-    },
-    {
-      number: "2.",
-      title: "Scope of Work:",
-      subtitle: "The Provider agrees to:",
-      bulletPoints: [
-        "Install the septic system according to the approved plans and local regulatory standards.",
-        "Supply all labor, materials, and equipment necessary for the installation.",
-        "Conduct functionality tests upon completion to ensure the system operates correctly."
-      ],
-      subtitle2: "The Provider does not include, unless expressly agreed in writing:",
-      bulletPoints2: [
-        "Electrical work, landscaping, irrigation, fencing, or removal of trees/sod.",
-        "Additional engineering tests (such as percolation or soil tests).",
-        "Haul-off of debris beyond what is standard for the installation.",
-        "Damage repairs to driveways, walkways, sprinklers, cables, or unmarked underground lines."
-      ]
-    },
-    {
-      number: "3.",
-      title: "Client's Obligations:",
-      subtitle: "The Client agrees to:",
-      bulletPoints: [
-        "Provide full access to the property and keep the area clear of debris or obstructions.",
-        "Supply any required documents (e.g., site plan, floor plan) to facilitate permitting or inspection.",
-        "Be responsible for any unmarked private underground lines.",
-        "Obtain required permits, unless otherwise agreed in writing.",
-        "Avoid parking or placing heavy loads on the system area after installation, as this may cause system failure and void the warranty."
-      ]
-    },
-    {
-      number: "4.",
-      title: "Payment Terms:",
-      bulletPoints: [
-        "A 60% deposit is required prior to the start of work.",
-        "The remaining 40% must be paid immediately after the initial inspection has been passed and the work has been covered by our team.",
-        "Permit fees must be paid in advance and are non-refundable."
-      ]
-    },
-    {
-      number: "5.",
-      title: "Execution Timeline:",
-      content: "Work will begin on the agreed-upon date, subject to weather conditions or delays beyond the Provider's control. In the event of encountering unsuitable soil or rock conditions, additional charges may apply and will be discussed with the Client before proceeding."
-    },
-    {
-      number: "6.",
-      title: "Change Orders and Additional Work:",
-      content: "Any changes to the scope of work requested by the Client must be agreed upon in writing through a Change Order. Additional work beyond the agreed scope will be billed at the Provider's standard rates."
-    },
-    {
-      number: "7.",
-      title: "Lift Station and Additional Costs:",
-      bulletPoints: [
-        "If a gravity flow system cannot be achieved and a lift station is required for the system installation, a lift station, pump, and audiovisual alarm will be installed for a cost of $2,750.",
-        "This cost does not include sod installation or any electrical work required to power the lift station, if applicable.",
-      ],
-      subtitle2: "Price Changes and Notification:",
-      bulletPoints2: [
-        "Due to market volatility and material availability, prices are subject to change.",
-        "If a price adjustment is necessary, a written notification will be provided prior to starting any additional work with the updated pricing.",
-      ]
-    },
-    {
-      number: "8.",
-      title: "Warranty:",
-      content: "The installation of the drainfield is covered by a one (1) year limited warranty from the date of the initial inspection, provided the system is used in accordance with the conditions established in the health department permit. Component parts are subject to the manufacturer's warranty. Damage caused by misuse, neglect, or unauthorized modifications will void the warranty."
-    },
-    {
-      number: "9.",
-      title: "Limitation of Liability:",
-      subtitle: "The Provider is not responsible for:",
-      bulletPoints: [
-        "Any damage to landscaping, private utility lines, or other structures caused during standard installation work.",
-        "Any direct, indirect, incidental, or consequential damages resulting from the use or misuse of the installed septic system.",
-        "The system's performance if affected by external factors such as surface water, improper use, or lack of maintenance."
-      ]
-    },
-    {
-      number: "10.",
-      title: "Contract Termination:",
-      subtitle: "This agreement may be terminated:",
-      bulletPoints: [
-        "By mutual consent of both parties.",
-        "By either party, in the event of material breach, with written notice.",
-        "By the Client, at any time, with written notice; however, the Client shall be responsible for payment for all work completed and costs incurred up to the cancellation date."
-      ]
-    },
-     {
-      number: "11.",
-      title: "Additional Material Costs (if not included)",
-      content: "In the event that soil and sand are not included in this invoice, the Client understands and accepts that additional materials may be required to complete the work after the inspection. The estimated cost per truckload is as follows:",
-      bulletPoints: [
-        "Soil: between $250 and $300, depending on the location of the project.",
-        "Sand: between $370 and $450, depending on the location of the project."
-      ]
-    },
-    {
-      title: "NOTE:",
-      content: "Attorneys' Fees and Costs. In the event of any dispute, claim, or litigation arising out of, or related in any way to, this Agreement or the transaction contemplated herein, the prevailing party shall be entitled to recover from the non-prevailing party all attorneys' fees, court costs, expert witness fees, and expenses actually incurred, whether before or after the filing of a lawsuit, and including any appeals, arbitration, mediation, or bankruptcy proceedings."
-    },
-    { 
-      // Este no tiene número, solo título y contenido.
-      title: "Client Acknowledgment:",
-      content: "By signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein."
-    }
-  ];
+  const rawTerms = (budgetData.customTerms && budgetData.customTerms.length > 0)
+    ? budgetData.customTerms
+    : DEFAULT_TERMS_SECTIONS;
+  // Renumerar secuencialmente tras filtrar las desactivadas
+  let autoNum = 1;
+  const termsSections = rawTerms
+    .filter(s => s.enabled !== false)
+    .map(s => {
+      if (s.number) {
+        return { ...s, number: `${autoNum++}.` };
+      }
+      return s;
+    });
 
   const checkPageBreak = (estimatedHeight) => {
     if (doc.y + estimatedHeight > doc.page.height - NEW_PAGE_MARGIN - 100) {
@@ -1040,4 +1080,4 @@ async function generateAndSaveBudgetPDF(budgetData) {
   });
 }
 
-module.exports = { generateAndSaveBudgetPDF };
+module.exports = { generateAndSaveBudgetPDF, DEFAULT_TERMS_SECTIONS };

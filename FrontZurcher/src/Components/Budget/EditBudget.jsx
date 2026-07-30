@@ -8,6 +8,7 @@ import { toast } from 'react-toastify'; // 🆕 Para notificaciones
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchStaff } from "../../Redux/Actions/adminActions"; // 🆕 Para cargar sales reps
 import DynamicCategorySection from './DynamicCategorySection';
+import TermsEditor from './TermsEditor';
 import EditClientDataModal from './EditClientDataModal';
 import EditPermitFieldsModal from './EditPermitFieldsModal'; // 🆕 NUEVO
 import PdfModal from './PdfModal'; // 🆕 Para vista previa de PDFs
@@ -312,7 +313,11 @@ const editableBudgets = useMemo(() => {
           discountDescription: currentBudget.discountDescription || "",
           discountAmount: parseFloat(currentBudget.discountAmount) || 0,
           generalNotes: currentBudget.generalNotes || "",
-          initialPaymentPercentage: String(currentBudget.initialPaymentPercentage || 60),
+          customTerms: currentBudget.customTerms || null,
+          deferredPayment: !!currentBudget.deferredPayment,
+          initialPaymentPercentage: (currentBudget.initialPaymentPercentage != null)
+            ? String(Math.round(parseFloat(currentBudget.initialPaymentPercentage)))
+            : '60',
           // 🆕 Campos de comisiones
           leadSource: currentBudget.leadSource || 'web',
           createdByStaffId: currentBudget.createdByStaffId || '',
@@ -679,7 +684,9 @@ const editableBudgets = useMemo(() => {
       discountDescription: formData.discountDescription,
       discountAmount: parseFloat(formData.discountAmount) || 0,
       generalNotes: formData.generalNotes,
-      initialPaymentPercentage: parseFloat(formData.initialPaymentPercentage) || 60,
+      customTerms: formData.customTerms || null,
+      deferredPayment: String(formData.initialPaymentPercentage) === '0' ? false : !!formData.deferredPayment,
+      initialPaymentPercentage: (() => { const p = parseFloat(formData.initialPaymentPercentage); return isNaN(p) ? 60 : p; })(),
       contactCompany: normalizeCompanyName(formData.contactCompany) || null, // 🆕 Normalizado a Title Case
       // 🆕 Campos de comisiones
       leadSource: formData.leadSource,
@@ -1460,7 +1467,10 @@ const editableBudgets = useMemo(() => {
                   <div>
                     <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
                     <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1" disabled={isBudgetLocked}>
+                      <option value="draft">Draft</option>
+                      <option value="pending_review">Pending Review</option>
                       <option value="created">Created</option>
+                      <option value="client_approved">Client Approved</option>
                       <option value="send">Send</option>
                       <option value="sent">Sent</option>
                       <option value="sent_for_signature">Sent for Signature</option>
@@ -1476,6 +1486,12 @@ const editableBudgets = useMemo(() => {
                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales del Presupuesto</label>
                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1" placeholder="Notas generales que aplican a todo el presupuesto..."></textarea>
                 </div>
+
+                {/* --- Términos y Condiciones --- */}
+                <TermsEditor
+                  customTerms={formData.customTerms}
+                  onChange={(val) => setFormData(prev => prev ? { ...prev, customTerms: val } : null)}
+                />
 
                 {/* 🆕 Lead Source & Commission Management */}
                 <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1884,20 +1900,44 @@ const editableBudgets = useMemo(() => {
                   </div>
                   <div>
                     <label htmlFor="initialPaymentPercentage" className="block text-sm font-medium text-gray-700">Initial Payment %</label>
-                    <input 
-                      type="number" 
-                      id="initialPaymentPercentage" 
-                      name="initialPaymentPercentage" 
-                      value={formData.initialPaymentPercentage} 
-                      onChange={handleGeneralInputChange} 
-                      className="input-style mt-1" 
-                      min="0" 
-                      max="100" 
-                      step="1" 
+                    <select
+                      id="initialPaymentPercentage"
+                      name="initialPaymentPercentage"
+                      value={String(formData.initialPaymentPercentage)}
+                      onChange={handleGeneralInputChange}
+                      className="input-style mt-1"
                       disabled={isBudgetLocked}
-                      placeholder="60"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Por defecto: 60%</p>
+                    >
+                      <option value="0">0% — Pago diferido</option>
+                      <option value="30">30%</option>
+                      <option value="40">40%</option>
+                      <option value="50">50%</option>
+                      <option value="60">60% (por defecto)</option>
+                      <option value="70">70%</option>
+                      <option value="80">80%</option>
+                      <option value="100">100% — Pago total</option>
+                      {/* Opción dinámica para valores no estándar heredados */}
+                      {!['0','30','40','50','60','70','80','100'].includes(String(formData.initialPaymentPercentage)) && (
+                        <option value={String(formData.initialPaymentPercentage)}>
+                          {formData.initialPaymentPercentage}% (actual)
+                        </option>
+                      )}
+                    </select>
+                    {String(formData.initialPaymentPercentage) === '0' && (
+                      <p className="text-xs text-amber-600 mt-1 font-medium">⚠ Sin pago inicial</p>
+                    )}
+                    {String(formData.initialPaymentPercentage) !== '0' && (
+                      <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!formData.deferredPayment}
+                          onChange={e => setFormData(prev => ({ ...prev, deferredPayment: e.target.checked }))}
+                          disabled={isBudgetLocked}
+                          className="w-4 h-4 accent-amber-500"
+                        />
+                        <span className="text-xs text-amber-700 font-medium">Cobro diferido — crear obra sin esperar el pago</span>
+                      </label>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4 space-y-2 text-right">
@@ -1916,9 +1956,13 @@ const editableBudgets = useMemo(() => {
                     </p>
                   )}
                   <p className="text-lg font-semibold text-blue-900">Total: ${formData.totalPrice.toFixed(2)}</p>
-                  <p className="text-md font-medium text-blue-700">
-                    Initial Payment Required ({formData.initialPaymentPercentage}%): ${formData.initialPayment.toFixed(2)}
-                  </p>
+                  {String(formData.initialPaymentPercentage) === '0' ? (
+                    <p className="text-md font-medium text-amber-700">⚠ Pago diferido (0%) — cobrar antes de iniciar</p>
+                  ) : (
+                    <p className="text-md font-medium text-blue-700">
+                      Initial Payment Required ({formData.initialPaymentPercentage}%): ${formData.initialPayment.toFixed(2)}
+                    </p>
+                  )}
                 </div>
               </fieldset>
               {/* --- Botón de Envío --- */}

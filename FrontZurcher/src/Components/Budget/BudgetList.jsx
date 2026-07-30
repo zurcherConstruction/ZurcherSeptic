@@ -1007,6 +1007,33 @@ const BudgetList = () => {
     }
   };
 
+  // 🆕 FUNCIÓN: Crear obra sin pago inicial (pago diferido)
+  const handleApproveNoPayment = async (budget) => {
+    const pct = parseFloat(budget.initialPaymentPercentage);
+    const amt = parseFloat(budget.initialPayment);
+    const paymentLine = (pct > 0 && !isNaN(amt))
+      ? `Pago inicial pendiente: ${pct}% = $${amt.toFixed(2)} (el cliente abonará después)\n`
+      : `Sin pago inicial requerido\n`;
+    if (!window.confirm(
+      `¿Crear obra para presupuesto #${budget.invoiceNumber || budget.idBudget}?\n\n` +
+      `Cliente: ${budget.applicantName}\n` +
+      `Total: $${parseFloat(budget.totalPrice).toFixed(2)}\n` +
+      paymentLine +
+      `\nLa obra quedará activa. Podrás cargar el comprobante cuando el cliente abone.`
+    )) return;
+
+    try {
+      const response = await api.post(`/budget/${budget.idBudget}/approve-no-payment`);
+      if (response.data.success) {
+        alert(`✅ Obra creada exitosamente\n\nDirección: ${response.data.work.propertyAddress}\nInvoice #${response.data.budget.invoiceNumber}\n\nRecordá cargar el comprobante cuando el cliente pague.`);
+        refreshBudgets();
+      }
+    } catch (error) {
+      console.error('Error al crear obra sin pago:', error);
+      alert(`❌ Error: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
   // 🆕 FUNCIÓN: Copiar enlace de firma de DocuSign
   const handleCopySignatureLink = async (budget) => {
     try {
@@ -2037,19 +2064,31 @@ const BudgetList = () => {
                                     onClick={() => handleSendToSignNow(budget)}
                                     disabled={isReadOnly}
                                     className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
-                                      isReadOnly 
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      isReadOnly
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                         : 'bg-purple-500 text-white hover:bg-purple-600'
                                     }`}
                                     title={isReadOnly ? "View only - No edit permissions" : "Send to SignNow for Signature & Payment"}
                                   >
                                     📝 Sign
                                   </button>
-                                  
+
+                                  {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                    <button
+                                      onClick={() => handleApproveNoPayment(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-teal-600 text-white hover:bg-teal-700 mt-0.5"
+                                      title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                    >
+                                      {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                        ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                        : '🏗️ Crear Obra'}
+                                    </button>
+                                  )}
+
                                   {renderPPISignatureOptionsButton(budget)}
                                 </div>
                               )}
-                              
+
                               {/* 🆕 ESTADO: PENDING_REVIEW - Esperando aprobación del cliente */}
                               {budget.status === "pending_review" && (
                                 <div className="flex flex-col gap-0.5 w-full">
@@ -2088,19 +2127,31 @@ const BudgetList = () => {
                                   <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1.5 py-0.5 rounded text-center">
                                     ✅ OK
                                   </p>
-                                  
+
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
                                     disabled={isReadOnly}
                                     className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
-                                      isReadOnly 
-                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      isReadOnly
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                         : 'bg-purple-500 text-white hover:bg-purple-600'
                                     }`}
                                     title={isReadOnly ? "View only - No edit permissions" : "Send to SignNow for Signature & Payment"}
                                   >
                                     📝 Sign
                                   </button>
+
+                                  {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                    <button
+                                      onClick={() => handleApproveNoPayment(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-teal-600 text-white hover:bg-teal-700"
+                                      title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                    >
+                                      {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                        ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                        : '🏗️ Crear Obra'}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               
@@ -2307,6 +2358,17 @@ const BudgetList = () => {
                                   >
                                     ✗ Reject
                                   </button>
+                                  {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                    <button
+                                      onClick={() => handleApproveNoPayment(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-teal-600 text-white hover:bg-teal-700 mt-0.5"
+                                      title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                    >
+                                      {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                        ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                        : '🏗️ Crear Obra'}
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               {/* ESTADO: APPROVED */}
@@ -2315,6 +2377,24 @@ const BudgetList = () => {
                                   <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1.5 py-1 rounded text-center whitespace-nowrap">
                                     ✓ Approved
                                   </p>
+
+                                  {!budget.paymentInvoice && budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0 && (
+                                    <p className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-1 rounded text-center whitespace-nowrap">
+                                      {`⏳ Cobro diferido ${parseFloat(budget.initialPaymentPercentage)}%`}
+                                    </p>
+                                  )}
+
+                                  {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                    <button
+                                      onClick={() => handleApproveNoPayment(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-teal-600 text-white hover:bg-teal-700 mt-0.5"
+                                      title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                    >
+                                      {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                        ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                        : '🏗️ Crear Obra'}
+                                    </button>
+                                  )}
 
                                   {/* 🆕 Opciones de firma visibles también en approved */}
                                   {(budget.docusignEnvelopeId || budget.signatureDocumentId || budget.signNowDocumentId) && (
@@ -2325,12 +2405,32 @@ const BudgetList = () => {
                                 </div>
                               )}
                               {/* ESTADO: SIGNED (incluye firma manual) */}
-                              {(budget.status === "signed" || (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath)) && (
+                              {(budget.status === "signed" || (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath)) && budget.status !== 'approved' && (
                                 <div className="flex flex-col gap-0.5 w-full">
                                   <p className="text-green-800 text-[10px] font-semibold bg-green-200 px-1.5 py-1 rounded text-center whitespace-nowrap">
                                     ✓ Signed
                                   </p>
                                   {renderPPISignatureOptionsButton(budget)}
+                                  {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                    <button
+                                      onClick={() => handleApproveNoPayment(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-teal-600 text-white hover:bg-teal-700 mt-0.5"
+                                      title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                    >
+                                      {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                        ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                        : '🏗️ Crear Obra'}
+                                    </button>
+                                  )}
+                                  {(userRole === 'owner' || userRole === 'admin') && !isReadOnly && (
+                                    <button
+                                      onClick={() => handleResendBudget(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600 mt-0.5"
+                                      title="Reenviar presupuesto actualizado al cliente"
+                                    >
+                                      🔄 Re-send
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               {/* ESTADO: REJECTED - Puede reenviarse para revisión */}
@@ -2967,17 +3067,28 @@ const BudgetList = () => {
                                   }
                                   disabled={isReadOnly}
                                   className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                                    isReadOnly 
-                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                    isReadOnly
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                       : 'bg-yellow-500 text-white hover:bg-yellow-600'
                                   }`}
                                   title={isReadOnly ? "View only - No edit permissions" : "Send budget to client"}
                                 >
                                   Send Budget
                                 </button>
+                                {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                  <button
+                                    onClick={() => handleApproveNoPayment(budget)}
+                                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+                                    title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                  >
+                                    {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                      ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                      : '🏗️ Crear Obra sin cobro inicial'}
+                                  </button>
+                                )}
                               </div>
                             )}
-                            
+
                             {/* 🆕 ESTADO: PENDING_REVIEW */}
                             {budget.status === "pending_review" && (
                               <div className="w-full space-y-2">
@@ -3242,6 +3353,17 @@ const BudgetList = () => {
                                 >
                                   Reject
                                 </button>
+                                {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                  <button
+                                    onClick={() => handleApproveNoPayment(budget)}
+                                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+                                    title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                  >
+                                    {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                      ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                      : '🏗️ Crear Obra sin cobro inicial'}
+                                  </button>
+                                )}
                               </div>
                             )}
 
@@ -3250,14 +3372,52 @@ const BudgetList = () => {
                                 <div className="w-full text-center text-green-700 text-xs font-semibold p-2 border rounded bg-green-50">
                                   Approved
                                 </div>
+                                {!budget.paymentInvoice && budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0 && (
+                                  <div className="w-full text-center text-amber-700 text-xs font-bold p-2 border border-amber-300 rounded bg-amber-50">
+                                    {`⏳ Cobro diferido — ${parseFloat(budget.initialPaymentPercentage)}% pendiente`}
+                                  </div>
+                                )}
+                                {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                  <button
+                                    onClick={() => handleApproveNoPayment(budget)}
+                                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+                                    title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                  >
+                                    {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                      ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                      : '🏗️ Crear Obra sin cobro inicial'}
+                                  </button>
+                                )}
                                 {renderSignatureOptionsButton(budget, true)}
                                 {renderPPISignatureOptionsButton(budget, true)}
                               </div>
                             )}
 
                             {(budget.status === "signed" || (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath)) && (
-                              <div className="w-full text-center text-green-800 text-xs font-semibold p-2 border rounded bg-green-100">
-                                Signed
+                              <div className="w-full space-y-2">
+                                <div className="w-full text-center text-green-800 text-xs font-semibold p-2 border rounded bg-green-100">
+                                  Signed
+                                </div>
+                                {(userRole === 'owner' || userRole === 'admin') && !budget.paymentInvoice && (budget.deferredPayment || parseFloat(budget.initialPaymentPercentage) === 0) && (
+                                  <button
+                                    onClick={() => handleApproveNoPayment(budget)}
+                                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+                                    title="Crear obra — el comprobante se carga después si hay pago diferido"
+                                  >
+                                    {budget.deferredPayment && parseFloat(budget.initialPaymentPercentage) > 0
+                                      ? `🏗️ Crear Obra (${parseFloat(budget.initialPaymentPercentage)}% diferido)`
+                                      : '🏗️ Crear Obra sin cobro inicial'}
+                                  </button>
+                                )}
+                                {(userRole === 'owner' || userRole === 'admin') && !isReadOnly && (
+                                  <button
+                                    onClick={() => handleResendBudget(budget)}
+                                    className="w-full px-3 py-2 rounded-lg text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+                                    title="Reenviar presupuesto actualizado al cliente"
+                                  >
+                                    🔄 Re-send to Client
+                                  </button>
+                                )}
                               </div>
                             )}
 

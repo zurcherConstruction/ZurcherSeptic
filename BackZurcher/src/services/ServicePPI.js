@@ -159,6 +159,24 @@ class ServicePPI {
   }
 
   /**
+   * Intenta llenar un campo de texto con múltiples nombres alternativos (el PDF puede variar)
+   * @private
+   */
+  _tryTextField(form, fieldNames, value) {
+    if (!value) return;
+    for (const name of fieldNames) {
+      try {
+        const field = form.getTextField(name);
+        if (field) {
+          field.setText(String(value));
+          console.log(`  ✓ ${name}: ${value}`);
+          return;
+        }
+      } catch (e) {}
+    }
+  }
+
+  /**
    * Llena campos comunes a ambos tipos de PPI
    * @private
    */
@@ -264,6 +282,46 @@ class ServicePPI {
         // El campo no existe en este template, continuar sin mensaje
       }
     });
+
+    // Part 4 - Inspector 1 Data (nombres exactos del PDF)
+    const inspector1Fields = {
+      'Inspector Name 1': permitData.ppiInspectorName,
+      'Business 1':       permitData.ppiInspectorBusiness,
+      'Email 1':          permitData.ppiInspectorEmail,
+      'Phone 1':          permitData.ppiInspectorPhone,
+      'Mailing Address 1': permitData.ppiInspectorMailingAddress,
+      'City 1':           permitData.ppiInspectorCity,
+      'State 1':          permitData.ppiInspectorState,
+      'Zip Code 1':       permitData.ppiInspectorZipCode,
+      'License No. 1':    permitData.ppiInspectorLicenseNumber,
+    };
+
+    Object.entries(inspector1Fields).forEach(([fieldName, value]) => {
+      if (!value) return;
+      try {
+        form.getTextField(fieldName).setText(String(value));
+        console.log(`  ✓ ${fieldName}: ${value}`);
+      } catch (e) {}
+    });
+
+    // Qualification Type checkbox para Inspector 1
+    // Check Box 4 = Certified Environmental Health Professional
+    // Check Box 5 = Professional Engineer
+    // Check Box 6 = Master Septic Tank Contractor
+    // Check Box 7 = Professional Engineer Staff
+    const qualCheckboxMap = {
+      'CEHP': 'Check Box 4',
+      'PE':   'Check Box 5',
+      'MSTC': 'Check Box 6',
+      'PES':  'Check Box 7',
+    };
+    const qualCheckbox = qualCheckboxMap[permitData.ppiInspectorQualificationType];
+    if (qualCheckbox) {
+      try {
+        form.getCheckBox(qualCheckbox).check();
+        console.log(`  ✓ ${qualCheckbox} marcado (${permitData.ppiInspectorQualificationType})`);
+      } catch (e) {}
+    }
   }
 
   /**
@@ -332,23 +390,8 @@ class ServicePPI {
         console.log('  ✓ Check Box 3 marcado (Amend authorization)');
       }
       
-      // Part 4 - Checkboxes de cualificación (Check Box 4 y 8 siempre se marcan)
-      try {
-        const checkbox4 = form.getCheckBox('Check Box 4');
-        checkbox4.check();
-        console.log('  ✓ Check Box 4 marcado (Qualification type)');
-      } catch (err) {
-        console.log('  ⚠ Check Box 4 no encontrado');
-      }
-      
-      try {
-        const checkbox8 = form.getCheckBox('Check Box 8');
-        checkbox8.check();
-        console.log('  ✓ Check Box 8 marcado (Qualification type)');
-      } catch (err) {
-        console.log('  ⚠ Check Box 8 no encontrado');
-      }
-      
+      // La qualification type para Inspector 1 se maneja en _fillCommonFields
+
     } catch (error) {
       console.log('  ⚠ Error marcando checkboxes Type B:', error.message);
     }

@@ -48,6 +48,7 @@ const TITLES = {
   expenseUpdated:                        (e) => `Gasto actualizado: ${e.description || ''}`,
   simpleWorkSent:                        (e) => `Simple work enviado: ${e.propertyAddress || ''}`,
   notice_to_owner_35:                    (e) => `NTO día 35 - vence en 10d: ${e.propertyAddress}`,
+  deferred_initial_payment:              (e) => `Cobrar pago inicial: ${e.propertyAddress}`,
 };
 
 // Eventos que disparan recordatorios adicionales en paralelo

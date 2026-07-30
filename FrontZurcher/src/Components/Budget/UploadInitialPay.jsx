@@ -165,14 +165,13 @@ const UploadInitialPay = () => {
 
   // Filtrar presupuestos elegibles para subir comprobante de pago
   // ✅ PERMITIR PAGO ANTES DE FIRMA: Cliente puede pagar primero y firmar después
-  // Estados válidos: client_approved, sent_for_signature, signed (cualquier estado previo a 'approved')
-  // Excluir: 'approved' (ya completado), 'rejected', 'draft' (no aprobado aún)
+  // Estados válidos: client_approved, sent_for_signature, signed, o 'approved' sin comprobante (pago diferido)
+  // Excluir: 'approved' con comprobante ya cargado, 'rejected', 'draft' (no aprobado aún)
   const sendBudgets = budgets.filter(b => {
-    // Excluir estados no elegibles
-    const invalidStatuses = ['draft', 'created', 'pending_review', 'rejected', 'approved'];
-    if (invalidStatuses.includes(b.status)) {
-      return false;
-    }
+    const invalidStatuses = ['draft', 'created', 'pending_review', 'rejected'];
+    if (invalidStatuses.includes(b.status)) return false;
+    // 'approved' solo aparece si aún no tiene comprobante (caso pago diferido)
+    if (b.status === 'approved' && b.paymentInvoice) return false;
     
     // Excluir si ya tiene pago registrado (doble verificación)
     if (b.paymentProofAmount && parseFloat(b.paymentProofAmount) > 0) {
@@ -224,7 +223,7 @@ const UploadInitialPay = () => {
               No hay presupuestos disponibles para subir comprobante de pago inicial.
             </p>
             <p className="text-gray-500 text-xs mt-3">
-              Los presupuestos deben estar aprobados por el cliente (client_approved, sent_for_signature, o signed).
+              Los presupuestos deben estar en estado client_approved, sent_for_signature, signed, o approved sin comprobante (pago inicial diferido).
               El pago puede subirse ANTES o DESPUÉS de la firma del cliente.
             </p>
           </div>

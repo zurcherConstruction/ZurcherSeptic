@@ -15,6 +15,7 @@ import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import Swal from 'sweetalert2';
 import DynamicCategorySection from "./DynamicCategorySection";
+import TermsEditor from "./TermsEditor";
  
 // --- Helper para generar IDs temporales ---
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -228,10 +229,12 @@ const CreateBudget = () => {
     date: getLocalDateString(),
     expirationDate: "", // Se calculará automáticamente
     initialPayment: 0,
+    deferredPayment: false,
     status: "draft", // 🆕 CAMBIO: Por defecto crear como DRAFT
     discountDescription: "",
     discountAmount: "", // Cambiar de 0 a string vacío
     generalNotes: "",
+    customTerms: null,
     lineItems: [],
     subtotalPrice: 0,
     totalPrice: 0,
@@ -572,6 +575,7 @@ const CreateBudget = () => {
         discountDescription: "",
         generalNotes: "",
         initialPayment: 0,
+        deferredPayment: false,
         date: getLocalDateString(), // Resetear fecha a hoy
         expirationDate: "", // Se recalculará
         status: "created",
@@ -764,7 +768,13 @@ const handleGeneralInputChange = (e) => {
 };
 
   const handlePaymentPercentageChange = (e) => {
-    setFormData(prev => ({ ...prev, initialPaymentPercentage: e.target.value }));
+    const pct = e.target.value;
+    const numPct = pct === 'total' ? 100 : (parseInt(pct, 10) || 0);
+    setFormData(prev => ({
+      ...prev,
+      initialPaymentPercentage: pct,
+      initialPayment: (prev.totalPrice || 0) * numPct / 100
+    }));
   };
 
   // --- Función addOrUpdateLineItem (Modificada para reemplazar opcionalmente) ---
@@ -1113,6 +1123,8 @@ const customCategoryOrder = [
         discountDescription: formData.discountDescription,
         discountAmount: parseFloat(formData.discountAmount) || 0,
         generalNotes: formData.generalNotes,
+        customTerms: formData.customTerms || null,
+        deferredPayment: String(formData.initialPaymentPercentage) === '0' ? false : !!formData.deferredPayment,
         initialPaymentPercentage: formData.initialPaymentPercentage,
         contactCompany: normalizeCompanyName(formData.contactCompany) || null, // 🆕 Normalizado a Title Case
         // 🆕 Campos de origen y vendedor
@@ -1971,13 +1983,35 @@ const customCategoryOrder = [
               <p className="text-xl font-bold text-gray-800">Total: <span className="font-semibold text-gray-900">${formData.totalPrice.toFixed(2)}</span></p>
               <div className="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-4 pt-3"> {/* Made payment section responsive */}
                 <label htmlFor="payment_perc" className="text-sm font-medium text-gray-700">Pago Inicial:</label>
-                <select id="payment_perc" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handlePaymentPercentageChange} className={`${standardInputClasses} !mt-0 w-auto min-w-[120px]`}>
+                <select id="payment_perc" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handlePaymentPercentageChange} className={`${standardInputClasses} !mt-0 w-auto min-w-[150px]`}>
+                  <option value="0">Sin pago inicial (0%)</option>
+                  <option value="30">30%</option>
+                  <option value="40">40%</option>
                   <option value="50">50%</option>
                   <option value="60">60%</option>
+                  <option value="70">70%</option>
+                  <option value="80">80%</option>
                   <option value="total">Total (100%)</option>
                 </select>
-                <span className="text-xl font-semibold text-gray-900">(${formData.initialPayment.toFixed(2)})</span>
+                {String(formData.initialPaymentPercentage) === '0'
+                  ? <span className="text-sm font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded">Sin pago inicial</span>
+                  : <span className="text-xl font-semibold text-gray-900">(${formData.initialPayment.toFixed(2)})</span>
+                }
               </div>
+              {String(formData.initialPaymentPercentage) !== '0' && (
+                <div className="flex items-center gap-2 mt-2 justify-end">
+                  <input
+                    type="checkbox"
+                    id="deferredPayment"
+                    checked={!!formData.deferredPayment}
+                    onChange={e => setFormData(prev => ({ ...prev, deferredPayment: e.target.checked }))}
+                    className="w-4 h-4 accent-amber-500"
+                  />
+                  <label htmlFor="deferredPayment" className="text-sm text-amber-700 font-medium cursor-pointer">
+                    Cobro diferido — crear obra sin esperar el pago (cliente paga después)
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* --- Notas Generales --- */}
@@ -1985,6 +2019,12 @@ const customCategoryOrder = [
               <label htmlFor="general_notes" className="block text-sm font-medium text-gray-700 mb-2">Notas Generales</label>
               <textarea id="general_notes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="4" className={`${standardInputClasses} w-full`}></textarea>
             </div>
+
+            {/* --- Términos y Condiciones --- */}
+            <TermsEditor
+              customTerms={formData.customTerms}
+              onChange={(val) => setFormData(prev => ({ ...prev, customTerms: val }))}
+            />
 
             {/* --- Botón Submit --- */}
       

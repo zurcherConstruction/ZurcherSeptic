@@ -237,6 +237,14 @@ router.post(
   BudgetController.manualApprove
 );
 
+// 🆕 CREAR OBRA SIN PAGO INICIAL (PAGO DIFERIDO)
+router.post(
+  '/:idBudget/approve-no-payment',
+  verifyToken,
+  allowRoles(['admin', 'owner']),
+  BudgetController.approveWithNoInitialPayment
+);
+
 // 🆕 OBTENER ENLACE DE FIRMA DE DOCUSIGN PARA COMPARTIR
 router.get(
   '/:idBudget/signature-link',
