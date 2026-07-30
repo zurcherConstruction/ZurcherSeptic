@@ -25,6 +25,7 @@ const EVENT_TYPES = [
 
   // ── Financiero ────────────────────────────────────────────────────────────
   { key: 'unpaid_fixed_expenses',            label: 'Gastos Fijos sin pagar este mes',                category: 'Financiero' },
+  { key: 'deferred_initial_payment',         label: 'Pago inicial diferido — cobrar antes de iniciar', category: 'Financiero' },
 ];
 
 const NotificationRoutingController = {

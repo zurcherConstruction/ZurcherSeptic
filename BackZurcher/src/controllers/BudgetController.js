@@ -368,7 +368,9 @@ const BudgetController = {
         discountAmount = 0, generalNotes, initialPaymentPercentage: initialPaymentPercentageInput, lineItems,
         leadSource, createdByStaffId, // 🆕 Campos de origen y vendedor interno
         externalReferralName, externalReferralEmail, externalReferralPhone, // 🆕 Campos de referido externo
-        externalReferralCompany, customCommissionAmount // 🆕 Empresa y comisión personalizada
+        externalReferralCompany, customCommissionAmount, // 🆕 Empresa y comisión personalizada
+        customTerms, // T&C personalizados por presupuesto
+        deferredPayment // Cobro diferido: crear obra sin esperar pago inicial
       } = req.body;
 
       if (!permitId) throw new Error('permitId es requerido.');
@@ -500,6 +502,8 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         clientTotalPrice: finalTotalWithCommission,
         commissionAmount: commission, // Universal para ambos tipos
         commissionPaid: false,
+        customTerms: Array.isArray(customTerms) && customTerms.length > 0 ? customTerms : null,
+        deferredPayment: deferredPayment === true || deferredPayment === 'true',
       }, { transaction });
       newBudgetId = newBudget.idBudget;
       console.log(`Budget base creado con ID: ${newBudgetId}. Estado: ${status}`);
@@ -558,7 +562,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               'initialPayment', 'status', 'paymentInvoice', 'paymentProofType',
               'discountDescription', 'discountAmount', 'subtotalPrice', 'totalPrice',
               'generalNotes', 'pdfPath', 'PermitIdPermit', 'createdAt', 'updatedAt',
-              'initialPaymentPercentage'
+              'initialPaymentPercentage', 'customTerms'
             ],
             include: [
               { 
@@ -2142,7 +2146,8 @@ async getBudgets(req, res) {
         'requiresFollowUp', // ✅ Incluir para mostrar el estado de la campana en BudgetList
         'leadSource',
         'createdByStaffId',
-        'salesCommissionAmount'
+        'salesCommissionAmount',
+        'deferredPayment'
       ]
     });
 
@@ -2572,11 +2577,13 @@ async optionalDocs(req, res) {
         externalReferralEmail,
         externalReferralPhone,
         externalReferralCompany,
-        salesCommissionAmount
+        salesCommissionAmount,
+        customTerms,
+        deferredPayment
       } = req.body;
 
       // --- 3. Validaciones Preliminares ---
-      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || applicantEmail || applicantPhone || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentageInput !== undefined; // Corregido: initialPaymentPercentageInput
+      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || applicantEmail || applicantPhone || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentageInput !== undefined || customTerms !== undefined || deferredPayment !== undefined;
       const hasLineItemUpdates = lineItems && Array.isArray(lineItems);
 
       if (!hasGeneralUpdates && !hasLineItemUpdates) {
@@ -2598,6 +2605,11 @@ async optionalDocs(req, res) {
       // Manejar expirationDate: si no viene, no se cambia; si viene null/vacío, se pone null
       if (expirationDate !== undefined) generalUpdateData.expirationDate = expirationDate || null;
       if (status) generalUpdateData.status = status;
+      // Si se edita un budget aprobado sin comprobante de pago ni invoice asignado, resetear a 'created'
+      // No resetear si ya tiene invoiceNumber (obra ya creada via approveWithNoInitialPayment o pago regular)
+      if (budget.status === 'approved' && !budget.paymentInvoice && !budget.invoiceNumber && !status) {
+        generalUpdateData.status = 'created';
+      }
       if (applicantName) generalUpdateData.applicantName = applicantName;
       if (propertyAddress) generalUpdateData.propertyAddress = propertyAddress;
       if (contactCompany !== undefined) generalUpdateData.contactCompany = contactCompany; // 🆕 Guardar contacto
@@ -2605,7 +2617,13 @@ async optionalDocs(req, res) {
       // Asegurar que discountAmount sea numérico
       if (discountAmount !== undefined) generalUpdateData.discountAmount = parseFloat(discountAmount) || 0;
       if (generalNotes !== undefined) generalUpdateData.generalNotes = generalNotes;
-      
+      if (customTerms !== undefined) {
+        generalUpdateData.customTerms = Array.isArray(customTerms) && customTerms.length > 0 ? customTerms : null;
+      }
+      if (deferredPayment !== undefined) {
+        generalUpdateData.deferredPayment = deferredPayment === true || deferredPayment === 'true';
+      }
+
       // 🆕 Actualizar campos de comisiones
       if (leadSource !== undefined) generalUpdateData.leadSource = leadSource;
       if (createdByStaffId !== undefined) generalUpdateData.createdByStaffId = createdByStaffId || null;
@@ -2652,6 +2670,11 @@ async optionalDocs(req, res) {
           }
         }
         generalUpdateData.initialPaymentPercentage = actualPercentageForUpdate; // Añadir al objeto de actualización
+        // Recalculate initialPayment from the new percentage when line items are NOT being updated
+        if (!hasLineItemUpdates) {
+          const currentTotal = parseFloat(budget.totalPrice) || 0;
+          generalUpdateData.initialPayment = currentTotal * (actualPercentageForUpdate / 100);
+        }
         budgetDebugLog(`Porcentaje de pago inicial para actualizar: ${actualPercentageForUpdate}%`);
       }
 
@@ -2793,7 +2816,7 @@ async optionalDocs(req, res) {
       
       const finalTotal = calculatedSubtotal - finalDiscount + commission;
       // *** CORRECCIÓN: Usar el porcentaje actualizado en memoria para el cálculo ***
-      const percentageForCalculation = parseFloat(budget.initialPaymentPercentage) || 60; // Lee el valor ya actualizado (o el original si no se actualizó)
+      const percentageForCalculation = (budget.initialPaymentPercentage != null) ? parseFloat(budget.initialPaymentPercentage) : 60;
       const calculatedInitialPayment = finalTotal * (percentageForCalculation / 100);
       // *** FIN CORRECCIÓN ***
 
@@ -3105,6 +3128,7 @@ async optionalDocs(req, res) {
       } // --- Fin Lógica if (status === 'send') ---
 
       // --- 7b. Lógica si el estado es 'approved' ---
+      let workRecord = null; // Declarado aquí para que sea accesible después del bloque approved
       if (budget.status === "approved") {
         console.log("El estado es 'approved'. Procesando creación/actualización de Work/Income...");
 
@@ -3117,7 +3141,6 @@ async optionalDocs(req, res) {
           console.log(`Usando initialPayment calculado (${actualInitialPaymentAmount}) para Work/Income (paymentProofAmount no disponible o inválido).`);
         }
 
-        let workRecord;
         const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
 
         if (!existingWork) {
@@ -3426,13 +3449,15 @@ async optionalDocs(req, res) {
       }
 
       // ✅ VALIDAR: Estados permitidos para carga de comprobante de pago inicial
+      // 'approved' se permite cuando el budget fue creado sin pago inicial (pago diferido)
       const allowedStatesForPayment = [
         'created',
         'send',
         'sent_for_signature',
         'signed',
         'client_approved',
-        'pending_review'
+        'pending_review',
+        'approved'  // pago diferido: Work ya existe, se carga el comprobante después
       ];
 
       if (!allowedStatesForPayment.includes(budget.status)) {
@@ -3445,8 +3470,8 @@ async optionalDocs(req, res) {
           console.error("Error al eliminar archivo de Cloudinary:", e);
         }
         await transaction.rollback();
-        return res.status(400).json({ 
-          error: `No se puede cargar el comprobante de pago en el estado actual: "${budget.status}". Estados permitidos: ${allowedStatesForPayment.join(', ')}` 
+        return res.status(400).json({
+          error: `No se puede cargar el comprobante de pago en el estado actual: "${budget.status}". Estados permitidos: ${allowedStatesForPayment.join(', ')}`
         });
       }
       console.log(`✅ Estado del presupuesto válido para carga de pago: ${budget.status}`);
@@ -6916,6 +6941,111 @@ async optionalDocs(req, res) {
         error: 'Error al aprobar presupuesto manualmente',
         details: error.message
       });
+    }
+  },
+
+  /**
+   * 🆕 CREAR OBRA SIN PAGO INICIAL (PAGO DIFERIDO)
+   * Crea el Work directamente sin requerir comprobante de pago.
+   * El comprobante se puede cargar después cuando el cliente abone.
+   * RUTA: POST /api/budgets/:idBudget/approve-no-payment
+   * PERMISOS: admin, owner
+   */
+  async approveWithNoInitialPayment(req, res) {
+    const { createRoutedReminder } = require('../utils/createRoutedReminder');
+    const transaction = await conn.transaction();
+
+    try {
+      const { idBudget } = req.params;
+      console.log(`🏗️ Creando Obra sin pago inicial para Budget ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress', 'applicantEmail'] }],
+        transaction
+      });
+
+      if (!budget) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      const validStates = ['draft', 'created', 'pending_review', 'send', 'notResponded', 'client_approved', 'sent_for_signature', 'signed', 'approved'];
+      if (!validStates.includes(budget.status)) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: `No se puede crear la obra en estado "${budget.status}". Estados válidos: ${validStates.join(', ')}`
+        });
+      }
+
+      if (budget.paymentInvoice) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: 'Este presupuesto ya tiene un comprobante de pago cargado. Use el flujo normal de aprobación.'
+        });
+      }
+
+      const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
+      if (existingWork) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Ya existe una Obra asociada a este presupuesto.' });
+      }
+
+      const approvedByStaffId = req.user.id;
+      const approvedByStaff = await Staff.findByPk(approvedByStaffId, { attributes: ['id', 'name'] });
+
+      let invoiceNumber = budget.invoiceNumber;
+      if (!invoiceNumber) {
+        invoiceNumber = await getNextInvoiceNumber(transaction);
+      }
+
+      const workRecord = await Work.create({
+        propertyAddress: budget.propertyAddress || budget.Permit?.propertyAddress,
+        status: 'pending',
+        idBudget: budget.idBudget,
+        notes: `Obra creada sin pago inicial. Pago diferido aprobado por ${approvedByStaff?.name || 'admin'}. Budget #${invoiceNumber || idBudget}`,
+        initialPayment: 0,
+        staffId: approvedByStaffId
+      }, { transaction });
+
+      await budget.update({
+        status: 'approved',
+        invoiceNumber,
+        convertedToInvoiceAt: budget.convertedToInvoiceAt || new Date(),
+        manuallyApprovedBy: approvedByStaffId,
+        manuallyApprovedAt: new Date()
+      }, { transaction });
+
+      await transaction.commit();
+
+      console.log(`✅ Obra ${workRecord.idWork} creada sin pago inicial para Budget ${idBudget} (Invoice #${invoiceNumber})`);
+
+      // Generar Reminder de "cobrar pago inicial" para el responsable configurado
+      setImmediate(() => {
+        createRoutedReminder('deferred_initial_payment', {
+          idWork: workRecord.idWork,
+          propertyAddress: workRecord.propertyAddress,
+        }).catch(err => console.error('❌ Error creando reminder pago diferido:', err.message));
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Obra creada. El comprobante de pago puede cargarse cuando el cliente abone.`,
+        work: {
+          id: workRecord.idWork,
+          propertyAddress: workRecord.propertyAddress,
+          status: workRecord.status
+        },
+        budget: {
+          id: budget.idBudget,
+          status: 'approved',
+          invoiceNumber
+        }
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      console.error('❌ Error en aprobación sin pago:', error);
+      res.status(500).json({ error: 'Error al crear obra sin pago inicial', details: error.message });
     }
   },
 

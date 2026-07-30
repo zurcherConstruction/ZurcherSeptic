@@ -117,10 +117,20 @@ module.exports = (sequelize) => {
     allowNull: true, // O false si siempre debe tener un valor
     defaultValue: 60 // Opcional: poner un valor por defecto
   },
+  deferredPayment: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+    defaultValue: false,
+  },
   // Notas generales del presupuesto (opcional)
   generalNotes: {
       type: DataTypes.TEXT,
       allowNull: true,
+  },
+  customTerms: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: null,
   },
   pdfPath: {
     type: DataTypes.STRING,
