@@ -1425,7 +1425,10 @@ const getMonthlyChecklist = async (req, res) => {
     const monthEnd = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     const expenses = await FixedExpense.findAll({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        startDate: { [Op.lte]: monthEnd }
+      },
       order: [['category', 'ASC'], ['name', 'ASC']]
     });
 
@@ -1457,19 +1460,22 @@ const getMonthlyChecklist = async (req, res) => {
       let isPaidThisMonth;
 
       if (expensePayments.length > 0) {
+        // Hay pagos registrados con periodStart en este mes: es la fuente de verdad
         isPaidThisMonth = expense.variableAmount
           ? monthPaidAmount > 0
           : monthPaidAmount >= totalAmount - 0.01;
-      } else if (
-        isDueThisMonthOrBefore &&
-        (expense.paymentStatus === 'paid' || expense.paymentStatus === 'paid_via_credit_card')
-      ) {
-        monthPaidAmount = parseFloat(expense.paidAmount || 0);
-        isPaidThisMonth = true;
       } else {
+        // Sin pagos este mes = no pagado, sin importar el paymentStatus del registro
         monthPaidAmount = 0;
         isPaidThisMonth = false;
       }
+
+      // Gastos únicos (one_time) ya pagados no deben aparecer en el checklist mensual
+      if (
+        expense.frequency === 'one_time' &&
+        ['paid', 'paid_via_credit_card', 'paid_via_invoice'].includes(expense.paymentStatus) &&
+        monthPaidAmount === 0
+      ) return null;
 
       // Solo ocultar expenses no-periódicos que aún no vencen este mes y sin pago
       const showInChecklist = monthPaidAmount > 0 || isDueThisMonthOrBefore;
