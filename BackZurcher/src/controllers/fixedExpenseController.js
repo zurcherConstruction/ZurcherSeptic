@@ -676,20 +676,18 @@ const updateFixedExpense = async (req, res) => {
       delete updateData.category; // No permitir cambiar a vacío
     }
 
-    // Si cambia la frecuencia o fecha de inicio, recalcular nextDueDate
-    if (updateData.frequency || updateData.startDate) {
+    // Si cambia startDate o frequency, solo recalcular nextDueDate cuando el gasto
+    // todavía no tiene pagos registrados. Si ya tiene pagos, el nextDueDate lo avanza
+    // el flujo de pagos (payment controller) y no debe ser sobreescrito aquí.
+    if (updateData.startDate && fixedExpense.paymentStatus === 'unpaid' && !parseFloat(fixedExpense.paidAmount || 0)) {
       const newFrequency = updateData.frequency || fixedExpense.frequency;
-      let newStartDate = updateData.startDate || fixedExpense.startDate;
-      
-      // Solo recalcular si ambos valores son válidos
-      // Normalizar newStartDate en caso de que sea Date object de Sequelize
+      let newStartDate = updateData.startDate;
       if (newStartDate && newFrequency) {
         try {
           newStartDate = normalizeDateString(newStartDate);
           updateData.nextDueDate = calculateNextDueDate(newStartDate, newFrequency);
         } catch (error) {
           console.error('⚠️ Error recalculando nextDueDate:', error.message);
-          // No recalcular si hay error, mantener el valor anterior
         }
       }
     }

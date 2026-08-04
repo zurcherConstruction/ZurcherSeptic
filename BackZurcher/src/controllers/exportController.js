@@ -281,25 +281,40 @@ const exportFixedExpensesToExcel = async (req, res) => {
 
     console.log(`📊 [Export FixedExpenses] ${from} → ${toMonth} (${months.length} meses)`);
 
+    // Incluir activos E inactivos (para capturar pagos únicos ya cerrados)
     const expenses = await FixedExpense.findAll({
-      where: { isActive: true },
       order: [['category', 'ASC'], ['name', 'ASC']]
     });
 
+    // Incluir receiptUrl para mostrar comprobantes
     const payments = await FixedExpensePayment.findAll({
-      where: { periodStart: { [Op.between]: [rangeStart, rangeEnd] } },
+      where: {
+        [Op.or]: [
+          { periodStart: { [Op.between]: [rangeStart, rangeEnd] } },
+          { paymentDate: { [Op.between]: [rangeStart, rangeEnd] } }
+        ]
+      },
       order: [['periodStart', 'ASC'], ['paymentDate', 'ASC']]
     });
 
-    // Group payments by month → expenseId
+    // Group payments by month → expenseId (usando periodStart o paymentDate)
     const pmtMap = {};
+    const allPaymentRows = []; // para hoja de detalle individual
+
     payments.forEach(p => {
-      const m = p.periodStart.toString().slice(0, 7);
-      if (!pmtMap[m]) pmtMap[m] = {};
+      const dateKey = p.periodStart
+        ? p.periodStart.toString().slice(0, 7)
+        : p.paymentDate.toString().slice(0, 7);
+      if (!pmtMap[dateKey]) pmtMap[dateKey] = {};
       const eid = p.fixedExpenseId;
-      if (!pmtMap[m][eid]) pmtMap[m][eid] = [];
-      pmtMap[m][eid].push(p);
+      if (!pmtMap[dateKey][eid]) pmtMap[dateKey][eid] = [];
+      pmtMap[dateKey][eid].push(p);
+      allPaymentRows.push({ month: dateKey, payment: p });
     });
+
+    // Indexar expenses por id para la hoja de detalle
+    const expenseById = {};
+    expenses.forEach(e => { expenseById[e.idFixedExpense] = e; });
 
     const rows = [];
     const summaryByMonth = {};
@@ -323,6 +338,7 @@ const exportFixedExpensesToExcel = async (req, res) => {
         let isPaidThisMonth = false;
         let paymentDates = '';
         let paymentMethodLabel = '';
+        let receiptUrls = [];
 
         if (expPmts.length > 0) {
           isPaidThisMonth = expense.variableAmount
@@ -331,6 +347,7 @@ const exportFixedExpensesToExcel = async (req, res) => {
           paymentDates = expPmts.map(p => fmtDateShort(p.paymentDate)).join(', ');
           const methods = [...new Set(expPmts.map(p => p.paymentMethod).filter(Boolean))];
           paymentMethodLabel = methods.join(', ');
+          receiptUrls = expPmts.map(p => p.receiptUrl).filter(Boolean);
         } else if (
           isDueThisMonthOrBefore &&
           (expense.paymentStatus === 'paid' || expense.paymentStatus === 'paid_via_credit_card')
@@ -374,6 +391,7 @@ const exportFixedExpensesToExcel = async (req, res) => {
           paymentDates,
           account: expense.paymentAccount || '',
           notes: expense.notes || '',
+          receiptUrls, // array de URLs de comprobantes
         });
       }
 
@@ -385,7 +403,7 @@ const exportFixedExpensesToExcel = async (req, res) => {
     workbook.creator = 'ZurcherSeptic';
     workbook.created = new Date();
 
-    // Sheet 1: Detail
+    // Sheet 1: Detail (one row per expense per month)
     const ws = workbook.addWorksheet('Gastos Fijos');
     ws.columns = [
       { header: 'Período',          key: 'month',           width: 12 },
@@ -400,6 +418,7 @@ const exportFixedExpensesToExcel = async (req, res) => {
       { header: 'Fecha(s) de Pago', key: 'paymentDates',    width: 22 },
       { header: 'Cuenta/Banco',     key: 'account',         width: 18 },
       { header: 'Notas',            key: 'notes',           width: 32 },
+      { header: 'Comprobante(s)',   key: 'receipts',         width: 40 },
     ];
 
     const hRow = ws.getRow(1);
@@ -413,9 +432,23 @@ const exportFixedExpensesToExcel = async (req, res) => {
     });
 
     rows.forEach(r => {
-      const row = ws.addRow(r);
+      const row = ws.addRow({
+        ...r,
+        receipts: r.receiptUrls.length > 0 ? r.receiptUrls.join(' | ') : '',
+      });
       row.height = 18;
-      row.alignment = { vertical: 'middle' };
+      row.alignment = { vertical: 'middle', wrapText: false };
+
+      // Comprobante como hyperlink si hay uno solo
+      if (r.receiptUrls.length === 1) {
+        const cell = row.getCell('receipts');
+        cell.value = { text: 'Ver comprobante', hyperlink: r.receiptUrls[0] };
+        cell.font = { color: { argb: 'FF0563C1' }, underline: true };
+      } else if (r.receiptUrls.length > 1) {
+        const cell = row.getCell('receipts');
+        cell.value = r.receiptUrls.join(' | ');
+        cell.font = { color: { argb: 'FF0563C1' } };
+      }
 
       const statusCell = row.getCell('statusLabel');
       statusCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -441,9 +474,71 @@ const exportFixedExpensesToExcel = async (req, res) => {
     });
 
     ws.views = [{ state: 'frozen', ySplit: 1 }];
-    ws.autoFilter = { from: 'A1', to: 'L1' };
+    ws.autoFilter = { from: 'A1', to: 'M1' };
 
-    // Sheet 2: Summary
+    // Sheet 2: Detalle de Pagos (one row per individual payment with receipt)
+    const wsPmts = workbook.addWorksheet('Detalle Pagos');
+    wsPmts.columns = [
+      { header: 'Mes Período',       key: 'month',          width: 12 },
+      { header: 'Categoría',         key: 'category',       width: 24 },
+      { header: 'Nombre Gasto',      key: 'name',           width: 32 },
+      { header: 'Frecuencia',        key: 'frequency',      width: 14 },
+      { header: 'Fecha de Pago',     key: 'paymentDate',    width: 14 },
+      { header: 'Monto Pagado',      key: 'amount',         width: 14 },
+      { header: 'Método',            key: 'paymentMethod',  width: 20 },
+      { header: 'Período Cubierto',  key: 'period',         width: 24 },
+      { header: 'Notas Pago',        key: 'notes',          width: 28 },
+      { header: 'Comprobante',       key: 'receipt',        width: 40 },
+    ];
+
+    const ph = wsPmts.getRow(1);
+    ph.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    ph.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF154360' } };
+    ph.alignment = { vertical: 'middle', horizontal: 'center' };
+    ph.height = 22;
+    wsPmts.getColumn('amount').numFmt = '$#,##0.00';
+
+    allPaymentRows
+      .filter(({ month }) => months.includes(month))
+      .sort((a, b) => a.month.localeCompare(b.month) || a.payment.paymentDate.toString().localeCompare(b.payment.paymentDate.toString()))
+      .forEach(({ month, payment }) => {
+        const exp = expenseById[payment.fixedExpenseId];
+        if (!exp) return;
+        const periodStr = payment.periodStart && payment.periodEnd
+          ? `${fmtDateShort(payment.periodStart)} → ${fmtDateShort(payment.periodEnd)}`
+          : '';
+        const pRow = wsPmts.addRow({
+          month,
+          category: exp.category || '',
+          name: exp.name,
+          frequency: FREQ_LABELS[exp.frequency] || exp.frequency || '',
+          paymentDate: fmtDateShort(payment.paymentDate),
+          amount: parseFloat(payment.amount || 0),
+          paymentMethod: payment.paymentMethod || '',
+          period: periodStr,
+          notes: payment.notes || '',
+          receipt: payment.receiptUrl ? 'Ver comprobante' : '',
+        });
+        pRow.height = 18;
+        pRow.alignment = { vertical: 'middle' };
+
+        if (payment.receiptUrl) {
+          const cell = pRow.getCell('receipt');
+          cell.value = { text: 'Ver comprobante', hyperlink: payment.receiptUrl };
+          cell.font = { color: { argb: 'FF0563C1' }, underline: true };
+        }
+
+        if (pRow.number % 2 === 0) {
+          ['month','category','name','frequency','paymentDate','paymentMethod','period','notes'].forEach(k => {
+            pRow.getCell(k).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F7FA' } };
+          });
+        }
+      });
+
+    wsPmts.views = [{ state: 'frozen', ySplit: 1 }];
+    wsPmts.autoFilter = { from: 'A1', to: 'J1' };
+
+    // Sheet 3: Summary
     const wsSummary = workbook.addWorksheet('Resumen');
     wsSummary.columns = [
       { header: 'Período',          key: 'month',   width: 12 },
@@ -485,7 +580,7 @@ const exportFixedExpensesToExcel = async (req, res) => {
     await workbook.xlsx.write(res);
     res.end();
 
-    console.log(`✅ [Export FixedExpenses] ${rows.length} filas, ${months.length} meses`);
+    console.log(`✅ [Export FixedExpenses] ${rows.length} filas resumen, ${allPaymentRows.length} pagos individuales, ${months.length} meses`);
   } catch (error) {
     console.error('❌ [Export FixedExpenses] Error:', error);
     res.status(500).json({ error: 'Error al exportar gastos fijos', details: error.message });
