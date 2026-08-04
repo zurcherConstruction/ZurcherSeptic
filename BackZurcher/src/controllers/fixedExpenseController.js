@@ -1457,16 +1457,12 @@ const getMonthlyChecklist = async (req, res) => {
       let isPaidThisMonth;
 
       if (expensePayments.length > 0) {
+        // Hay pagos registrados con periodStart en este mes: es la fuente de verdad
         isPaidThisMonth = expense.variableAmount
           ? monthPaidAmount > 0
           : monthPaidAmount >= totalAmount - 0.01;
-      } else if (
-        isDueThisMonthOrBefore &&
-        (expense.paymentStatus === 'paid' || expense.paymentStatus === 'paid_via_credit_card')
-      ) {
-        monthPaidAmount = parseFloat(expense.paidAmount || 0);
-        isPaidThisMonth = true;
       } else {
+        // Sin pagos este mes = no pagado, sin importar el paymentStatus del registro
         monthPaidAmount = 0;
         isPaidThisMonth = false;
       }
