@@ -205,3 +205,4 @@ BackZurcher/contactcompany-update-log-*.json
 # 🔍 FrontZurcher - Debug and validation scripts (temporary utilities)
 FrontZurcher/debug-*.js
 FrontZurcher/validate-*.js
+BackZurcher/query-fe-temp.js
