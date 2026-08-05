@@ -505,10 +505,9 @@ const addPartialPayment = async (req, res) => {
 
     // 🆕 Si se pagó completamente (con banco o con tarjeta), calcular siguiente nextDueDate
     if (newPaymentStatus === 'paid' || newPaymentStatus === 'paid_via_credit_card') {
-      // 🔧 FIX: Solo resetear gastos recurrentes, NO bonos únicos
+      // Solo resetear gastos recurrentes (frecuencia distinta de one_time)
       const isRecurringExpense = fixedExpense.frequency &&
-        fixedExpense.frequency !== 'one_time' &&
-        !fixedExpense.name?.toLowerCase().includes('bono');
+        fixedExpense.frequency !== 'one_time';
 
       if (isRecurringExpense) {
         // 🔧 CRITICAL FIX: Calcular nextDueDate desde el período ACTUAL (nextDueDate), no desde hoy
@@ -1174,7 +1173,10 @@ async function getPendingPaymentPeriods(req, res) {
         // Verificar pagos del período
         const totalPaidForPeriod = paidPeriodMap.get(periodKey) || 0;
         const hasSomePayment = totalPaidForPeriod > 0;
-        const isFullyPaid = totalPaidForPeriod >= fixedExpense.totalAmount;
+        // Para variableAmount, cualquier pago cierra el período
+        const isFullyPaid = fixedExpense.variableAmount
+          ? hasSomePayment
+          : totalPaidForPeriod >= parseFloat(fixedExpense.totalAmount);
         
         // 🔧 LÓGICA MEJORADA: Considerar períodos históricos vs recientes
         // - Períodos HISTÓRICOS (>2 meses) con algún pago → Completos (monto histórico válido)
