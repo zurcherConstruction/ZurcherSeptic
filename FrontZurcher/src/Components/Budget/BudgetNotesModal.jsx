@@ -596,8 +596,8 @@ const BudgetNotesModal = ({ budget, onClose, onAlertsChange }) => {
                           </span>
                         ) : null}
                         
-                        {/* 🆕 Botón para completar recordatorio (solo si es para este usuario) */}
-                        {note.isReminderActive && note.reminderFor?.includes(userId) && (
+                        {/* Botón para completar recordatorio (cualquiera puede completarlo) */}
+                        {note.isReminderActive && (
                           <button
                             onClick={() => handleCompleteReminder(note.id)}
                             className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs font-semibold"
