@@ -762,6 +762,7 @@ const updateFixedExpense = async (req, res) => {
 const deleteFixedExpense = async (req, res) => {
   try {
     const { id } = req.params;
+    const { endDate } = req.query;
 
     const fixedExpense = await FixedExpense.findByPk(id);
 
@@ -769,10 +770,12 @@ const deleteFixedExpense = async (req, res) => {
       return res.status(404).json({ error: 'Gasto fijo no encontrado' });
     }
 
-    // 📝 Soft delete: Desactivar el gasto fijo
-    // ✅ Mantiene el histórico de expenses (pagos pasados)
-    // ✅ El gasto no genera nuevos gastos a futuro
-    await fixedExpense.update({ isActive: false });
+    const updateData = { isActive: false };
+    if (endDate) {
+      updateData.endDate = normalizeDateString(endDate);
+    }
+
+    await fixedExpense.update(updateData);
 
     res.status(200).json({
       message: 'Gasto fijo desactivado exitosamente. El histórico de pagos se conserva.',

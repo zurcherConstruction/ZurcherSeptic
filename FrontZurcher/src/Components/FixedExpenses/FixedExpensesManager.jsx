@@ -290,6 +290,8 @@ const FixedExpensesManager = () => {
   const [exportTo, setExportTo] = useState(getCurrentMonth);
   const [exportLoading, setExportLoading] = useState(false);
 
+  const [cancelModal, setCancelModal] = useState({ open: false, expenseId: null, expenseName: '', endDate: '' });
+
   useEffect(() => { dispatch(fetchStaff()); }, [dispatch]);
 
   const loadChecklist = useCallback(async () => {
@@ -487,11 +489,21 @@ const FixedExpensesManager = () => {
     }
   };
 
-  const handleDelete = async (expenseId) => {
-    if (!window.confirm('¿Desactivar este gasto fijo?\n\n✅ El histórico se conserva\n✅ Puedes reactivarlo después')) return;
+  const openCancelModal = (expense) => {
+    // Fecha por defecto: último día del mes anterior
+    const today = new Date();
+    const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    const defaultDate = lastDayPrevMonth.toISOString().split('T')[0];
+    setCancelModal({ open: true, expenseId: expense.idFixedExpense, expenseName: expense.name, endDate: defaultDate });
+  };
+
+  const handleCancelConfirm = async () => {
+    const { expenseId, endDate } = cancelModal;
     try {
-      await api.delete(`/fixed-expenses/${expenseId}`);
-      toast.success('Gasto fijo desactivado');
+      const params = endDate ? `?endDate=${endDate}` : '';
+      await api.delete(`/fixed-expenses/${expenseId}${params}`);
+      toast.success('Gasto fijo desactivado. El histórico queda guardado.');
+      setCancelModal({ open: false, expenseId: null, expenseName: '', endDate: '' });
       view === 'checklist' ? loadChecklist() : loadAllExpenses();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error desactivando gasto fijo');
@@ -727,9 +739,9 @@ const FixedExpensesManager = () => {
                               className="text-amber-600 hover:text-amber-800 text-xs font-medium flex items-center gap-1">
                               <PencilIcon className="h-3 w-3" /> Editar
                             </button>
-                            <button onClick={() => handleDelete(expense.idFixedExpense)}
+                            <button onClick={() => openCancelModal(expense)}
                               className="text-red-600 hover:text-red-800 text-xs font-medium flex items-center gap-1">
-                              <TrashIcon className="h-3 w-3" /> Eliminar
+                              <TrashIcon className="h-3 w-3" /> Cancelar
                             </button>
                           </div>
                         </td>
@@ -763,8 +775,8 @@ const FixedExpensesManager = () => {
                           className="flex-1 py-1.5 bg-blue-50 text-blue-600 rounded text-xs font-medium">Ver</button>
                         <button onClick={() => openEditModal(expense)}
                           className="flex-1 py-1.5 bg-amber-50 text-amber-600 rounded text-xs font-medium">Editar</button>
-                        <button onClick={() => handleDelete(expense.idFixedExpense)}
-                          className="flex-1 py-1.5 bg-red-50 text-red-600 rounded text-xs font-medium">Eliminar</button>
+                        <button onClick={() => openCancelModal(expense)}
+                          className="flex-1 py-1.5 bg-red-50 text-red-600 rounded text-xs font-medium">Cancelar</button>
                       </div>
                     </div>
                   ))}
@@ -1047,6 +1059,48 @@ const FixedExpensesManager = () => {
               submitLabel="Guardar Cambios"
               staffList={staffList}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal cancelación de gasto fijo */}
+      {cancelModal.open && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-1">Cancelar gasto fijo</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              <span className="font-medium text-gray-700">{cancelModal.expenseName}</span>
+            </p>
+
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ¿Hasta qué fecha se pagó?
+              </label>
+              <input
+                type="date"
+                value={cancelModal.endDate}
+                onChange={(e) => setCancelModal(m => ({ ...m, endDate: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-400 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Solo aparecerá en los meses anteriores a esta fecha. Si no sabés la fecha exacta, usá el último día del mes en que se pagó por última vez.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelModal({ open: false, expenseId: null, expenseName: '', endDate: '' })}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCancelConfirm}
+                className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium"
+              >
+                Desactivar gasto
+              </button>
+            </div>
           </div>
         </div>
       )}

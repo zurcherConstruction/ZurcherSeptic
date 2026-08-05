@@ -639,7 +639,6 @@ const AttachReceipt = () => {
             fixedExpenseId: fixedExpense.idFixedExpense, // 🔗 Vincular con el gasto fijo (campo correcto)
             ...(paymentMethod ? { paymentMethod } : {}),
             ...(paymentDetails ? { paymentDetails } : {}),
-            ...(fixedExpensePeriodMonth ? { periodMonth: parseInt(fixedExpensePeriodMonth, 10) } : {}),
           };
 
           console.log('📋 Creando expense para Gasto Fijo:', expenseData);
@@ -1774,7 +1773,7 @@ const AttachReceipt = () => {
             )}
 
             {/* Work Selection - Only show if not general transaction, type is selected, and no SimpleWork selected */}
-            {type && !isGeneralTransaction && !selectedSimpleWork && (
+            {type && !isGeneralTransaction && !selectedSimpleWork && type !== 'Gasto Flota' && type !== 'Gasto Fijo' && (
               <div>
                 <label htmlFor="work" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <BuildingOffice2Icon className="h-5 w-5 mr-2 text-blue-500" />
@@ -2017,7 +2016,7 @@ const AttachReceipt = () => {
             )}
 
             {/* 🆕 SimpleWork Selection - Alternativa a Work para gastos/ingresos, o al revés */}
-            {type && !isGeneralTransaction && !selectedWork && (
+            {type && !isGeneralTransaction && !selectedWork && type !== 'Gasto Flota' && type !== 'Gasto Fijo' && (
               <div>
                 <label htmlFor="simpleWork" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <DocumentTextIcon className="h-5 w-5 mr-2 text-orange-500" />

@@ -36,8 +36,9 @@ const Summary = () => {
     typeIncome: "",
     typeExpense: "",
     staffId: "",
-    verified: "", // 🆕 Filtro por verificación: "" (todos), "true" (verificados), "false" (no verificados)
-    paymentMethod: "", // 🆕 Filtro por método de pago (incluye "Stripe")
+    verified: "",
+    paymentMethod: "",
+    search: "",
   });
   const [movements, setMovements] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -386,7 +387,11 @@ const Summary = () => {
 
   // Eliminar movimiento
   const handleDelete = async (mov) => {
-    if (window.confirm("¿Seguro que deseas eliminar este movimiento?")) {
+    const isFixedExpensePayment = mov.movimiento === "Gasto" && mov.relatedFixedExpenseId;
+    const confirmMsg = isFixedExpensePayment
+      ? `¿Eliminar este pago de gasto fijo?\n\nEsto revertirá el monto pagado y eliminará el registro del período correspondiente.`
+      : "¿Seguro que deseas eliminar este movimiento?";
+    if (window.confirm(confirmMsg)) {
       try {
         console.log('🗑️ Eliminando movimiento:', mov); // DEBUG
         
@@ -435,7 +440,11 @@ const Summary = () => {
             console.log('🗑️ Eliminando expense sin comprobantes...'); // DEBUG
             const result = await expenseActions.delete(mov.idExpense);
             console.log('✅ Resultado eliminación:', result); // DEBUG
-            toast.success("Movimiento de gasto eliminado.");
+            toast.success(
+              mov.relatedFixedExpenseId
+                ? "Pago de gasto fijo eliminado y revertido correctamente."
+                : "Movimiento de gasto eliminado."
+            );
           }
         }
         
@@ -460,8 +469,10 @@ const Summary = () => {
       typeExpense: mov.typeExpense || "",
       fleetAssetId: mov.fleetAssetId || mov.fleetAssetInfo?.id || "",
       workId: mov.workId || "",
-      paymentMethod: mov.paymentMethod || "", // 🆕 Campo de método de pago
-      verified: mov.verified || false, // 🆕 Campo de verificación
+      paymentMethod: mov.paymentMethod || "",
+      verified: mov.verified || false,
+      periodStart: mov.periodStart ? mov.periodStart.toString().slice(0, 10) : "",
+      periodEnd: mov.periodEnd ? mov.periodEnd.toString().slice(0, 10) : "",
     });
     
     // Inicializar estados de comprobantes
@@ -571,16 +582,21 @@ const Summary = () => {
           verified: editData.verified, // 🆕 Incluir verificación
         });
       } else {
-        await expenseActions.update(mov.idExpense, {
+        const expensePayload = {
           amount: editData.amount,
           notes: editData.notes,
           date: editData.date,
           typeExpense: editData.typeExpense,
           workId: shouldShowWorkLinkField('Gasto', editData) ? (editData.workId || null) : undefined,
           fleetAssetId: editData.typeExpense === 'Gasto Flota' ? (editData.fleetAssetId || null) : null,
-          paymentMethod: editData.paymentMethod, // 🆕 Incluir método de pago
-          verified: editData.verified, // 🆕 Incluir verificación
-        });
+          paymentMethod: editData.paymentMethod,
+          verified: editData.verified,
+        };
+        if (mov.relatedFixedExpenseId) {
+          if (editData.periodStart) expensePayload.periodStart = editData.periodStart;
+          if (editData.periodEnd)   expensePayload.periodEnd   = editData.periodEnd;
+        }
+        await expenseActions.update(mov.idExpense, expensePayload);
       }
 
       // 2. Gestionar cambios en comprobantes
@@ -699,6 +715,12 @@ const Summary = () => {
     // 💳 Filtro por método de pago
     if (filters.paymentMethod && mov.paymentMethod !== filters.paymentMethod)
       return false;
+    // Filtro de texto libre — incluye nombre del gasto fijo
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const haystack = `${mov.paymentMethod || ''} ${mov.notes || ''} ${mov.typeExpense || ''} ${mov.typeIncome || ''} ${mov.fixedExpense?.name || ''}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     return true;
   });
 
@@ -878,6 +900,21 @@ const Summary = () => {
               </select>
             </div>
 
+            {/* Búsqueda libre — encuentra gastos fijos por nombre */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                🔍 Buscar
+              </label>
+              <input
+                type="text"
+                name="search"
+                value={filters.search}
+                onChange={handleChange}
+                placeholder="Nombre, notas, tipo..."
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
             <div className="col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-5 xl:col-span-6 flex gap-2">
               <button
                 type="submit"
@@ -896,8 +933,9 @@ const Summary = () => {
                     typeIncome: "",
                     typeExpense: "",
                     staffId: "",
-                    verified: "", // 🆕 Limpiar filtro de verificación
-                    paymentMethod: "", // 💳 Limpiar filtro de método de pago
+                    verified: "",
+                    paymentMethod: "",
+                    search: "",
                   });
                   fetchMovements();
                 }}
@@ -1033,7 +1071,15 @@ const Summary = () => {
                         </td>
                         <td className="px-2 py-2 text-xs text-gray-900">
                           <div className="max-w-[200px] space-y-0.5">
-                            {mov.notes && (
+                            {/* Gasto fijo: mostrar nombre prominente */}
+                            {mov.fixedExpense?.name && (
+                              <div className="flex items-center gap-1">
+                                <span className="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs font-semibold truncate block max-w-[190px]" title={mov.fixedExpense.name}>
+                                  📌 {mov.fixedExpense.name}
+                                </span>
+                              </div>
+                            )}
+                            {mov.notes && !mov.fixedExpense?.name && (
                               <div className="break-words line-clamp-1" title={mov.notes}>
                                 <span className="text-gray-900">{mov.notes}</span>
                               </div>
@@ -1050,7 +1096,7 @@ const Summary = () => {
                                 <span className="truncate">{mov.simpleWork.workNumber} - {mov.simpleWork.propertyAddress}</span>
                               </div>
                             )}
-                            {!mov.notes && !mov.work?.propertyAddress && !mov.simpleWork && (
+                            {!mov.fixedExpense?.name && !mov.notes && !mov.work?.propertyAddress && !mov.simpleWork && (
                               <span className="text-gray-400 italic text-xs">-</span>
                             )}
                           </div>
@@ -1328,6 +1374,38 @@ const Summary = () => {
                     Selecciona la cuenta o método con el que se recibió/pagó el dinero
                   </p>
                 </div>
+
+                {/* Período de pago — solo para gastos fijos */}
+                {editModal.movement.movimiento === "Gasto" && editModal.movement.relatedFixedExpenseId && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                      Gasto Fijo — Período pagado
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Inicio del período</label>
+                        <input
+                          type="date"
+                          value={editData.periodStart || ''}
+                          onChange={(e) => setEditData({ ...editData, periodStart: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Fin del período</label>
+                        <input
+                          type="date"
+                          value={editData.periodEnd || ''}
+                          onChange={(e) => setEditData({ ...editData, periodEnd: e.target.value })}
+                          className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-600">
+                      Cambiar el período actualiza el checklist de gastos fijos automáticamente.
+                    </p>
+                  </div>
+                )}
 
                 {/* 🆕 Campo de Verificación */}
                 <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-4">

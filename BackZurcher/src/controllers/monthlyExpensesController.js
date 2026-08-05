@@ -71,30 +71,23 @@ const getMonthlyExpenses = async (req, res) => {
     // La función shouldIncludeFixedExpenseInMonth se encarga de filtrar por mes específico
     const fixedExpensesQuery = await FixedExpense.findAll({
       where: {
-        // Traer gastos que:
-        // 1. Son activos Y vigentes en el año, O
-        // 2. Son inactivos pero fueron creados en el año (históricos/one-time)
+        // Deben haber comenzado antes de que termine el año
+        startDate: { [Op.lt]: `${currentYear + 1}-01-01` },
+        // No deben haber terminado antes de que empiece el año
         [Op.or]: [
+          { endDate: null },
+          { endDate: { [Op.gte]: `${currentYear}-01-01` } }
+        ],
+        // Activos SIEMPRE se muestran; inactivos SOLO si tienen endDate en el año
+        // (se cancelaron formalmente). Inactivos sin endDate no se proyectan.
+        [Op.or]: [
+          { isActive: true },
           {
-            // Gastos ACTIVOS vigentes
-            isActive: true,
-            [Op.or]: [
-              { endDate: null },
-              { endDate: { [Op.gte]: `${currentYear}-01-01` } }
-            ]
-          },
-          {
-            // Gastos INACTIVOS creados en el año consultado
-            // Incluye one_time eliminados, históricos, etc.
             isActive: false,
-            startDate: { [Op.gte]: `${currentYear}-01-01`, [Op.lt]: `${currentYear + 1}-01-01` }
-          },
-          {
-            // 🆕 Gastos ACTIVOS one_time que se crearon en el año consultado
-            // (para asegurar que los one-time activos también aparezcan)
-            isActive: true,
-            frequency: 'one_time',
-            startDate: { [Op.gte]: `${currentYear}-01-01`, [Op.lt]: `${currentYear + 1}-01-01` }
+            endDate: {
+              [Op.gte]: `${currentYear}-01-01`,
+              [Op.lte]: `${currentYear}-12-31`
+            }
           }
         ]
       },
