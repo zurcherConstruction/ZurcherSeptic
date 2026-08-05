@@ -1168,7 +1168,9 @@ const AttachReceipt = () => {
                     color: '#7f1d1d'
                   }}
                 >
-                  {expenseTypes.map((expenseType) => (
+                  {expenseTypes
+                    .filter(t => t !== 'Gasto Fijo' || ['owner', 'finance'].includes(staff?.role))
+                    .map((expenseType) => (
                     <option
                       key={expenseType}
                       value={expenseType}
