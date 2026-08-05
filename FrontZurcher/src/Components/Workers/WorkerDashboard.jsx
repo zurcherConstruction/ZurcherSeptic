@@ -21,12 +21,13 @@ const WorkerDashboard = () => {
   const [activeTab, setActiveTab] = useState('assigned'); // assigned, inProgress, completed
 
   useEffect(() => {
-    // Obtener el ID del staff actual para filtrar en el backend
     const staffId = authStaff?.idStaff || authStaff?.id;
-    
-    if (staffId) {
-      console.log(`🔍 WorkerDashboard: Fetching works for staffId: ${staffId}`);
-      // Filtrar por staffId en el backend, no en el cliente
+    const isCapataz = authStaff?.role === 'capataz';
+
+    if (isCapataz) {
+      // Capataz ve todos los trabajos asignados del equipo
+      dispatch(fetchWorks(1, 1000));
+    } else if (staffId) {
       dispatch(fetchWorks(1, 1000, { staffId }));
     } else {
       console.warn('⚠️ WorkerDashboard: No staffId found for current user');

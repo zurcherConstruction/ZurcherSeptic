@@ -417,6 +417,34 @@ const BarraLateral = () => {
           ],
         },
       ];
+    } else if (staff?.role === "capataz") {
+      return [
+        {
+          name: "Works Management",
+          icon: FaTasks,
+          color: "text-green-400",
+          items: [
+            { name: "Works", path: "/works", icon: FaTasks },
+            { name: "Mis Órdenes", path: "/worker", icon: FaClipboardList },
+            { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
+            { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt },
+            { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie },
+            { name: "Claims", path: "/claims", icon: FaExclamationTriangle },
+          ],
+        },
+        {
+          name: "Maintenance & Calendar",
+          icon: FaWrench,
+          color: "text-orange-400",
+          items: [
+            { name: "Maintenance", path: "/maintenance", icon: FaWrench },
+            { name: "Mis Visitas", path: "/worker/maintenance", icon: FaListUl },
+            { name: "Zones View Maintenance", path: "/maintenance/zones", icon: FaMapMarkedAlt },
+            { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+          ],
+        },
+      ];
     } else if (staff?.role === "sales_rep" || staff?.role === "recept") {
       // Sales Rep / Recept: Dashboard de ventas con presupuestos y works
       return [

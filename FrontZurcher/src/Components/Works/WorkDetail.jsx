@@ -479,6 +479,7 @@ const WorkDetail = () => {
   // ✅ Permissions based on user role (already declared at top)
   const canUploadImages = ['owner', 'admin', 'worker'].includes(userRole);
   const isViewOnly = userRole === 'finance'; // Finance role is view-only
+  const isCapataz = userRole === 'capataz'; // Capataz: solo ve Información e Imágenes
 
   const [showCreateCOModal, setShowCreateCOModal] = useState(false);
   const [showEditCOModal, setShowEditCOModal] = useState(false); // Estado para el modal de edición
@@ -1450,7 +1451,7 @@ const handleUploadInstalledImage = async () => {
             </div>
 
             {/* Tarjeta: Presupuesto */}
-            {work.budget && (
+            {work.budget && !isCapataz && (
               <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-blue-500">
                 <h2
                   className="text-lg md:text-xl font-semibold mb-4 cursor-pointer flex justify-between items-center"
@@ -1532,7 +1533,7 @@ const handleUploadInstalledImage = async () => {
             )}
 
             {/* --- 2. SECCIÓN DE COMPROBANTES ACTUALIZADA --- */}
-            {allReceipts && allReceipts.length > 0 && (
+            {allReceipts && allReceipts.length > 0 && !isCapataz && (
               <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-yellow-500">
                 <h2
                   className="text-lg md:text-xl font-semibold mb-4 cursor-pointer"
@@ -1593,7 +1594,7 @@ const handleUploadInstalledImage = async () => {
             )}
 
             {/* 🆕 SECCIÓN DE INVOICES VINCULADOS */}
-            {linkedInvoices && linkedInvoices.length > 0 && (
+            {linkedInvoices && linkedInvoices.length > 0 && !isCapataz && (
               <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-purple-500">
                 <h2
                   className="text-lg md:text-xl font-semibold mb-4 cursor-pointer flex items-center justify-between"
@@ -1728,7 +1729,7 @@ const handleUploadInstalledImage = async () => {
             )}
 
             {/* 🆕 SECCIÓN DE DOCUMENTOS FINALES (solo ATU) */}
-            {!hasPersistedSystemType ? (
+            {!isCapataz && (!hasPersistedSystemType ? (
               <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-amber-500">
                 <h2
                   className="text-lg md:text-xl font-semibold mb-2 cursor-pointer flex justify-between items-center"
@@ -1834,7 +1835,7 @@ const handleUploadInstalledImage = async () => {
                   </div>
                 )}
               </div>
-            )}
+            ))}
 
             {/* Tarjeta: Imágenes */}
             <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-yellow-500">              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 space-y-2 sm:space-y-0">
@@ -2074,7 +2075,7 @@ const handleUploadInstalledImage = async () => {
             </div>
 
             {/* Seguimiento de inspección rápida */}
-            {work && (
+            {work && !isCapataz && (
               <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500 p-6">
                 <button
                   type="button"
@@ -2934,7 +2935,7 @@ const handleUploadInstalledImage = async () => {
           </div>
 
           {/* Columna derecha: Tarjetas de gastos e ingresos */}
-          <div className="space-y-6">
+          {!isCapataz && <div className="space-y-6">
             {/* Notice to Owner & Lien Card */}
             {shouldShowNoticeToOwner && (
               <NoticeToOwnerCard 
@@ -3310,11 +3311,11 @@ const handleUploadInstalledImage = async () => {
                 )
               )}
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* --- SECCIÓN PARA FACTURA FINAL --- */}
-        {canShowFinalInvoiceSection && (
+        {canShowFinalInvoiceSection && !isCapataz && (
           <div className="mt-6 bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-purple-500">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
               <h2 className="text-xl font-semibold">Factura Final</h2>

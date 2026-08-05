@@ -28,7 +28,7 @@ const PendingWorks = () => {
   const userRole = authStaff?.role || '';
   
   // ✅ Solo owner y recept pueden editar, admin solo ve
-  const canEdit = userRole === 'owner' || userRole === 'recept';
+  const canEdit = userRole === 'owner' || userRole === 'recept' || userRole === 'capataz';
   const isReadOnly = !canEdit;
 
   const [selectedWork, setSelectedWork] = useState(null);

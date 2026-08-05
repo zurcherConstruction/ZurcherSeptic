@@ -23,7 +23,7 @@ router.get('/types', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finan
 router.get('/my', verifyToken, allowRoles(['worker', 'maintenance', 'admin', 'owner']), getMyExpenses);
 
 // 🆕 Ruta para crear gasto general con recibo (workers)
-router.post('/general', verifyToken, allowRoles(['worker', 'admin', 'owner']), upload.single('receipt'), createGeneralExpenseWithReceipt);
+router.post('/general', verifyToken, allowRoles(['worker', 'admin', 'owner', 'capataz']), upload.single('receipt'), createGeneralExpenseWithReceipt);
 
 // 🆕 Ruta para obtener gastos no pagados (para vincular con invoices)
 router.get('/unpaid', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'finance-viewer']), getUnpaidExpenses);

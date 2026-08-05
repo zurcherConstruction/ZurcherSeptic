@@ -78,23 +78,20 @@ const WorkerWorkUpload = () => {
 
   // Obtener el ID del staff
   const staffId = authStaff?.idStaff || authStaff?.id;
+  const isCapataz = authStaff?.role === 'capataz';
 
   // Verificar permisos (solo cuando currentWork esté completamente cargado)
   useEffect(() => {
-    // Solo verificar si currentWork tiene datos completos
+    // Capataz puede ver cualquier trabajo
+    if (isCapataz) return;
+
     if (currentWork && currentWork.idWork) {
-      console.log('🔍 Verificando permisos:', {
-        workStaffId: currentWork.staffId,
-        authStaffId: staffId,
-        match: currentWork.staffId === staffId
-      });
-      
       if (currentWork.staffId !== staffId) {
         toast.error('No tienes permiso para ver este trabajo');
         navigate('/worker');
       }
     }
-  }, [currentWork?.idWork, currentWork?.staffId, staffId, navigate]);
+  }, [currentWork?.idWork, currentWork?.staffId, staffId, isCapataz, navigate]);
 
   // Organizar imágenes por etapa cuando se carga el trabajo
   useEffect(() => {
