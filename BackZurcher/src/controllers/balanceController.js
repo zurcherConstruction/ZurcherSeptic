@@ -1,4 +1,4 @@
-const { Income, Expense, Receipt, Staff, Work, Budget, FinalInvoice, SimpleWork } = require('../data');
+const { Income, Expense, Receipt, Staff, Work, Budget, FinalInvoice, SimpleWork, FixedExpense } = require('../data');
 const { Sequelize, Op, literal } = require('sequelize');
 
 const getIncomesAndExpensesByWorkId = async (req, res) => {
@@ -184,111 +184,73 @@ const getGeneralBalance = async (req, res) => {
     if (typeExpense) expenseWhere.typeExpense = typeExpense;
     if (staffId) expenseWhere.staffId = staffId;
 
-    // Obtener ingresos con Staff, Work, Budget y SimpleWork
-    const allIncomes = await Income.findAll({
-      where: incomeWhere,
-      order: [['date', 'DESC']],
-      include: [
-        {
-          model: Staff,
-          as: 'Staff',
-          attributes: ['id', 'name', 'email'],
-          required: false
-        },
-        {
-          model: Work,
-          as: 'work',
-          attributes: ['idWork', 'propertyAddress'],
-          required: false,
-          include: [
-            {
-              model: Budget,
-              as: 'budget',
-              attributes: ['idBudget', 'paymentInvoice', 'paymentProofType', 'paymentProofAmount']
-            },
-            {
-              model: FinalInvoice,
-              as: 'finalInvoice',
-              required: false,
-              attributes: ['id', 'status', 'finalAmountDue']
-            }
-          ]
-        },
-        {
-          model: SimpleWork,
-          as: 'simpleWork',
-          attributes: ['id', 'workNumber', 'propertyAddress', 'workType'],
-          required: false
-        }
-      ]
-    });
+    const needsIncomes = type === 'income' || !type;
+    const needsExpenses = type === 'expense' || !type;
 
-    // Obtener gastos con Staff, Work y SimpleWork
-    const allExpenses = await Expense.findAll({
-      where: expenseWhere,
-      order: [['date', 'DESC']],
-      include: [
-        {
-          model: Staff,
-          as: 'Staff',
-          attributes: ['id', 'name', 'email'],
-          required: false
-        },
-        {
-          model: Work,
-          as: 'work',
-          attributes: ['idWork', 'propertyAddress'],
-          required: false
-        },
-        {
-          model: SimpleWork,
-          as: 'simpleWork',
-          attributes: ['id', 'workNumber', 'propertyAddress', 'workType'],
-          required: false
-        }
-      ]
-    });
+    // Ejecutar las dos queries principales EN PARALELO, omitiendo la que no se necesita
+    const [allIncomes, allExpenses] = await Promise.all([
+      needsIncomes
+        ? Income.findAll({
+            where: incomeWhere,
+            order: [['date', 'DESC']],
+            include: [
+              { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'], required: false },
+              {
+                model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'], required: false,
+                include: [
+                  { model: Budget, as: 'budget', attributes: ['idBudget', 'paymentInvoice', 'paymentProofType', 'paymentProofAmount'] },
+                  { model: FinalInvoice, as: 'finalInvoice', required: false, attributes: ['id', 'status', 'finalAmountDue'] }
+                ]
+              },
+              { model: SimpleWork, as: 'simpleWork', attributes: ['id', 'workNumber', 'propertyAddress', 'workType'], required: false }
+            ]
+          })
+        : Promise.resolve([]),
+      needsExpenses
+        ? Expense.findAll({
+            where: expenseWhere,
+            order: [['date', 'DESC']],
+            include: [
+              { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'], required: false },
+              { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'], required: false },
+              { model: SimpleWork, as: 'simpleWork', attributes: ['id', 'workNumber', 'propertyAddress', 'workType'], required: false },
+              { model: FixedExpense, as: 'fixedExpense', attributes: ['idFixedExpense', 'name', 'category', 'frequency'], required: false }
+            ]
+          })
+        : Promise.resolve([])
+    ]);
 
-    // 📊 Filtrar gastos duplicados
-    // ⚠️ NO excluir gastos con relatedFixedExpenseId - son gastos reales de tarjeta
-    // Solo excluir comisiones y otros gastos que no son transacciones reales
-    const nonDuplicatedExpenses = allExpenses.filter(exp => {
-      // No hay necesidad de filtrar por ahora - todos son gastos reales
-      return true;
-    });
+    const nonDuplicatedExpenses = allExpenses;
 
-    // Obtener receipts de Income
-    const incomeIds = allIncomes.map(income => income.idIncome);
-    const incomeReceipts = await Receipt.findAll({
-      where: {
-        relatedModel: 'Income',
-        relatedId: {
-          [Op.in]: incomeIds.map(id => id.toString())
-        }
-      },
-      attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
-    });
+    // IDs para las queries de receipts
+    const incomeIds    = allIncomes.map(i => i.idIncome.toString());
+    const expenseIds   = nonDuplicatedExpenses.map(e => e.idExpense.toString());
+    const finalInvIds  = allIncomes
+      .map(i => i.work?.finalInvoice?.id)
+      .filter(Boolean)
+      .map(String);
 
-    // AGREGAR: Obtener receipts de FinalInvoice para pagos finales
-    const workIds = allIncomes.map(income => income.workId).filter(Boolean);
-    const finalInvoiceReceipts = await Receipt.findAll({
-      where: {
-        relatedModel: 'FinalInvoice'
-      },
-      attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
-    });
-
-    // Obtener receipts de Expense (usar expenses no duplicados)
-    const expenseIds = nonDuplicatedExpenses.map(expense => expense.idExpense);
-    const expenseReceipts = await Receipt.findAll({
-      where: {
-        relatedModel: 'Expense',
-        relatedId: {
-          [Op.in]: expenseIds.map(id => id.toString())
-        }
-      },
-      attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
-    });
+    // Ejecutar las tres queries de receipts EN PARALELO
+    const [incomeReceipts, finalInvoiceReceipts, expenseReceipts] = await Promise.all([
+      incomeIds.length
+        ? Receipt.findAll({
+            where: { relatedModel: 'Income', relatedId: { [Op.in]: incomeIds } },
+            attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
+          })
+        : Promise.resolve([]),
+      finalInvIds.length
+        ? Receipt.findAll({
+            where: { relatedModel: 'FinalInvoice', relatedId: { [Op.in]: finalInvIds } },
+            attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
+          })
+        : Promise.resolve([]),
+      expenseIds.length
+        ? Receipt.findAll({
+            where: { relatedModel: 'Expense', relatedId: { [Op.in]: expenseIds } },
+            attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
+          })
+        : Promise.resolve([])
+    ]);
 
     // Asociar receipts a incomes manualmente + comprobantes de Budget y FinalInvoice
     const incomesWithReceipts = allIncomes.map(income => {

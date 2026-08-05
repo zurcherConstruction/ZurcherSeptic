@@ -510,7 +510,7 @@ const getExpenseById = async (req, res) => {
 // Actualizar un gasto
 const updateExpense = async (req, res) => {
   const { id } = req.params;
-  let { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified, fleetAssetId } = req.body; // Agregar paymentDetails
+  let { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified, fleetAssetId, periodStart, periodEnd } = req.body;
   
   // ✅ Normalizar fecha si se proporciona
   if (date) {
@@ -692,12 +692,23 @@ const updateExpense = async (req, res) => {
         });
 
         if (paymentRecord) {
-          await paymentRecord.update({
+          const paymentUpdate = {
             amount: parseFloat(next.amount || 0),
             paymentDate: next.date || paymentRecord.paymentDate,
             paymentMethod: next.paymentMethod || paymentRecord.paymentMethod,
             notes: next.notes || paymentRecord.notes,
-          }, { transaction: dbTransaction });
+          };
+          if (periodStart) paymentUpdate.periodStart = periodStart;
+          if (periodEnd)   paymentUpdate.periodEnd   = periodEnd;
+          await paymentRecord.update(paymentUpdate, { transaction: dbTransaction });
+
+          // Sincronizar periodStart/periodEnd también en el Expense
+          if (periodStart || periodEnd) {
+            const expenseUpdate = {};
+            if (periodStart) expenseUpdate.periodStart = periodStart;
+            if (periodEnd)   expenseUpdate.periodEnd   = periodEnd;
+            await expense.update(expenseUpdate, { transaction: dbTransaction });
+          }
         }
       }
     }
