@@ -28,7 +28,7 @@ const invalidateWorkCache = (req, res, next) => {
 router.get(
   '/maintenance-overview', // O la ruta que prefieras, ej. '/status/maintenance/overview'
   verifyToken, // Tu middleware de autenticación
-  allowRoles(['admin', 'owner', 'worker', 'maintenance']), // Ajusta los roles según quién puede ver esta lista
+  allowRoles(['admin', 'owner', 'worker', 'maintenance', 'capataz']),
   WorkController.getMaintenanceOverviewWorks
 );
 
@@ -36,7 +36,7 @@ router.get(
 router.get(
   '/maintenance',
   verifyToken,
-  allowRoles(['admin', 'owner', 'worker', 'maintenance']),
+  allowRoles(['admin', 'owner', 'worker', 'maintenance', 'capataz']),
   cacheMiddleware(20),
   WorkController.getWorksInMaintenance
 );
@@ -44,16 +44,16 @@ router.get(
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.createWork);
 router.get('/assigned', verifyToken, allowRoles(['owner', 'worker', 'maintenance']), WorkController.getAssignedWorks);
 // Obtener todas las obras - CON CACHÉ de 15 segundos (alta carga)
-router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), cacheMiddleware(15), WorkController.getWorks);
+router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance', 'capataz']), cacheMiddleware(15), WorkController.getWorks);
 
 // Obtener una obra por ID  - CON CACHÉ de 30 segundos
-router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), cacheMiddleware(30), WorkController.getWorkById);
+router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance', 'capataz']), cacheMiddleware(30), WorkController.getWorkById);
 
 // 🆕 Obtener información del portal de cliente para un work
 router.get('/:workId/portal-info', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.getWorkPortalInfo);
 
 // Actualizar una obra (solo administradores)
-router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance']), invalidateWorkCache, WorkController.updateWork);
+router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'capataz']), invalidateWorkCache, WorkController.updateWork);
 
 // Eliminar una obra (solo administradores)
 router.delete('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), invalidateWorkCache, WorkController.deleteWork);
@@ -66,16 +66,16 @@ router.put('/:idWork/invoice', verifyToken, allowRoles(['admin', 'recept', 'owne
 // Ruta para agregar imágenes a un trabajo
 router.post('/:idWork/images',
     verifyToken,
-    allowRoles(['owner','worker']),
+    allowRoles(['owner','worker', 'capataz']),
     upload.single('imageFile'),
     invalidateWorkCache,
     WorkController.addImagesToWork
   );
 
-router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), invalidateWorkCache, WorkController.deleteImagesFromWork);
+router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker', 'capataz']), invalidateWorkCache, WorkController.deleteImagesFromWork);
 
 // ✅ Obtener imágenes de una obra específica (para mobile app)
-router.get('/:idWork/images', verifyToken, allowRoles(['owner', 'worker', 'admin', 'finance', 'recept']), WorkController.getWorkImages);
+router.get('/:idWork/images', verifyToken, allowRoles(['owner', 'worker', 'admin', 'finance', 'recept', 'capataz']), WorkController.getWorkImages);
 
 // Actualizar Notice to Owner y Lien
 router.put('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner', 'finance', 'recept']), invalidateWorkCache, WorkController.updateNoticeToOwner);
