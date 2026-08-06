@@ -102,8 +102,8 @@ const LoginScreen = ({ navigation }) => {
       console.log(`Login exitoso. Staff ID: ${staff?.id}, Rol: ${staff?.role}`);
       if (staff?.role === "owner") {
         navigation.replace("OwnerDrawer");
-      } else if (staff?.role === "worker") {
-        navigation.replace("PendingWorks");
+      } else if (staff?.role === "worker" || staff?.role === "maintenance" || staff?.role === "capataz") {
+        navigation.replace("AppDrawer");
       } else {
         console.log("Rol desconocido, no se realiza redirección");
       }

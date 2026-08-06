@@ -62,7 +62,7 @@ const AppDrawerNavigator = () => {
 
   // ✅ VALIDACIÓN DE SEGURIDAD: Si el rol no es permitido, cerrar sesión
   useEffect(() => {
-    const allowedRoles = ['worker', 'maintenance'];
+    const allowedRoles = ['worker', 'maintenance', 'capataz'];
     if (staff && !allowedRoles.includes(staff.role)) {
       Alert.alert(
         'Acceso No Permitido',
@@ -305,6 +305,68 @@ const AppDrawerNavigator = () => {
                 <Ionicons name="alert-circle-outline" color={color} size={size} />
               ),
             }} 
+          />
+        </>
+      )}
+
+      {/* --- Capataz --- */}
+      {staff?.role === 'capataz' && (
+        <>
+          <Drawer.Screen
+            name="MyAssignedWorks"
+            options={{
+              title: 'Todos los Trabajos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="hammer-outline" color={color} size={size} />
+              ),
+            }}
+          >
+            {(props) => <AssignedWorksScreen {...props} />}
+          </Drawer.Screen>
+
+          <Drawer.Screen
+            name="MaintenanceList"
+            component={MaintenanceList}
+            options={{
+              title: 'Mis Mantenimientos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="clipboard-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
+            name="MyClaims"
+            component={AssignedClaimsScreen}
+            options={{
+              headerShown: false,
+              title: 'Mis Reclamos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="alert-circle-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
+            name="GeneralExpense"
+            component={GeneralExpenseScreen}
+            options={{
+              title: 'Gastos Generales',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="receipt-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
+            name="WorkZoneMap"
+            component={WorkZoneMapScreen}
+            options={{
+              title: 'Mapa de Zonas',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="map-outline" color={color} size={size} />
+              ),
+            }}
           />
         </>
       )}

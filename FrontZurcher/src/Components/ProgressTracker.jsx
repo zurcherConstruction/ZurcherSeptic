@@ -21,6 +21,7 @@ const ProgressTracker = () => {
   const dispatch = useDispatch();
   const { works, loading, error } = useSelector((state) => state.work);
   const token = useSelector((state) => state.auth.token); // 🆕 Token para export
+  const { currentStaff } = useSelector((state) => state.auth);
   const [search, setSearch] = useState("");
   const [filteredData, setFilteredData] = useState([]);
   const hasFetched = useRef(false); // 🆕 Prevenir fetch duplicado
@@ -206,13 +207,15 @@ const ProgressTracker = () => {
           onChange={handleSearch}
           className="flex-1 border border-gray-300 p-2 md:p-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         />
-        <button
-          onClick={() => setShowExportModal(true)}
-          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-md font-medium transition-colors flex items-center gap-2"
-        >
-          <FaFileExcel className="text-xl" />
-          <span className="hidden md:inline">Exportar Excel</span>
-        </button>
+        {currentStaff?.role !== 'capataz' && (
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-md font-medium transition-colors flex items-center gap-2"
+          >
+            <FaFileExcel className="text-xl" />
+            <span className="hidden md:inline">Exportar Excel</span>
+          </button>
+        )}
       </div>
 
       {/* 🆕 Modal de opciones de exportación */}

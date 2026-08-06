@@ -38,7 +38,6 @@ const MaintenanceListScreen = ({ navigation }) => {
     }
   }, [staffId]);
 
-  // 🔄 Auto-refresh al volver de MaintenanceFormScreen
   useFocusEffect(
     useCallback(() => {
       if (staffId) {
