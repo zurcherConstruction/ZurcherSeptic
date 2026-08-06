@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zurcher Construction",
     "slug": "WorkTrackerMovil",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
@@ -56,16 +56,29 @@
     "web": {
       "bundler": "metro"
     },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableJetifier": true
+          }
+        }
+      ]
+    ],
     "extra": {
       "eas": {
-        "projectId": "12f004e9-48c9-4c45-b2b8-d68a1228bcdf"
+        "projectId": "ceaf3686-852f-40d4-b136-a83ed1874ab5"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ceaf3686-852f-40d4-b136-a83ed1874ab5",
+      "enabled": true,
+      "fallbackToCacheTimeout": 0
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "updates": {
-      "url": "https://u.expo.dev/12f004e9-48c9-4c45-b2b8-d68a1228bcdf"
-    }
+    "owner": "yanina"
   }
 }

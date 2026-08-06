@@ -6,6 +6,25 @@ import {
 } from '../features/claimSlice';
 
 /**
+ * Fetch ALL Claims (for capataz role)
+ */
+export const fetchAllClaims = () => async (dispatch) => {
+  dispatch(fetchClaimsRequest());
+  try {
+    const response = await api.get('/claims');
+    const claims = response.data.claims || response.data || [];
+    dispatch(fetchClaimsSuccess(claims));
+    return claims;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Error al obtener reclamos';
+    dispatch(fetchClaimsFailure(errorMessage));
+    if (__DEV__) {
+      console.error('❌ fetchAllClaims error:', errorMessage);
+    }
+  }
+};
+
+/**
  * Fetch Claims assigned to the authenticated staff member
  */
 export const fetchAssignedClaims = () => async (dispatch) => {

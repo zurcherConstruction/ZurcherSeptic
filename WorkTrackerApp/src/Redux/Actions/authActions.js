@@ -13,7 +13,7 @@ export const login = (email, password) => async (dispatch) => {
     const { token, staff } = response.data.data;
 
     // ✅ VALIDAR QUE EL ROL SEA PERMITIDO EN LA APP MÓVIL
-    const allowedRoles = ['worker', 'maintenance'];
+    const allowedRoles = ['worker', 'maintenance', 'capataz'];
     if (!allowedRoles.includes(staff.role)) {
       dispatch(loginFailure('Acceso no permitido'));
       Alert.alert(
@@ -82,7 +82,7 @@ export const restoreSession = () => async (dispatch) => {
         }
         
         // ✅ VALIDAR QUE EL ROL SEA PERMITIDO
-        const allowedRoles = ['worker', 'maintenance'];
+        const allowedRoles = ['worker', 'maintenance', 'capataz'];
         if (!allowedRoles.includes(staff.role)) {
           if (__DEV__) {
             console.log('⚠️ Rol no permitido en app móvil:', staff.role);

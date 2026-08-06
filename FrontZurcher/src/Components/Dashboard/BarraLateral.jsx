@@ -419,29 +419,49 @@ const BarraLateral = () => {
       ];
     } else if (staff?.role === "capataz") {
       return [
-        {
-          name: "Works Management",
+          {
+          name: "Trabajos de campo",
           icon: FaTasks,
-          color: "text-green-400",
+          color: "text-blue-400",
           items: [
-            { name: "Works", path: "/works", icon: FaTasks },
-            { name: "Mis Órdenes", path: "/worker", icon: FaClipboardList },
-            { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
-            { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
-            { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt },
-            { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie },
-            { name: "Claims", path: "/claims", icon: FaExclamationTriangle },
+            { name: "Trabajos pendientes", path: "/worker", icon: FaTasks },
+            { name: "Mis Mantenimientos", path: "/worker/maintenance", icon: FaWrench },
+            { name: "Reclamos", path: "/claims", icon: FaExclamationTriangle },
+           
+            { name: "Progreso ", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Zona de Mapas", path: "/work-zone-map", icon: FaMapMarkedAlt },
+            { name: "Instalaciones Mensuales", path: "/monthly-installations", icon: FaChartPie },
+            { name: "Trabajos", path: "/works", icon: FaTasks },
+           
           ],
         },
         {
-          name: "Maintenance & Calendar",
-          icon: FaWrench,
+          name: "Recordatorios",
+          icon: FaClipboardList,
+          color: "text-green-400",
+          items: [
+             { name: "Tablero de Tareas", path: "/reminders-board", icon: FaClipboardList },
+       
+           
+          ],
+        },
+      
+            {
+          name: "Calendario ",
+          icon: FaCalendarAlt,
           color: "text-orange-400",
           items: [
-            { name: "Maintenance", path: "/maintenance", icon: FaWrench },
-            { name: "Mis Visitas", path: "/worker/maintenance", icon: FaListUl },
-            { name: "Zones View Maintenance", path: "/maintenance/zones", icon: FaMapMarkedAlt },
-            { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+          
+            { name: "Asignar Trabajos", path: "/workCalendar", icon: FaCalendarAlt },
+          ],
+        },
+        {
+          name: "Gastos",
+          icon: FaMoneyBillWave,
+          color: "text-orange-400",
+          items: [
+          
+             { name: "Gastos Generales", path: "/worker/general-expense", icon: FaMoneyBillWave },
           ],
         },
       ];

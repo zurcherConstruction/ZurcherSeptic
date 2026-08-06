@@ -45,15 +45,17 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
     console.log("WorksListScreen - Total works:", works?.length || 0);
   }
   
+  const isCapataz = staff?.role === 'capataz';
+
   useEffect(() => {
-    if (staffId) {
-      console.log(`📋 AssignedWorksScreen: Fetching works for staffId: ${staffId}`);
-      // 🎯 USAR fetchWorks con filtro por staffId, no fetchAssignedWorks
+    if (isCapataz) {
+      dispatch(fetchWorks()); // capataz ve todos los trabajos
+    } else if (staffId) {
       dispatch(fetchWorks(staffId));
     } else {
       console.warn('⚠️ AssignedWorksScreen: No staffId found for current staff');
     }
-  }, [dispatch, staffId]);
+  }, [dispatch, staffId, isCapataz]);
 
   const filteredWorks = useMemo(() => {
     if (!works) return [];

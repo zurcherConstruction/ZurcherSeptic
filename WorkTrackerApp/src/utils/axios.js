@@ -5,7 +5,7 @@ import { logout } from '../Redux/features/authSlice';
 
 // 🔧 URL base centralizada - cambiar IP aquí cuando cambie la red
 export const API_URL = __DEV__ 
-  ? 'http://192.168.1.9:3001' // Desarrollo local
+  ? 'http://192.168.1.8:3001' // Desarrollo local192.168.1.8
   : 'https://zurcherapi.up.railway.app'; // Producción
 
 // Crear instancia de Axios con la URL base
