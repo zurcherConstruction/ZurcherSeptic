@@ -387,6 +387,7 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
   const [loading, setLoading]       = useState(true);
   const [newComment, setNewComment] = useState('');
   const [commenting,     setCommenting]     = useState(false);
+  const commentsEndRef = useRef(null);
   const [completing,     setCompleting]     = useState(false);
   const [deleting,       setDeleting]       = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
@@ -419,6 +420,12 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
   }, [reminderId, onClose, onRefresh]);
 
   useEffect(() => { fetchDetail(); }, [fetchDetail]);
+
+  useEffect(() => {
+    if (detail?.comments?.length) {
+      commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [detail?.comments]);
 
   if (loading) return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -888,7 +895,7 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                 <div className="space-y-2.5 mb-4 max-h-44 overflow-y-auto">
                   {(detail.comments || []).length === 0 ? (
                     <p className="text-xs text-slate-400 italic">Sin comentarios aún</p>
-                  ) : detail.comments.map(c => (
+                  ) : [...detail.comments].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)).map(c => (
                     <div key={c.id} className="flex gap-2.5">
                       <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${avatarColor(c.author?.name || '')} flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5`}>
                         {c.author?.name?.charAt(0).toUpperCase() || '?'}
@@ -902,6 +909,7 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                       </div>
                     </div>
                   ))}
+                  <div ref={commentsEndRef} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <div className={`w-6 h-6 rounded-full bg-gradient-to-br ${avatarColor(currentStaff?.name || '')} flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0`}>
@@ -932,16 +940,18 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
 
 function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, toggling, deleting, onOpenDetail }) {
   const { assignment } = reminder;
-  const done    = assignment?.completed;
-  const overdue = isOverdue(reminder.dueDate, done);
-  const pCfg    = PRIORITY[reminder.priority] || PRIORITY.medium;
+  const done      = assignment?.completed;
+  const overdue   = isOverdue(reminder.dueDate, done);
+  const isSystem  = reminder.type === 'system';
+  const pCfg      = PRIORITY[reminder.priority] || PRIORITY.medium;
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div
       className={`flex items-center gap-2.5 px-3 py-3 rounded-xl border transition-all group cursor-pointer hover:shadow-sm ${
-        done    ? 'bg-slate-50 border-slate-100 opacity-55'
+        done      ? 'bg-slate-50 border-slate-100 opacity-55'
         : overdue ? 'bg-red-50 border-red-200'
+        : isSystem ? 'bg-sky-50 border-sky-200 hover:border-sky-300'
         : 'bg-white border-slate-150 hover:border-slate-200'
       }`}
       onClick={onOpenDetail}
@@ -978,7 +988,14 @@ function ReminderRow({ reminder, onToggle, onDelete, isOwner, currentStaffId, to
           </span>
 
           {/* Creador */}
-          {reminder.creator?.name && (
+          {isSystem ? (
+            <>
+              <span className="flex-shrink-0 text-sky-200 text-[10px]">·</span>
+              <span className="flex-shrink-0 text-[10px] font-medium text-sky-500">
+                Auto. Sistema
+              </span>
+            </>
+          ) : reminder.creator?.name && (
             <>
               <span className="flex-shrink-0 text-slate-200 text-[10px]">·</span>
               <span className="text-[10px] text-slate-400 truncate min-w-0 max-w-[60px]">

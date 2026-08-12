@@ -98,7 +98,7 @@ async function createRoutedReminder(eventType, entity = {}, _isCompanion = false
     // 5. Crear recordatorio
     const reminder = await Reminder.create({
       title,
-      type:             'tagged',
+      type:             'system',
       priority:         'medium',
       linkedEntityType,
       linkedEntityId,

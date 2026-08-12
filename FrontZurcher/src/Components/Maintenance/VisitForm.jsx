@@ -321,10 +321,10 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
                 >
                   <option value="">-- Selecciona un worker o maintenance --</option>
                   {staff
-                    .filter(member => member.role === 'worker' || member.role === 'maintenance')
+                    .filter(member => member.role === 'worker' || member.role === 'maintenance' || member.role === 'capataz')
                     .map(member => (
                       <option key={member.id} value={member.id}>
-                        {member.name} ({member.role === 'maintenance' ? 'Maintenance' : 'Worker'})
+                        {member.name} ({member.role === 'maintenance' ? 'Maintenance' : member.role === 'capataz' ? 'Capataz' : 'Worker'})
                       </option>
                     ))
                   }
