@@ -14,7 +14,7 @@ const ROLE_LABELS = {
   finance: 'Finance',
 };
 
-const ELIGIBLE_ROLES = ['owner', 'admin', 'recept', 'finance'];
+const ELIGIBLE_ROLES = ['owner', 'admin', 'recept', 'finance', 'capataz'];
 
 export default function NotificationRoutingSettings() {
   const dispatch  = useDispatch();

@@ -28,7 +28,7 @@ const AVATAR_COLORS = [
 ];
 const avatarColor = (name = '') => AVATAR_COLORS[name.charCodeAt(0) % AVATAR_COLORS.length];
 
-const TAGGABLE_ROLES = ['admin', 'owner', 'recept', 'finance'];
+const TAGGABLE_ROLES = ['admin', 'owner', 'recept', 'finance', 'capataz'];
 
 const isOverdue = (dueDate, completed) => {
   if (!dueDate || completed) return false;
