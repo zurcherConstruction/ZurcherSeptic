@@ -49,6 +49,7 @@ const TITLES = {
   simpleWorkSent:                        (e) => `Simple work enviado: ${e.propertyAddress || ''}`,
   notice_to_owner_35:                    (e) => `NTO día 35 - vence en 10d: ${e.propertyAddress}`,
   deferred_initial_payment:              (e) => `Cobrar pago inicial: ${e.propertyAddress}`,
+  supplierInvoiceCreated:                (e) => `Revisar invoice: ${e.vendor} #${e.invoiceNumber}`,
 };
 
 // Eventos que disparan recordatorios adicionales en paralelo
@@ -81,11 +82,15 @@ async function createRoutedReminder(eventType, entity = {}, _isCompanion = false
     // 3. Determinar entidad vinculada
     // pending → lleva al calendario de obras, no al perfil de la obra
     const CALENDAR_EVENTS = new Set(['pending']);
-    const linkedEntityType  = entity?.idWork    ? (CALENDAR_EVENTS.has(eventType) ? 'workCalendar' : 'work')
-                            : entity?.idBudget  ? 'budget'
+    const linkedEntityType  = entity?.idWork              ? (CALENDAR_EVENTS.has(eventType) ? 'workCalendar' : 'work')
+                            : entity?.idBudget            ? 'budget'
+                            : entity?.supplierInvoiceId   ? 'supplierInvoice'
                             : null;
-    const linkedEntityId    = entity?.idWork    ? String(entity.idWork)   : entity?.idBudget ? String(entity.idBudget) : null;
-    const linkedEntityLabel = entity?.propertyAddress || null;
+    const linkedEntityId    = entity?.idWork            ? String(entity.idWork)
+                            : entity?.idBudget          ? String(entity.idBudget)
+                            : entity?.supplierInvoiceId ? String(entity.supplierInvoiceId)
+                            : null;
+    const linkedEntityLabel = entity?.propertyAddress || entity?.vendor || null;
 
     // 4. Deduplicar: no crear si ya existe uno igual para esta entidad+evento
     if (linkedEntityId) {
