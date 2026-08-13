@@ -447,14 +447,14 @@ const MaintenanceDetail = ({ work, isOpen, onClose }) => {
 
     // Función para generar opciones de staff dinámicamente
     const generateStaffOptions = () => {
-      const workers = staff.filter(member => member.role === 'worker');
+      const workers = staff.filter(member => member.role === 'worker' || member.role === 'maintenance' || member.role === 'capataz');
       console.log('Workers filtrados:', workers);
-      
+
       if (workers.length === 0) {
         return '<option value="">No hay trabajadores disponibles</option>';
       }
-      
-      return workers.map(worker => 
+
+      return workers.map(worker =>
         `<option value="${worker.id}">${worker.name}</option>`
       ).join('');
     };

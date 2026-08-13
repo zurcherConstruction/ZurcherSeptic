@@ -17,10 +17,10 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
     type: {
-      type: DataTypes.ENUM('personal', 'tagged', 'broadcast'),
+      type: DataTypes.ENUM('personal', 'tagged', 'broadcast', 'system'),
       allowNull: false,
       defaultValue: 'personal',
-      comment: 'personal=solo creador, tagged=usuarios específicos, broadcast=todos'
+      comment: 'personal=solo creador, tagged=usuarios específicos, broadcast=todos, system=automático del sistema'
     },
     priority: {
       type: DataTypes.ENUM('low', 'medium', 'high', 'urgent'),

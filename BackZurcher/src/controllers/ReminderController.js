@@ -287,9 +287,12 @@ module.exports = {
         });
       });
 
-      // Sort reminders inside each card: incomplete first, then by priority, then by dueDate
+      // Sort reminders inside each card: manual first, then system; within each group: incomplete before completed, then priority, then dueDate
       Object.values(staffMap).forEach(staff => {
         staff.reminders.sort((a, b) => {
+          const aIsSystem = a.type === 'system';
+          const bIsSystem = b.type === 'system';
+          if (aIsSystem !== bIsSystem) return aIsSystem ? 1 : -1;
           if (a.assignment.completed !== b.assignment.completed) {
             return a.assignment.completed ? 1 : -1;
           }
