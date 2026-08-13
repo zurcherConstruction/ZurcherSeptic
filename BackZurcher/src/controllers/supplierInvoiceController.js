@@ -5,6 +5,7 @@ const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // 🆕 Para notificaciones
 const { createCreditCardPaymentTransaction, isBankAccount, createWithdrawalTransaction } = require('../utils/bankTransactionHelper'); // 🏦 Para pagos de tarjetas
 const { invalidateCache } = require('../middleware/cache'); // 🆕 Para invalidar caché
+const { createRoutedReminder } = require('../utils/createRoutedReminder');
 
 /**
  * Crear un nuevo invoice de proveedor
@@ -250,6 +251,13 @@ const createSupplierInvoice = async (req, res) => {
 
     // Commit de la transacción
     await transaction.commit();
+
+    // Recordatorio automático para revisión del invoice
+    createRoutedReminder('supplierInvoiceCreated', {
+      supplierInvoiceId: invoice.idSupplierInvoice,
+      vendor:            invoice.vendor,
+      invoiceNumber:     invoice.invoiceNumber,
+    });
 
     // Calcular total de trabajos vinculados
     const linkedCount = (linkedWorks?.length || 0) + (linkedSimpleWorks?.length || 0);
@@ -2343,6 +2351,13 @@ const createSimpleSupplierInvoice = async (req, res) => {
     await transaction.commit();
 
     console.log(`✅ Invoice #${newInvoice.invoiceNumber} creado exitosamente`);
+
+    // Recordatorio automático para revisión del invoice
+    createRoutedReminder('supplierInvoiceCreated', {
+      supplierInvoiceId: newInvoice.idSupplierInvoice,
+      vendor:            newInvoice.vendor,
+      invoiceNumber:     newInvoice.invoiceNumber,
+    });
 
     res.status(201).json({
       success: true,

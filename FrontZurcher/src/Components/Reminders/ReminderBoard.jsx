@@ -778,7 +778,9 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                         <FaCalendarAlt className="w-2.5 h-2.5" /> {fmtDate(detail.dueDate)}
                       </span>
                     )}
-                    {detail.creator?.name && (
+                    {detail.type === 'system' ? (
+                      <span className="text-[10px] font-medium text-sky-500">· Auto. Sistema</span>
+                    ) : detail.creator?.name && (
                       <span className="text-[10px] text-slate-400">
                         · por <span className="font-medium text-slate-600">{detail.creator.name}</span>
                       </span>
@@ -837,8 +839,9 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                     onClick={() => {
                       onClose();
                       navigate(
-                        detail.linkedEntityType === 'work'         ? `/work/${detail.linkedEntityId}`
-                        : detail.linkedEntityType === 'workCalendar' ? '/workCalendar'
+                        detail.linkedEntityType === 'work'            ? `/work/${detail.linkedEntityId}`
+                        : detail.linkedEntityType === 'workCalendar'  ? '/workCalendar'
+                        : detail.linkedEntityType === 'supplierInvoice' ? '/supplier-invoices'
                         : '/budgets'
                       );
                     }}
