@@ -216,7 +216,7 @@ module.exports = {
       const isOwnerOrAdmin = ['admin', 'owner', 'recept'].includes(role);
 
       let staffList;
-      const BOARD_ROLES = ['admin', 'owner', 'recept', 'finance'];
+      const BOARD_ROLES = ['admin', 'owner', 'recept', 'finance', 'capataz'];
 
       if (isOwnerOrAdmin) {
         staffList = await Staff.findAll({
@@ -306,7 +306,7 @@ module.exports = {
         });
       });
 
-      const ROLE_ORDER = { admin: 0, recept: 1, finance: 2, owner: 3 };
+      const ROLE_ORDER = { admin: 0, capataz: 1, recept: 2, finance: 3, owner: 4 };
       const board = Object.values(staffMap).sort((a, b) => {
         const ra = ROLE_ORDER[a.role] ?? 99;
         const rb = ROLE_ORDER[b.role] ?? 99;
