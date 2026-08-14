@@ -37,7 +37,8 @@ module.exports = (sequelize) => {
             'Inspección Final',
             'Comisión Vendedor', // 🆕 Nuevo tipo para comisiones
             'Gasto Fijo', // 🆕 Para gastos fijos recurrentes (alquiler, servicios, etc.)
-            'Gasto Flota' // 🚗 Para gastos de vehículos y maquinaria
+            'Gasto Flota', // 🚗 Para gastos de vehículos y maquinaria
+            'Subcontratista' // 🔨 Pagos a subcontratistas/contratistas externos
         ),
         allowNull: false,
     },

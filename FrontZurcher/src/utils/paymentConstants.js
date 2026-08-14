@@ -74,6 +74,7 @@ export const EXPENSE_TYPES = [
   // 'Comisión Vendedor', // ❌ Removido - Se paga desde CommissionsManager.jsx
   'Gasto Fijo',
   'Gasto Flota', // 🚗 Gastos de vehículos y maquinaria (fleet)
+  'Subcontratista', // 🔨 Pagos a subcontratistas/contratistas externos
 ];
 
 // Tipos de Comprobantes (sincronizado con Receipt.js)
