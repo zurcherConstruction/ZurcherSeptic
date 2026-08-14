@@ -27,6 +27,7 @@ import ProgressTracker from "./Components/ProgressTracker";
 import MaintenanceTracker from "./Components/MaintenanceTracker";
 import WorkZoneMap from "./Components/WorkZoneMap"; //  Mapa de obras por zona
 import MonthlyInstallations from "./Components/MonthlyInstallations"; // 🆕 Vista de instalaciones mensuales
+import CompletedInstallations from "./Components/CompletedInstallations"; // 🆕 Vista de instalaciones completadas (ok final)
 import SalesIndicators from "./Components/SalesIndicators"; // 🆕 Indicadores mensuales de ventas
 import StaffAttendance from "./Components/StaffAttendance"; // 🆕 Vista de asistencia del personal
 import WorkDetail from "./Components/Works/WorkDetail";
@@ -272,6 +273,15 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance", "worker", "capataz"]}>
                     <MonthlyInstallations />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/completed-installations"
+                element={
+                  <PrivateRoute allowedRoles={["owner"]}>
+                    <CompletedInstallations />
                   </PrivateRoute>
                 }
               />

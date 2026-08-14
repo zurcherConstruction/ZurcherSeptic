@@ -36,7 +36,8 @@ import {
   FaBook, 
   FaNewspaper,
   FaFileSignature,
-  FaTruck
+  FaTruck,
+  FaCheckCircle
 } from "react-icons/fa";
 
 const BarraLateral = () => { 
@@ -84,6 +85,7 @@ const BarraLateral = () => {
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
         { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
         { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
+        { name: "Completed Installations", path: "/completed-installations", icon: FaCheckCircle },
       ],
     },
     {

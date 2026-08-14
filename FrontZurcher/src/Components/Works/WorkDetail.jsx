@@ -8,7 +8,7 @@ import {
   fetchIncomesAndExpensesSuccess,
   fetchIncomesAndExpensesFailure,
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 //import api from "../../utils/axios";
 import FinalInvoice from "../Budget/FinalInvoice"
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el banner
@@ -38,6 +38,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const WorkDetail = () => {
   const { idWork } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
 
   // ✅ Get Redux state - MUST BE BEFORE useEffects that reference them
@@ -1260,6 +1261,17 @@ const handleUploadInstalledImage = async () => {
   return (
     <div className="p-4 md:p-6 bg-gray-100 min-h-screen">
       <div className="max-w-7xl mx-auto">
+        {/* Botón volver a Instalaciones Completadas si se llegó desde ahí */}
+        {location.state?.from === '/completed-installations' && (
+          <button
+            onClick={() => navigate('/completed-installations', {
+              state: { year: location.state.year, month: location.state.month }
+            })}
+            className="mb-4 flex items-center gap-2 text-sm text-green-700 hover:text-green-900 font-medium bg-green-50 hover:bg-green-100 px-4 py-2 rounded-lg border border-green-200 transition-colors"
+          >
+            ← Volver a Instalaciones Completadas
+          </button>
+        )}
         {/* Título principal con dirección y estado */}
         <div className="bg-blue-500 text-white p-4 md:p-6 rounded-lg shadow-md mb-6 flex flex-col lg:flex-row lg:justify-between lg:items-center space-y-4 lg:space-y-0">
           <div className="flex-1">
