@@ -102,7 +102,7 @@ const getCompletedInstallations = async (req, res) => {
         raw: true
       });
       const expenseTotals = await Expense.findAll({
-        where: { workId: { [Op.in]: workIds }, supplierInvoiceItemId: null },
+        where: { workId: { [Op.in]: workIds } },
         attributes: ['workId', [sequelize.fn('SUM', sequelize.col('amount')), 'total']],
         group: ['workId'],
         raw: true
