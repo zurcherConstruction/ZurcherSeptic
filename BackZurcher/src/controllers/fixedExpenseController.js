@@ -1429,16 +1429,36 @@ const getMonthlyChecklist = async (req, res) => {
 
     const expenses = await FixedExpense.findAll({
       where: {
-        isActive: true,
-        startDate: { [Op.lte]: monthEnd }
+        [Op.or]: [
+          // Gastos activos que ya comenzaron
+          { isActive: true, startDate: { [Op.lte]: monthEnd } },
+          // Gastos one_time inactivos (pagados) cuyo startDate es este mes — mostrarlos como pagados
+          {
+            isActive: false,
+            frequency: 'one_time',
+            startDate: { [Op.between]: [monthStart, monthEnd] }
+          }
+        ]
       },
       order: [['category', 'ASC'], ['name', 'ASC']]
     });
 
+    // Para one_time: buscar pagos sin restricción de fecha (el pago puede haberse hecho en un mes distinto al startDate)
+    const oneTimeIds = expenses
+      .filter(e => e.frequency === 'one_time')
+      .map(e => e.idFixedExpense);
+
+    const paymentWhere = oneTimeIds.length > 0
+      ? {
+          [Op.or]: [
+            { periodStart: { [Op.between]: [monthStart, monthEnd] } },
+            { fixedExpenseId: { [Op.in]: oneTimeIds } }
+          ]
+        }
+      : { periodStart: { [Op.between]: [monthStart, monthEnd] } };
+
     const payments = await FixedExpensePayment.findAll({
-      where: {
-        periodStart: { [Op.between]: [monthStart, monthEnd] }
-      },
+      where: paymentWhere,
       attributes: ['fixedExpenseId', 'idPayment', 'amount', 'paymentMethod', 'paymentDate', 'periodStart', 'periodEnd'],
       raw: true
     });
@@ -1473,12 +1493,8 @@ const getMonthlyChecklist = async (req, res) => {
         isPaidThisMonth = false;
       }
 
-      // Gastos únicos (one_time) ya pagados no deben aparecer en el checklist mensual
-      if (
-        expense.frequency === 'one_time' &&
-        ['paid', 'paid_via_credit_card', 'paid_via_invoice'].includes(expense.paymentStatus) &&
-        monthPaidAmount === 0
-      ) return null;
+      // Gastos únicos (one_time) sin ningún pago y con estado pendiente: no ocultar, mostrar como pendiente
+      // Los one_time pagados siempre se muestran (startDate fue validado en el query)
 
       // Solo ocultar expenses no-periódicos que aún no vencen este mes y sin pago
       const showInChecklist = monthPaidAmount > 0 || isDueThisMonthOrBefore;

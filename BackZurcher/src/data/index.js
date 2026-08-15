@@ -101,7 +101,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, ReminderRead, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, NotificationRouting, CustomInvoice } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, ReminderRead, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, FleetAssetDocument, NotificationRouting, CustomInvoice } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -983,6 +983,14 @@ Staff.hasMany(FleetMileageLog, { foreignKey: 'recordedById', as: 'mileageLogs' }
 // Un Expense puede estar vinculado a un FleetAsset (typeExpense = 'Gasto Flota')
 Expense.belongsTo(FleetAsset, { foreignKey: 'fleetAssetId', as: 'fleetAsset' });
 FleetAsset.hasMany(Expense, { foreignKey: 'fleetAssetId', as: 'fleetExpensesExpense' });
+
+// Un FleetAsset tiene muchos documentos (imágenes y PDFs)
+FleetAsset.hasMany(FleetAssetDocument, { foreignKey: 'assetId', as: 'documents' });
+FleetAssetDocument.belongsTo(FleetAsset, { foreignKey: 'assetId', as: 'asset' });
+
+// Un FleetAssetDocument fue subido por un Staff
+FleetAssetDocument.belongsTo(Staff, { foreignKey: 'uploadedById', as: 'uploadedBy' });
+Staff.hasMany(FleetAssetDocument, { foreignKey: 'uploadedById', as: 'uploadedFleetDocuments' });
 
 // --- RELACIONES PARA SIGNATURE DOCUMENTS (DOCUMENTOS PARA FIRMA) ---
 

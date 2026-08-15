@@ -16,7 +16,7 @@ const getMonthlyExpenses = async (req, res) => {
     // 🚫 Excluir también 'Gasto Fijo' que se gestiona en la tabla FixedExpense
     let generalExpensesWhere = {
       typeExpense: {
-        [Op.in]: ['Gastos Generales', 'Gasto Flota']
+        [Op.in]: ['Gastos Generales', 'Gasto Flota', 'Subcontratista']
       },
       supplierInvoiceItemId: null, // 🚫 Excluir gastos ya vinculados a invoices de proveedores
       date: {
@@ -71,23 +71,36 @@ const getMonthlyExpenses = async (req, res) => {
     // La función shouldIncludeFixedExpenseInMonth se encarga de filtrar por mes específico
     const fixedExpensesQuery = await FixedExpense.findAll({
       where: {
-        // Deben haber comenzado antes de que termine el año
-        startDate: { [Op.lt]: `${currentYear + 1}-01-01` },
-        // No deben haber terminado antes de que empiece el año
-        [Op.or]: [
-          { endDate: null },
-          { endDate: { [Op.gte]: `${currentYear}-01-01` } }
-        ],
-        // Activos SIEMPRE se muestran; inactivos SOLO si tienen endDate en el año
-        // (se cancelaron formalmente). Inactivos sin endDate no se proyectan.
-        [Op.or]: [
-          { isActive: true },
+        [Op.and]: [
+          // Deben haber comenzado antes de que termine el año
+          { startDate: { [Op.lt]: `${currentYear + 1}-01-01` } },
+          // No deben haber terminado antes de que empiece el año
           {
-            isActive: false,
-            endDate: {
-              [Op.gte]: `${currentYear}-01-01`,
-              [Op.lte]: `${currentYear}-12-31`
-            }
+            [Op.or]: [
+              { endDate: null },
+              { endDate: { [Op.gte]: `${currentYear}-01-01` } }
+            ]
+          },
+          // Activos SIEMPRE; inactivos con endDate en el año; one_time aunque estén pagados/inactivos
+          {
+            [Op.or]: [
+              { isActive: true },
+              {
+                isActive: false,
+                endDate: {
+                  [Op.gte]: `${currentYear}-01-01`,
+                  [Op.lte]: `${currentYear}-12-31`
+                }
+              },
+              // one_time pagados (isActive:false, endDate:null) deben mostrarse igual
+              {
+                frequency: 'one_time',
+                startDate: {
+                  [Op.gte]: `${currentYear}-01-01`,
+                  [Op.lt]: `${currentYear + 1}-01-01`
+                }
+              }
+            ]
           }
         ]
       },
@@ -137,16 +150,25 @@ const getMonthlyExpenses = async (req, res) => {
           total: 0,
           items: []
         },
+        contractorExpenses: {
+          count: 0,
+          total: 0,
+          paid: 0,
+          unpaid: 0,
+          partial: 0,
+          items: []
+        },
         totalMonth: 0
       };
     });
 
-    // 4. PROCESAR GASTOS GENERALES Y GASTO FLOTA
+    // 4. PROCESAR GASTOS GENERALES, GASTO FLOTA Y SUBCONTRATISTAS
     generalExpensesQuery.forEach(expense => {
-      const expenseMonth = expense.date.substring(5, 7); // Extraer MM de YYYY-MM-DD
+      const expenseMonth = expense.date.substring(5, 7);
       const amount = parseFloat(expense.amount);
       const isFleetExpense = expense.typeExpense === 'Gasto Flota';
-      
+      const isContractor  = expense.typeExpense === 'Subcontratista';
+
       if (monthlyData[expenseMonth]) {
         const fleetCompany = expense.fleetAsset
           ? (expense.fleetAsset.companyType === 'other'
@@ -154,13 +176,16 @@ const getMonthlyExpenses = async (req, res) => {
               : expense.fleetAsset.companyType?.toUpperCase())
           : 'Sin empresa';
 
-        const targetBucket = isFleetExpense ? monthlyData[expenseMonth].fleetExpenses : monthlyData[expenseMonth].generalExpenses;
+        const targetBucket = isFleetExpense
+          ? monthlyData[expenseMonth].fleetExpenses
+          : isContractor
+            ? monthlyData[expenseMonth].contractorExpenses
+            : monthlyData[expenseMonth].generalExpenses;
 
         targetBucket.count++;
         targetBucket.total += amount;
 
         if (!isFleetExpense) {
-          // Contar por estado solo para gastos generales
           if (expense.paymentStatus === 'paid' || expense.paymentStatus === 'paid_via_invoice') {
             targetBucket.paid += amount;
           } else if (expense.paymentStatus === 'partial') {
@@ -180,8 +205,8 @@ const getMonthlyExpenses = async (req, res) => {
           paidAmount: parseFloat(expense.paidAmount || 0),
           paymentMethod: expense.paymentMethod,
           pendingAmount: amount - parseFloat(expense.paidAmount || 0),
-          type: isFleetExpense ? 'fleet' : 'general',
-          category: isFleetExpense ? 'Gasto Vehículos/Máquinas' : 'Gastos Generales',
+          type: isFleetExpense ? 'fleet' : isContractor ? 'contractor' : 'general',
+          category: isFleetExpense ? 'Gasto Vehículos/Máquinas' : isContractor ? 'Subcontratista' : 'Gastos Generales',
           createdAt: expense.createdAt,
           createdByName: expense.Staff?.name || 'N/A',
           fleetAssetInfo: isFleetExpense && expense.fleetAsset ? {
@@ -242,7 +267,7 @@ const getMonthlyExpenses = async (req, res) => {
 
     // 6. CALCULAR TOTALES MENSUALES
     Object.values(monthlyData).forEach(monthData => {
-      monthData.totalMonth = monthData.generalExpenses.total + monthData.fixedExpenses.total + monthData.fleetExpenses.total;
+      monthData.totalMonth = monthData.generalExpenses.total + monthData.fixedExpenses.total + monthData.fleetExpenses.total + monthData.contractorExpenses.total;
       
       // Ordenar items por fecha
       monthData.generalExpenses.items.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -251,13 +276,15 @@ const getMonthlyExpenses = async (req, res) => {
 
     // 7. CALCULAR TOTALES ANUALES (solo si no se filtró por mes específico)
     const yearTotals = specificMonth ? null : {
-      generalExpenses: Object.values(monthlyData).reduce((sum, month) => sum + month.generalExpenses.total, 0),
-      fixedExpenses: Object.values(monthlyData).reduce((sum, month) => sum + month.fixedExpenses.total, 0),
+      generalExpenses:    Object.values(monthlyData).reduce((sum, month) => sum + month.generalExpenses.total, 0),
+      fixedExpenses:      Object.values(monthlyData).reduce((sum, month) => sum + month.fixedExpenses.total, 0),
+      fleetExpenses:      Object.values(monthlyData).reduce((sum, month) => sum + month.fleetExpenses.total, 0),
+      contractorExpenses: Object.values(monthlyData).reduce((sum, month) => sum + month.contractorExpenses.total, 0),
       totalYear: 0
     };
-    
+
     if (yearTotals) {
-      yearTotals.totalYear = yearTotals.generalExpenses + yearTotals.fixedExpenses;
+      yearTotals.totalYear = yearTotals.generalExpenses + yearTotals.fixedExpenses + yearTotals.fleetExpenses + yearTotals.contractorExpenses;
     }
 
     res.status(200).json({
@@ -269,6 +296,7 @@ const getMonthlyExpenses = async (req, res) => {
       summary: {
         generalExpensesFound: generalExpensesQuery.filter(exp => exp.typeExpense === 'Gastos Generales').length,
         fleetExpensesFound: generalExpensesQuery.filter(exp => exp.typeExpense === 'Gasto Flota').length,
+        contractorExpensesFound: generalExpensesQuery.filter(exp => exp.typeExpense === 'Subcontratista').length,
         fixedExpensesActive: fixedExpensesQuery.length,
         totalMonthsWithExpenses: Object.values(monthlyData).filter(m => m.totalMonth > 0).length,
         filter: specificMonth ? `Mes específico: ${getMonthName(parseInt(specificMonth))}` : 'Año completo'

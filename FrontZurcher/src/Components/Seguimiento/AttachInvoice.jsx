@@ -34,9 +34,10 @@ const expenseTypes = EXPENSE_TYPES;
 const generalExpenseTypes = [
   // "Workers", // ❌ Removido del sistema
   "Gastos Generales",
+  "Subcontratista", // 🔨 Pagos a subcontratistas/contratistas externos
   // "Comisión Vendedor", // ❌ Removido - Las comisiones se pagan desde CommissionsManager.jsx
   "Gasto Fijo", // 🆕 Los gastos fijos son siempre generales
-  "Gasto Flota" // 🚗 gasto general asociado a vehículo/maquinaria
+  "Gasto Flota" // 🚗 gasto general asociado a vehículo/maquinaria (activo opcional)
   // "Comprobante Gasto" // ❌ Removido del sistema
 ];
 
@@ -858,10 +859,7 @@ const AttachReceipt = () => {
             return;
           }
 
-          if (type === 'Gasto Flota' && !selectedFleetAsset) {
-            toast.error("Seleccione el vehículo o maquinaria para registrar el Gasto Flota.");
-            return;
-          }
+          // Gasto Flota: el activo de flota es opcional
 
           let createdRecordId = null;
           let createdRecord;
@@ -1578,7 +1576,7 @@ const AttachReceipt = () => {
                   {!loadingFleetAssets && fleetAssets.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Activo <span className="text-red-500">*</span>
+                        Activo <span className="text-gray-400 text-xs">(opcional)</span>
                       </label>
                       <select
                         value={selectedFleetAsset}

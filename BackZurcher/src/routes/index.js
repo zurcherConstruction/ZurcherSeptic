@@ -32,6 +32,7 @@ const bankTransactionRoutes = require('./bankTransactionRoutes'); // 🆕 Transa
 const monthlyExpensesRoutes = require('./monthlyExpensesRoutes'); // 🆕 Gastos devengados mensuales
 const workChecklistRoutes = require('./workChecklistRoutes'); // 🆕 Checklist de verificación de obras
 const monthlyInstallationsRoutes = require('./monthlyInstallationsRoutes'); // 🆕 Instalaciones mensuales (covered)
+const completedInstallationsRoutes = require('./completedInstallationsRoutes'); // 🆕 Instalaciones completadas (ok final)
 const staffAttendanceRoutes = require('./staffAttendanceRoutes'); // 🆕 Asistencia del personal
 //const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
 const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
@@ -126,6 +127,7 @@ router.use('/works', workChecklistRoutes); // 🆕 Ruta para checklist de verifi
 router.use('/import', importRoutes); // Ruta para importar trabajos legacy
 router.use('/export', exportRoutes); // 🆕 Ruta para exportar datos a Excel
 router.use('/monthly-installations', monthlyInstallationsRoutes); // 🆕 Ruta para instalaciones mensuales
+router.use('/completed-installations', completedInstallationsRoutes); // 🆕 Ruta para instalaciones completadas (ok final)
 router.use('/staff-attendance', staffAttendanceRoutes); // 🆕 Ruta para asistencia del personal
 router.use('/simple-works', simpleWorkRoutes); // 🆕 Ruta para trabajos varios (culvert, drainfield, etc.)
 router.use('/claims', claimRoutes); // 🆕 Ruta para reclamos/garantías

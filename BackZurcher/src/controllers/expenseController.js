@@ -189,16 +189,8 @@ const createExpense = async (req, res) => {
       });
     }
 
-    // 🚗 VALIDACIÓN: Gasto Flota requiere un activo válido
-    if (typeExpense === 'Gasto Flota') {
-      if (!fleetAssetId) {
-        await transaction.rollback();
-        return res.status(400).json({
-          error: 'El activo de flota es obligatorio',
-          message: 'Debe seleccionar el vehículo o maquinaria para registrar un Gasto Flota'
-        });
-      }
-
+    // 🚗 Gasto Flota: el activo es opcional; si se proporciona, enriquecer las notas
+    if (typeExpense === 'Gasto Flota' && fleetAssetId) {
       const fleetAsset = await FleetAsset.findByPk(fleetAssetId, { transaction });
       if (!fleetAsset) {
         await transaction.rollback();
@@ -207,7 +199,6 @@ const createExpense = async (req, res) => {
           message: 'El vehículo o maquinaria seleccionado no existe o ya no está disponible'
         });
       }
-
       notes = composeFleetNotes(notes, fleetAsset);
     }
 
@@ -1019,7 +1010,8 @@ const getExpenseTypes = async (req, res) => {
       'Inspección Final',
       'Comisión Vendedor',
       'Gasto Fijo',
-      'Gasto Flota'
+      'Gasto Flota',
+      'Subcontratista'
     ];
     
     res.status(200).json({ types });
