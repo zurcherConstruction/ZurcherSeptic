@@ -15,6 +15,17 @@ const upload = multer({
   },
 });
 
+const uploadDoc = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|gif|webp|pdf/;
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    if (allowed.test(ext)) return cb(null, true);
+    cb(new Error('Solo se permiten imágenes o PDF'));
+  },
+});
+
 router.use(verifyToken);
 
 // ─── Stats ───────────────────────────────────────────────
@@ -49,5 +60,10 @@ router.put('/:id/maintenance/:maintenanceId', FleetController.updateMaintenance)
 router.patch('/:id/maintenance/:maintenanceId', FleetController.updateMaintenance);
 router.delete('/:id/maintenance/:maintenanceId', FleetController.deleteMaintenance);
 router.post('/:id/maintenance/:maintenanceId/attachment', upload.single('image'), FleetController.uploadMaintenanceAttachment);
+
+// ─── Documents ───────────────────────────────────────────
+router.get('/:id/documents', FleetController.getDocuments);
+router.post('/:id/documents', uploadDoc.single('file'), FleetController.uploadDocument);
+router.delete('/:id/documents/:docId', FleetController.deleteDocument);
 
 module.exports = router;

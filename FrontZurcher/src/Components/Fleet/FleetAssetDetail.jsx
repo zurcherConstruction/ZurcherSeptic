@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -6,8 +6,10 @@ import {
   FaPlus, FaUser, FaIdCard, FaCalendarAlt, FaShieldAlt,
   FaCheckCircle, FaTimesCircle, FaHistory, FaCamera,
   FaExclamationTriangle, FaTrash, FaTruck, FaCogs, FaDollarSign,
-  FaInfoCircle
+  FaInfoCircle, FaFilePdf, FaFileImage, FaDownload, FaUpload,
+  FaEye, FaFolder, FaTimes
 } from 'react-icons/fa';
+import api from '../../utils/axios';
 import {
   fetchFleetAssetById, updateFleetAsset, deleteFleetAsset,
   logFleetMileage, fetchMileageLogs,
@@ -71,6 +73,16 @@ export default function FleetAssetDetail() {
     notes: '',
   });
 
+  // Documents
+  const [docs, setDocs]                   = useState([]);
+  const [docsLoading, setDocsLoading]     = useState(false);
+  const [docCategory, setDocCategory]     = useState('');
+  const [docName, setDocName]             = useState('');
+  const [docFile, setDocFile]             = useState(null);
+  const [docUploading, setDocUploading]   = useState(false);
+  const [showDocUpload, setShowDocUpload] = useState(false);
+  const [viewerDoc, setViewerDoc]         = useState(null);
+
   const asset       = currentAsset && String(currentAsset.id) === String(id) ? currentAsset : null;
   const maintenances = maintenanceByAsset[id] || asset?.maintenances || [];
   const mileageLogs  = useMemo(() => [...(asset?.mileageLogs || [])].sort((a, b) => new Date(b.recordedAt) - new Date(a.recordedAt)), [asset]);
@@ -88,6 +100,22 @@ export default function FleetAssetDetail() {
     dispatch(clearCurrentAsset());
     dispatch(fetchFleetAssetById(id));
   }, [dispatch, id]);
+
+  const fetchDocs = useCallback(async () => {
+    setDocsLoading(true);
+    try {
+      const { data } = await api.get(`/fleet/${id}/documents`);
+      setDocs(data.data || []);
+    } catch {
+      toast.error('Error cargando documentos');
+    } finally {
+      setDocsLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (activeTab === 'documents') fetchDocs();
+  }, [activeTab, fetchDocs]);
 
   const handleStatusChange = async (newStatus) => {
     try {
@@ -133,6 +161,39 @@ export default function FleetAssetDetail() {
       toast.success('Imagen actualizada');
     } catch {
       toast.error('Error subiendo imagen');
+    }
+  };
+
+  const handleUploadDoc = async (e) => {
+    e.preventDefault();
+    if (!docFile) return toast.error('Seleccioná un archivo');
+    const form = new FormData();
+    form.append('file', docFile);
+    form.append('category', docCategory || 'other');
+    form.append('name', docName || docFile.name);
+    setDocUploading(true);
+    try {
+      await api.post(`/fleet/${id}/documents`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      toast.success('Documento subido');
+      setShowDocUpload(false);
+      setDocFile(null); setDocName(''); setDocCategory('');
+      fetchDocs();
+    } catch {
+      toast.error('Error subiendo documento');
+    } finally {
+      setDocUploading(false);
+    }
+  };
+
+  const handleDeleteDoc = async (docId) => {
+    if (!window.confirm('¿Eliminar este documento?')) return;
+    try {
+      await api.delete(`/fleet/${id}/documents/${docId}`);
+      toast.success('Documento eliminado');
+      setDocs(prev => prev.filter(d => d.id !== docId));
+      if (viewerDoc?.id === docId) setViewerDoc(null);
+    } catch {
+      toast.error('Error eliminando documento');
     }
   };
 
@@ -371,11 +432,12 @@ export default function FleetAssetDetail() {
         </div>
 
         {/* ── Tabs ──────────────────────────────────────────────────────── */}
-        <div className="flex gap-1 mb-5 bg-slate-100 rounded-2xl p-1">
+        <div className="flex gap-1 mb-5 bg-slate-100 rounded-2xl p-1 overflow-x-auto">
           {[
-            { id: 'overview',     label: 'Resumen',                        icon: FaTruck },
+            { id: 'overview',     label: 'Resumen',                         icon: FaTruck },
             { id: 'maintenance',  label: `Servicios (${maintenances.length})`, icon: FaWrench },
             { id: 'history',      label: `Historial (${mileageLogs.length})`, icon: FaHistory },
+            { id: 'documents',    label: `Documentos (${docs.length})`,     icon: FaFolder },
           ].map(({ id: tabId, label, icon: Icon }) => (
             <button key={tabId} onClick={() => setActiveTab(tabId)}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -650,6 +712,127 @@ export default function FleetAssetDetail() {
           </div>
         )}
 
+        {/* ══ Tab: Documentos ═════════════════════════════════════════════ */}
+        {activeTab === 'documents' && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-slate-500">
+                {docsLoading ? 'Cargando...' : `${docs.length} documento${docs.length !== 1 ? 's' : ''}`}
+              </p>
+              <button onClick={() => setShowDocUpload(true)}
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors">
+                <FaUpload className="text-xs" /> Subir documento
+              </button>
+            </div>
+
+            {/* Upload form */}
+            {showDocUpload && (
+              <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-5">
+                <p className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+                  <FaUpload className="text-blue-500" /> Subir nuevo documento
+                </p>
+                <form onSubmit={handleUploadDoc} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Categoría</label>
+                      <select value={docCategory} onChange={e => setDocCategory(e.target.value)}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Otro</option>
+                        <option value="registration">Registración</option>
+                        <option value="insurance">Seguro</option>
+                        <option value="plate">Placa</option>
+                        <option value="warranty">Garantía</option>
+                        <option value="other">Otro</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">Nombre (opcional)</label>
+                      <input type="text" value={docName} onChange={e => setDocName(e.target.value)}
+                        placeholder="Ej: Seguro 2026"
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">Archivo (imagen o PDF)</label>
+                    <input type="file" accept="image/*,.pdf"
+                      onChange={e => setDocFile(e.target.files[0])}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm bg-slate-50 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:bg-blue-100 file:text-blue-700 file:text-xs file:font-semibold" />
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button type="button" onClick={() => { setShowDocUpload(false); setDocFile(null); setDocName(''); setDocCategory(''); }}
+                      className="flex-1 border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors">
+                      Cancelar
+                    </button>
+                    <button type="submit" disabled={docUploading || !docFile}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 shadow-sm transition-colors">
+                      {docUploading ? 'Subiendo...' : 'Subir'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!docsLoading && docs.length === 0 && !showDocUpload && (
+              <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-slate-100">
+                <FaFolder className="text-4xl mx-auto mb-3 opacity-20" />
+                <p className="font-medium">Sin documentos cargados</p>
+                <p className="text-sm mt-1 opacity-70">Subí imágenes y PDFs de registración, seguro, garantías y más</p>
+              </div>
+            )}
+
+            {/* Documents grid */}
+            {docs.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {docs.map(doc => {
+                  const catLabels = { registration: 'Registración', insurance: 'Seguro', plate: 'Placa', warranty: 'Garantía', other: 'Otro' };
+                  return (
+                    <div key={doc.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden group hover:shadow-md transition-all">
+                      {/* Thumbnail */}
+                      <div className="relative h-28 bg-slate-50 flex items-center justify-center cursor-pointer"
+                        onClick={() => setViewerDoc(doc)}>
+                        {doc.fileType === 'image' ? (
+                          <img src={doc.url} alt={doc.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center gap-1 text-red-400">
+                            <FaFilePdf className="text-3xl" />
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">PDF</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                          <FaEye className="text-white opacity-0 group-hover:opacity-100 text-xl transition-all" />
+                        </div>
+                      </div>
+                      {/* Info */}
+                      <div className="p-2.5">
+                        <p className="text-xs font-semibold text-slate-700 truncate">{doc.name}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                            {catLabels[doc.category] || doc.category}
+                          </span>
+                          <div className="flex gap-1">
+                            <a href={doc.url} target="_blank" rel="noopener noreferrer"
+                              className="p-1 text-slate-300 hover:text-blue-500 transition-colors" title="Descargar">
+                              <FaDownload className="text-xs" />
+                            </a>
+                            {isOwnerOrAdmin && (
+                              <button onClick={() => handleDeleteDoc(doc.id)}
+                                className="p-1 text-slate-300 hover:text-red-500 transition-colors" title="Eliminar">
+                                <FaTrash className="text-xs" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ══ Tab: Historial mileaje ══════════════════════════════════════ */}
         {activeTab === 'history' && (
           <div className="space-y-3">
@@ -845,6 +1028,40 @@ export default function FleetAssetDetail() {
           onClose={() => setShowEditForm(false)}
           onSuccess={() => { setShowEditForm(false); dispatch(fetchFleetAssetById(id)); }}
         />
+      )}
+
+      {/* ══ Viewer modal ════════════════════════════════════════════════ */}
+      {viewerDoc && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex flex-col">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between px-4 py-3 bg-black/60">
+            <div>
+              <p className="text-white font-semibold text-sm">{viewerDoc.name}</p>
+              <p className="text-white/50 text-xs capitalize">{viewerDoc.category}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <a href={viewerDoc.url} target="_blank" rel="noopener noreferrer" download
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-xl text-sm font-medium transition-colors">
+                <FaDownload className="text-xs" /> Descargar
+              </a>
+              <button onClick={() => setViewerDoc(null)}
+                className="text-white/60 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors">
+                <FaTimes className="text-lg" />
+              </button>
+            </div>
+          </div>
+          {/* Content */}
+          <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
+            {viewerDoc.fileType === 'image' ? (
+              <img src={viewerDoc.url} alt={viewerDoc.name}
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
+            ) : (
+              <iframe src={viewerDoc.url} title={viewerDoc.name}
+                className="w-full h-full rounded-xl bg-white"
+                style={{ minHeight: '70vh' }} />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

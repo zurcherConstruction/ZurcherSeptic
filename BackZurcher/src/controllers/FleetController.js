@@ -1,4 +1,4 @@
-const { FleetAsset, FleetMaintenance, FleetMileageLog, Staff, Expense } = require('../data');
+const { FleetAsset, FleetMaintenance, FleetMileageLog, FleetAssetDocument, Staff, Expense } = require('../data');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { Op } = require('sequelize');
 const ExcelJS = require('exceljs');
@@ -460,18 +460,33 @@ const FleetController = {
         createdById: staffId,
       });
 
-      // Si el mantenimiento está completado, actualizar métricas solo si es el registro más reciente
+      // Si el mantenimiento está completado, actualizar métricas solo si es el más reciente
       if (record.status === 'completed') {
         const updates = {};
-
-        // Verificar si hay algún log de mileaje posterior a la fecha del service
         const serviceDate = record.serviceDate ? new Date(record.serviceDate) : new Date();
+
+        // Buscar log de mileaje posterior al service
         const newerLog = await FleetMileageLog.findOne({
           where: { assetId: id, recordedAt: { [Op.gt]: serviceDate } },
           order: [['recordedAt', 'DESC']],
         });
 
-        if (!newerLog) {
+        // Buscar otro service completado con fecha posterior que tenga millas/horas
+        const newerMaintenance = await FleetMaintenance.findOne({
+          where: {
+            assetId: id,
+            id: { [Op.ne]: record.id },
+            status: 'completed',
+            serviceDate: { [Op.gt]: serviceDate },
+            [Op.or]: [
+              { mileageAtService: { [Op.ne]: null } },
+              { hoursAtService:   { [Op.ne]: null } },
+            ],
+          },
+          order: [['serviceDate', 'DESC']],
+        });
+
+        if (!newerLog && !newerMaintenance) {
           if (record.mileageAtService) updates.currentMileage = record.mileageAtService;
           if (record.hoursAtService)   updates.currentHours   = record.hoursAtService;
         }
@@ -928,6 +943,74 @@ const FleetController = {
     } catch (error) {
       console.error('[FleetController.getFleetStats]', error);
       res.status(500).json({ success: false, message: 'Error obteniendo estadísticas' });
+    }
+  },
+
+  // ─── Documents ───────────────────────────────────────────
+
+  async getDocuments(req, res) {
+    try {
+      const { id } = req.params;
+      const docs = await FleetAssetDocument.findAll({
+        where: { assetId: id },
+        order: [['createdAt', 'DESC']],
+      });
+      res.json({ success: true, data: docs });
+    } catch (error) {
+      console.error('[FleetController.getDocuments]', error);
+      res.status(500).json({ success: false, message: 'Error obteniendo documentos' });
+    }
+  },
+
+  async uploadDocument(req, res) {
+    try {
+      const { id } = req.params;
+      const { category = 'other', name } = req.body;
+
+      if (!req.file) return res.status(400).json({ success: false, message: 'No se recibió archivo' });
+
+      const isPdf = req.file.mimetype === 'application/pdf';
+
+      const result = await uploadBufferToCloudinary(req.file.buffer, {
+        folder: `fleet_documents/${id}`,
+        resource_type: 'auto',
+        ...(isPdf ? {} : { quality: 'auto:good', fetch_format: 'auto' }),
+      });
+
+      const doc = await FleetAssetDocument.create({
+        assetId: id,
+        category,
+        name: name || req.file.originalname,
+        fileType: isPdf ? 'pdf' : 'image',
+        url: result.secure_url,
+        publicId: result.public_id,
+        uploadedById: req.user?.id || null,
+      });
+
+      res.status(201).json({ success: true, data: doc });
+    } catch (error) {
+      console.error('[FleetController.uploadDocument]', error);
+      res.status(500).json({ success: false, message: 'Error subiendo documento' });
+    }
+  },
+
+  async deleteDocument(req, res) {
+    try {
+      const { docId } = req.params;
+      const doc = await FleetAssetDocument.findByPk(docId);
+      if (!doc) return res.status(404).json({ success: false, message: 'Documento no encontrado' });
+
+      try {
+        await deleteFromCloudinary(doc.publicId, 'image');
+      } catch (e) {
+        console.warn('[FleetController.deleteDocument] Cloudinary delete error:', e.message);
+      }
+
+      await doc.destroy();
+      res.json({ success: true });
+    } catch (error) {
+      console.error('[FleetController.deleteDocument]', error);
+      res.status(500).json({ success: false, message: 'Error eliminando documento' });
     }
   },
 };
