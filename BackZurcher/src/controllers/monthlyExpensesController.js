@@ -225,8 +225,11 @@ const getMonthlyExpenses = async (req, res) => {
 
     // 5. PROCESAR GASTOS FIJOS (generar por cada mes que aplique)
     fixedExpensesQuery.forEach(fixedExpense => {
-      const startDate = new Date(fixedExpense.startDate);
-      const endDate = fixedExpense.endDate ? new Date(fixedExpense.endDate) : new Date(`${currentYear}-12-31`);
+      // Parsear como hora local (sin Z) para evitar el desfase UTC → local timezone
+      const startDate = new Date(fixedExpense.startDate + 'T00:00:00');
+      const endDate = fixedExpense.endDate
+        ? new Date(fixedExpense.endDate + 'T00:00:00')
+        : new Date(`${currentYear}-12-31T00:00:00`);
       const baseAmount = parseFloat(fixedExpense.totalAmount);
 
       // Determinar en qué meses aplica este gasto fijo
