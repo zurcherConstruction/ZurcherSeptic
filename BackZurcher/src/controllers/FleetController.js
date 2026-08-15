@@ -42,71 +42,80 @@ const FleetController = {
     try {
       const now = new Date();
       const period = req.query.period === 'yearly' ? 'yearly' : 'monthly';
-      const year = Number(req.query.year) || now.getFullYear();
+      const year  = Number(req.query.year)  || now.getFullYear();
       const month = Number(req.query.month) || (now.getMonth() + 1);
+      const filterCompany   = req.query.companyType || null;
+      const filterAssetType = req.query.assetType   || null;
 
       const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-      const monthEnd = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
-      const yearStart = `${year}-01-01`;
-      const yearEnd = `${year}-12-31`;
-
-      const dateRange = period === 'yearly'
+      const monthEnd   = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+      const yearStart  = `${year}-01-01`;
+      const yearEnd    = `${year}-12-31`;
+      const dateRange  = period === 'yearly'
         ? { [Op.between]: [yearStart, yearEnd] }
         : { [Op.between]: [monthStart, monthEnd] };
 
-      const expenses = await Expense.findAll({
-        where: {
-          typeExpense: 'Gasto Flota',
-          date: dateRange,
-        },
-        attributes: ['idExpense', 'amount', 'date', 'fleetAssetId'],
-        include: [
-          {
-            model: FleetAsset,
-            as: 'fleetAsset',
-            required: false,
-            attributes: ['id', 'name', 'assetType', 'licensePlate', 'serialNumber', 'companyType', 'companyOtherName'],
+      // All active assets (with optional company/type filter)
+      const assetWhere = { status: { [Op.ne]: 'retired' } };
+      if (filterCompany)   assetWhere.companyType = filterCompany;
+      if (filterAssetType) assetWhere.assetType   = filterAssetType;
+
+      const assets = await FleetAsset.findAll({
+        where: assetWhere,
+        attributes: ['id', 'name', 'assetType', 'licensePlate', 'serialNumber', 'companyType', 'companyOtherName'],
+        order: [['name', 'ASC']],
+      });
+      const assetIds = assets.map(a => a.id);
+
+      // Fleet expenses (registered) + maintenance costs (manual) — parallel
+      const [expenses, maintenances] = await Promise.all([
+        assetIds.length > 0 ? Expense.findAll({
+          where: { fleetAssetId: { [Op.in]: assetIds }, typeExpense: 'Gasto Flota', date: dateRange },
+          attributes: ['idExpense', 'amount', 'date', 'fleetAssetId'],
+        }) : [],
+        assetIds.length > 0 ? FleetMaintenance.findAll({
+          where: {
+            assetId: { [Op.in]: assetIds },
+            status: 'completed',
+            serviceDate: dateRange,
+            cost: { [Op.gt]: 0 },
           },
-        ],
-        order: [['date', 'ASC']],
-      });
+          attributes: ['assetId', 'cost', 'serviceDate', 'maintenanceType'],
+        }) : [],
+      ]);
 
-      const byAssetMap = {};
+      // Build per-asset breakdown
+      const byAsset = assets.map(asset => {
+        const assetExpenses     = expenses.filter(e => e.fleetAssetId === asset.id);
+        const assetMaintenances = maintenances.filter(m => m.assetId  === asset.id);
+        const expenseCost  = assetExpenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+        const serviceCost  = assetMaintenances.reduce((s, m) => s + parseFloat(m.cost || 0), 0);
+        const totalCost    = expenseCost + serviceCost;
 
-      expenses.forEach((exp) => {
-        const amount = parseFloat(exp.amount || 0);
-        const asset = exp.fleetAsset;
-        const key = asset?.id || 'sin-activo';
+        const companyLabel = asset.companyType === 'zurcher'   ? 'ZURCHER'
+          : asset.companyType === 'invertech' ? 'INVERTECH'
+          : (asset.companyOtherName || 'OTRA');
 
-        if (!byAssetMap[key]) {
-          byAssetMap[key] = {
-            assetId: asset?.id || null,
-            assetName: asset?.name || 'Sin activo vinculado',
-            assetType: asset?.assetType || null,
-            licensePlate: asset?.licensePlate || null,
-            serialNumber: asset?.serialNumber || null,
-            company: asset
-              ? (asset.companyType === 'other' ? (asset.companyOtherName || 'OTRA') : String(asset.companyType || '').toUpperCase())
-              : 'Sin empresa',
-            totalAmount: 0,
-            expenseCount: 0,
-          };
-        }
+        return {
+          assetId:      asset.id,
+          assetName:    asset.name,
+          assetType:    asset.assetType,
+          companyType:  asset.companyType,
+          company:      companyLabel,
+          licensePlate: asset.licensePlate  || null,
+          serialNumber: asset.serialNumber  || null,
+          expenseCost:  Number(expenseCost.toFixed(2)),
+          expenseCount: assetExpenses.length,
+          serviceCost:  Number(serviceCost.toFixed(2)),
+          serviceCount: assetMaintenances.length,
+          totalCost:    Number(totalCost.toFixed(2)),
+          // keep legacy field so print report still works
+          totalAmount:  Number(totalCost.toFixed(2)),
+          expenseCount: assetExpenses.length + assetMaintenances.length,
+        };
+      }).sort((a, b) => b.totalCost - a.totalCost);
 
-        byAssetMap[key].totalAmount += amount;
-        byAssetMap[key].expenseCount += 1;
-      });
-
-      const byAsset = Object.values(byAssetMap)
-        .sort((a, b) => b.totalAmount - a.totalAmount)
-        .map((item) => ({
-          ...item,
-          totalAmount: Number(item.totalAmount.toFixed(2)),
-        }));
-
-      const totalAmount = Number(
-        byAsset.reduce((sum, item) => sum + item.totalAmount, 0).toFixed(2)
-      );
+      const totalAmount = Number(byAsset.reduce((s, a) => s + a.totalCost, 0).toFixed(2));
 
       res.json({
         success: true,
@@ -115,7 +124,7 @@ const FleetController = {
           year,
           month: period === 'monthly' ? month : null,
           totalAmount,
-          totalTransactions: expenses.length,
+          totalTransactions: expenses.length + maintenances.length,
           byAsset,
         },
       });
@@ -165,7 +174,7 @@ const FleetController = {
     try {
       const { id } = req.params;
 
-      const [asset, maintenances, mileageLogs] = await Promise.all([
+      const [asset, maintenances, mileageLogs, fleetExpenses] = await Promise.all([
         FleetAsset.findByPk(id, {
           include: [{ model: Staff, as: 'assignedTo', attributes: ['id', 'name', 'email'] }],
         }),
@@ -181,15 +190,20 @@ const FleetController = {
           where: { assetId: id },
           include: [{ model: Staff, as: 'recordedBy', attributes: ['id', 'name'] }],
           order: [['recordedAt', 'DESC']],
-          limit: 20,
+        }),
+        Expense.findAll({
+          where: { fleetAssetId: id, typeExpense: 'Gasto Flota' },
+          attributes: ['idExpense', 'amount', 'date', 'notes', 'typeExpense'],
+          order: [['date', 'DESC']],
         }),
       ]);
 
       if (!asset) return res.status(404).json({ success: false, message: 'Activo no encontrado' });
 
       const data = asset.toJSON();
-      data.maintenances = maintenances.map((m) => m.toJSON());
-      data.mileageLogs = mileageLogs.map((l) => l.toJSON());
+      data.maintenances  = maintenances.map((m) => m.toJSON());
+      data.mileageLogs   = mileageLogs.map((l) => l.toJSON());
+      data.fleetExpenses = fleetExpenses.map((e) => e.toJSON());
 
       res.json({ success: true, data });
     } catch (error) {
@@ -281,24 +295,72 @@ const FleetController = {
       const asset = await FleetAsset.findByPk(id);
       if (!asset) return res.status(404).json({ success: false, message: 'Activo no encontrado' });
 
+      const entryDate = recordedAt ? new Date(recordedAt) : new Date();
+
+      // Validación cronológica: buscar registros anterior y posterior a la fecha ingresada
+      const [prevLog, nextLog] = await Promise.all([
+        FleetMileageLog.findOne({
+          where: { assetId: id, recordedAt: { [Op.lte]: entryDate } },
+          order: [['recordedAt', 'DESC']],
+        }),
+        FleetMileageLog.findOne({
+          where: { assetId: id, recordedAt: { [Op.gt]: entryDate } },
+          order: [['recordedAt', 'ASC']],
+        }),
+      ]);
+
+      if (mileage !== undefined && mileage !== null && mileage !== '') {
+        const newMi = parseFloat(mileage);
+        if (prevLog?.mileage !== null && prevLog?.mileage !== undefined && newMi < parseFloat(prevLog.mileage)) {
+          return res.status(400).json({
+            success: false,
+            message: `El mileaje ingresado (${newMi.toLocaleString()} mi) es menor al registro previo del ${new Date(prevLog.recordedAt).toLocaleDateString('es-ES')} (${parseFloat(prevLog.mileage).toLocaleString()} mi). Verificá la fecha o el valor.`,
+          });
+        }
+        if (nextLog?.mileage !== null && nextLog?.mileage !== undefined && newMi > parseFloat(nextLog.mileage)) {
+          return res.status(400).json({
+            success: false,
+            message: `El mileaje ingresado (${newMi.toLocaleString()} mi) es mayor al registro posterior del ${new Date(nextLog.recordedAt).toLocaleDateString('es-ES')} (${parseFloat(nextLog.mileage).toLocaleString()} mi). Verificá la fecha o el valor.`,
+          });
+        }
+      }
+
+      if (hours !== undefined && hours !== null && hours !== '') {
+        const newHrs = parseFloat(hours);
+        if (prevLog?.hours !== null && prevLog?.hours !== undefined && newHrs < parseFloat(prevLog.hours)) {
+          return res.status(400).json({
+            success: false,
+            message: `Las horas ingresadas (${newHrs.toLocaleString()} hs) son menores al registro previo del ${new Date(prevLog.recordedAt).toLocaleDateString('es-ES')} (${parseFloat(prevLog.hours).toLocaleString()} hs).`,
+          });
+        }
+        if (nextLog?.hours !== null && nextLog?.hours !== undefined && newHrs > parseFloat(nextLog.hours)) {
+          return res.status(400).json({
+            success: false,
+            message: `Las horas ingresadas (${newHrs.toLocaleString()} hs) son mayores al registro posterior del ${new Date(nextLog.recordedAt).toLocaleDateString('es-ES')} (${parseFloat(nextLog.hours).toLocaleString()} hs).`,
+          });
+        }
+      }
+
       const logEntry = await FleetMileageLog.create({
         assetId: id,
-        mileage: mileage || null,
-        hours: hours || null,
-        previousMileage: asset.currentMileage,
-        previousHours: asset.currentHours,
+        mileage: (mileage !== undefined && mileage !== null && mileage !== '') ? parseFloat(mileage) : null,
+        hours:   (hours   !== undefined && hours   !== null && hours   !== '') ? parseFloat(hours)   : null,
+        previousMileage: prevLog?.mileage ?? asset.currentMileage,
+        previousHours:   prevLog?.hours   ?? asset.currentHours,
         recordedById: staffId,
-        recordedAt: recordedAt || new Date(),
+        recordedAt: entryDate,
         notes,
       });
 
-      // Actualizar métricas del activo
+      // Solo actualizar currentMileage/Hours si esta entrada es la más reciente (sin registros posteriores)
       const updates = {};
-      if (mileage !== undefined && mileage !== null && mileage !== '') {
-        updates.currentMileage = parseFloat(mileage);
-      }
-      if (hours !== undefined && hours !== null && hours !== '') {
-        updates.currentHours = parseFloat(hours);
+      if (!nextLog) {
+        if (mileage !== undefined && mileage !== null && mileage !== '') {
+          updates.currentMileage = parseFloat(mileage);
+        }
+        if (hours !== undefined && hours !== null && hours !== '') {
+          updates.currentHours = parseFloat(hours);
+        }
       }
       if (Object.keys(updates).length > 0) {
         await asset.update(updates);
@@ -398,14 +460,24 @@ const FleetController = {
         createdById: staffId,
       });
 
-      // Si el mantenimiento está completado, actualizar métricas del activo
+      // Si el mantenimiento está completado, actualizar métricas solo si es el registro más reciente
       if (record.status === 'completed') {
         const updates = {};
-        if (record.mileageAtService) updates.currentMileage = record.mileageAtService;
-        if (record.hoursAtService) updates.currentHours = record.hoursAtService;
-        if (record.status === 'completed' && asset.status === 'in_repair') {
-          updates.status = 'active';
+
+        // Verificar si hay algún log de mileaje posterior a la fecha del service
+        const serviceDate = record.serviceDate ? new Date(record.serviceDate) : new Date();
+        const newerLog = await FleetMileageLog.findOne({
+          where: { assetId: id, recordedAt: { [Op.gt]: serviceDate } },
+          order: [['recordedAt', 'DESC']],
+        });
+
+        if (!newerLog) {
+          if (record.mileageAtService) updates.currentMileage = record.mileageAtService;
+          if (record.hoursAtService)   updates.currentHours   = record.hoursAtService;
         }
+
+        if (asset.status === 'in_repair') updates.status = 'active';
+
         if (Object.keys(updates).length > 0) await asset.update(updates);
       }
 

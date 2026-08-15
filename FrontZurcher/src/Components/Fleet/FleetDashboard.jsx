@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -16,6 +16,8 @@ import {
   FaIdCard,
   FaChevronDown,
   FaChevronUp,
+  FaDollarSign,
+  FaBuilding,
 } from 'react-icons/fa';
 import { fetchFleetAssets, fetchFleetStats, fetchFleetUpcoming } from '../../Redux/Actions/fleetActions';
 import FleetAssetCard from './FleetAssetCard';
@@ -31,6 +33,7 @@ export default function FleetDashboard() {
   const currentMonth = currentDate.getMonth() + 1;
   const currentYear = currentDate.getFullYear();
 
+  const [activeTab, setActiveTab] = useState('assets');
   const [showForm, setShowForm] = useState(false);
   const [openSection, setOpenSection] = useState('registrations');
   const [filterStatus, setFilterStatus] = useState('');
@@ -39,6 +42,36 @@ export default function FleetDashboard() {
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
   const [printPeriod, setPrintPeriod] = useState('monthly');
+
+  // ── Gastos por activo ──────────────────────────────────────────────
+  const [costPeriod, setCostPeriod]       = useState('monthly');
+  const [costYear, setCostYear]           = useState(currentYear);
+  const [costMonth, setCostMonth]         = useState(currentMonth);
+  const [costCompany, setCostCompany]     = useState('');
+  const [costAssetType, setCostAssetType] = useState('');
+  const [costData, setCostData]           = useState(null);
+  const [costLoading, setCostLoading]     = useState(false);
+
+  const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  const loadCostReport = useCallback(async (period, year, month, company, assetType) => {
+    setCostLoading(true);
+    try {
+      const params = new URLSearchParams({ period, year, month });
+      if (company)   params.set('companyType', company);
+      if (assetType) params.set('assetType', assetType);
+      const res = await api.get(`/fleet/expense-report?${params}`);
+      setCostData(res.data?.data || null);
+    } catch {
+      setCostData(null);
+    } finally {
+      setCostLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCostReport(costPeriod, costYear, costMonth, costCompany, costAssetType);
+  }, [costPeriod, costYear, costMonth, costCompany, costAssetType, loadCostReport]);
 
   useEffect(() => {
     dispatch(fetchFleetAssets());
@@ -361,6 +394,25 @@ export default function FleetDashboard() {
           </div>
         )}
 
+        {/* ── Tab bar ───────────────────────────────────────────────── */}
+        <div className="flex gap-1 mb-6 bg-gray-100 rounded-2xl p-1">
+          <button onClick={() => setActiveTab('assets')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === 'assets' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            <FaTruck className="text-xs" /> Activos
+          </button>
+          <button onClick={() => setActiveTab('expenses')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+              activeTab === 'expenses' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}>
+            <FaDollarSign className="text-xs" /> Gastos
+          </button>
+        </div>
+
+        {/* ══ Tab: Gastos ══════════════════════════════════════════════ */}
+        {activeTab === 'expenses' && <>
+
         {stats?.fleetExpenses && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="bg-white rounded-2xl shadow-sm p-5 border border-gray-100">
@@ -375,6 +427,146 @@ export default function FleetDashboard() {
             </div>
           </div>
         )}
+
+        {/* ══ Gastos por Activo ═══════════════════════════════════════ */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
+          {/* Header + filtros */}
+          <div className="px-5 py-4 border-b border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="bg-orange-100 p-2 rounded-xl">
+                  <FaDollarSign className="text-orange-600" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-gray-700 text-sm">Gastos por Activo</h2>
+                  <p className="text-xs text-gray-400">Servicios manuales + Gastos Flota registrados</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 items-center">
+                {/* Toggle Mensual / Anual */}
+                <div className="flex bg-gray-100 rounded-xl p-1">
+                  {['monthly','yearly'].map(p => (
+                    <button key={p} onClick={() => setCostPeriod(p)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        costPeriod === p ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      }`}>
+                      {p === 'monthly' ? 'Mensual' : 'Anual'}
+                    </button>
+                  ))}
+                </div>
+                {/* Año */}
+                <select value={costYear} onChange={e => setCostYear(Number(e.target.value))}
+                  className="text-xs border border-gray-200 rounded-xl px-2.5 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  {[currentYear, currentYear - 1, currentYear - 2].map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+                {/* Mes (solo mensual) */}
+                {costPeriod === 'monthly' && (
+                  <select value={costMonth} onChange={e => setCostMonth(Number(e.target.value))}
+                    className="text-xs border border-gray-200 rounded-xl px-2.5 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                    {MONTH_NAMES.map((n, i) => <option key={i+1} value={i+1}>{n}</option>)}
+                  </select>
+                )}
+                {/* Empresa */}
+                <select value={costCompany} onChange={e => setCostCompany(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-xl px-2.5 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  <option value="">Todas las empresas</option>
+                  <option value="zurcher">ZURCHER</option>
+                  <option value="invertech">INVERTECH</option>
+                  <option value="other">OTRA</option>
+                </select>
+                {/* Tipo */}
+                <select value={costAssetType} onChange={e => setCostAssetType(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-xl px-2.5 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400">
+                  <option value="">Todos los tipos</option>
+                  <option value="vehicle">Vehículos</option>
+                  <option value="machine">Maquinaria</option>
+                  <option value="equipment">Equipos</option>
+                  <option value="trailer">Remolques</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla de activos */}
+          {costLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-400" />
+            </div>
+          ) : !costData || costData.byAsset?.filter(a => a.totalCost > 0).length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <FaDollarSign className="text-3xl mx-auto mb-2 opacity-20" />
+              <p className="text-sm">Sin gastos registrados para el período seleccionado</p>
+            </div>
+          ) : (
+            <div>
+              {/* Total row */}
+              <div className="flex items-center justify-between px-5 py-2.5 bg-orange-50 border-b border-orange-100">
+                <span className="text-xs font-bold text-orange-700 uppercase tracking-wide">
+                  {costPeriod === 'monthly'
+                    ? `Total ${MONTH_NAMES[costMonth - 1]} ${costYear}`
+                    : `Total ${costYear}`}
+                </span>
+                <span className="text-base font-bold text-orange-700">{formatCurrency(costData.totalAmount)}</span>
+              </div>
+
+              {/* Asset rows */}
+              <div className="divide-y divide-gray-50">
+                {costData.byAsset.filter(a => a.totalCost > 0).map(asset => {
+                  const companyColor = asset.companyType === 'zurcher'   ? 'bg-blue-100 text-blue-700'
+                    : asset.companyType === 'invertech' ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600';
+                  const typeLabel = asset.assetType === 'vehicle' ? 'Vehículo'
+                    : asset.assetType === 'machine'  ? 'Maquinaria'
+                    : asset.assetType === 'equipment'? 'Equipo'
+                    : asset.assetType === 'trailer'  ? 'Remolque' : asset.assetType;
+
+                  return (
+                    <div key={asset.assetId}
+                      onClick={() => navigate(`/fleet/${asset.assetId}`)}
+                      className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 cursor-pointer transition-colors group">
+                      {/* Nombre + badges */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold text-gray-800 group-hover:text-blue-700 transition-colors truncate">
+                            {asset.assetName}
+                          </p>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${companyColor}`}>{asset.company}</span>
+                          <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{typeLabel}</span>
+                          {(asset.licensePlate || asset.serialNumber) && (
+                            <span className="text-[10px] text-gray-400 font-mono">{asset.licensePlate || asset.serialNumber}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Dos columnas de costo */}
+                      <div className="flex items-center gap-6 shrink-0 text-right">
+                        <div>
+                          <p className="text-[10px] text-gray-400 font-medium">Servicios</p>
+                          <p className="text-sm font-semibold text-orange-600">{formatCurrency(asset.serviceCost)}</p>
+                          {asset.serviceCount > 0 && <p className="text-[10px] text-gray-400">{asset.serviceCount} reg.</p>}
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-400 font-medium">Gasto Flota</p>
+                          <p className="text-sm font-semibold text-blue-600">{formatCurrency(asset.expenseCost)}</p>
+                          {asset.expenseCount > 0 && <p className="text-[10px] text-gray-400">{asset.expenseCount} reg.</p>}
+                        </div>
+                        <div className="border-l border-gray-200 pl-6">
+                          <p className="text-[10px] text-gray-400 font-medium">Total</p>
+                          <p className="text-base font-bold text-gray-800">{formatCurrency(asset.totalCost)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        </> /* end tab: expenses */}
+
+        {/* ══ Tab: Activos ═════════════════════════════════════════════ */}
+        {activeTab === 'assets' && <>
 
         {upcoming && totalAlerts > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
@@ -541,7 +733,10 @@ export default function FleetDashboard() {
             ))}
           </div>
         )}
-      </div>
+
+        </> /* end tab: assets */}
+
+      </div> {/* end max-w-7xl */}
 
       {showForm && (
         <FleetAssetForm
