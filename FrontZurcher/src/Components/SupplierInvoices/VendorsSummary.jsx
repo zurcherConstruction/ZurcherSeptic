@@ -1,21 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
-import { 
-  FaChevronDown, 
-  FaChevronUp, 
-  FaDollarSign, 
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  FaChevronDown,
+  FaChevronUp,
+  FaDollarSign,
   FaFileInvoiceDollar,
   FaExclamationCircle,
-  FaCreditCard
+  FaCreditCard,
+  FaExternalLinkAlt
 } from 'react-icons/fa';
 import LoadingSpinner from '../LoadingSpinner';
 import PayInvoiceModal from './PayInvoiceModal';
 
 const VendorsSummary = ({ onRefreshParent }) => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const token = useSelector((state) => state.auth.token);
   const [loading, setLoading] = useState(true);
   const [vendorsData, setVendorsData] = useState([]);
-  const [expandedVendor, setExpandedVendor] = useState(null);
+  const expandedVendor = searchParams.get('vendor') || null;
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showPayModal, setShowPayModal] = useState(false);
   const [totalPending, setTotalPending] = useState(0);
@@ -67,7 +71,14 @@ const VendorsSummary = ({ onRefreshParent }) => {
   };
 
   const toggleVendor = (vendor) => {
-    setExpandedVendor(expandedVendor === vendor ? null : vendor);
+    setSearchParams(prev => {
+      if (expandedVendor === vendor) {
+        prev.delete('vendor');
+      } else {
+        prev.set('vendor', vendor);
+      }
+      return prev;
+    });
   };
 
   const handlePayInvoice = async (invoiceSummary) => {
@@ -248,6 +259,22 @@ const VendorsSummary = ({ onRefreshParent }) => {
                             {invoice.notes && (
                               <div className="mt-2 text-sm text-gray-600">
                                 <p className="italic">"{invoice.notes}"</p>
+                              </div>
+                            )}
+
+                            {invoice.linkedWorks && invoice.linkedWorks.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {invoice.linkedWorks.map(w => (
+                                  <button
+                                    key={w.idWork}
+                                    onClick={() => navigate(`/work/${w.idWork}`)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                                    title="Ir al work vinculado"
+                                  >
+                                    <FaExternalLinkAlt className="w-2.5 h-2.5" />
+                                    {w.propertyAddress || `Work #${w.idWork.slice(0, 8)}`}
+                                  </button>
+                                ))}
                               </div>
                             )}
                           </div>
