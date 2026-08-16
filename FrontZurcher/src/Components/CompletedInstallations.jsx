@@ -251,6 +251,14 @@ const CompletedInstallations = () => {
                       {fmt(works.reduce((s, w) => s + w.profit, 0))}
                     </p>
                     <p className="text-sm text-slate-500">Contratos: {fmt(works.reduce((s, w) => s + w.contractTotal, 0))}</p>
+                    {(() => {
+                      const projected = works.reduce((s, w) => s + w.totalIncome + (w.pendingToCollect || 0) - w.totalExpenses, 0);
+                      return (
+                        <p className={`text-xs italic mt-0.5 ${projected >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                          Ganancia final: {fmt(projected)}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -319,6 +327,21 @@ const CompletedInstallations = () => {
                               <span className="text-slate-500">
                                 Gastos: <strong className="text-red-600">{fmt(work.totalExpenses)}</strong>
                               </span>
+                              {work.pendingToCollect > 0.01 && (
+                                <span className="text-slate-500">
+                                  Por cobrar: <strong className="text-amber-600">{fmt(work.pendingToCollect)}</strong>
+                                </span>
+                              )}
+                              {work.pendingToCollect > 0.01 && (() => {
+                                const projected = work.totalIncome + work.pendingToCollect - work.totalExpenses;
+                                return (
+                                  <span className="text-slate-400 italic">
+                                    Ganancia final: <strong className={projected >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                      {fmt(projected)}
+                                    </strong>
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
 

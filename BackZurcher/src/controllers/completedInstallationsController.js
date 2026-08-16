@@ -55,7 +55,7 @@ const getCompletedInstallations = async (req, res) => {
           {
             model: FinalInvoice,
             as: 'finalInvoice',
-            attributes: ['finalAmountDue', 'totalAmountPaid', 'status'],
+            attributes: ['originalBudgetTotal', 'subtotalExtras', 'discount', 'finalAmountDue', 'totalAmountPaid', 'status'],
             required: false
           },
           {
@@ -129,6 +129,13 @@ const getCompletedInstallations = async (req, res) => {
         currentStatus:   work.status,
         staff: work.Staff ? { id: work.Staff.id, name: work.Staff.name } : null,
         contractTotal:   parseFloat(budget?.totalPrice || 0),
+        pendingToCollect: (() => {
+          const ct = parseFloat(budget?.totalPrice || 0);
+          if (finalInvoice) {
+            return Math.max(0, parseFloat(finalInvoice.finalAmountDue || 0) - parseFloat(finalInvoice.totalAmountPaid || 0));
+          }
+          return Math.max(0, ct - totalIncome);
+        })(),
         totalIncome,
         totalExpenses,
         profit:          totalIncome - totalExpenses,
