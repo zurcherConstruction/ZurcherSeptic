@@ -89,19 +89,30 @@ const ClaimList = () => {
 
   const hasActiveFilters = filters.status || filters.priority || filters.search || filters.claimType;
 
+  const STATUS_ORDER = { pending: 0, scheduled: 1, in_progress: 2, completed: 3, closed: 4, cancelled: 5 };
+  const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
+
   const filteredClaims = useMemo(() => {
-    return (claims || []).filter(claim => {
-      if (filters.status && claim.status !== filters.status) return false;
-      if (filters.priority && claim.priority !== filters.priority) return false;
-      if (filters.claimType && claim.claimType !== filters.claimType) return false;
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        const searchable = [claim.claimNumber, claim.clientName, claim.propertyAddress, claim.description]
-          .filter(Boolean).join(' ').toLowerCase();
-        if (!searchable.includes(q)) return false;
-      }
-      return true;
-    });
+    return (claims || [])
+      .filter(claim => {
+        if (filters.status && claim.status !== filters.status) return false;
+        if (filters.priority && claim.priority !== filters.priority) return false;
+        if (filters.claimType && claim.claimType !== filters.claimType) return false;
+        if (filters.search) {
+          const q = filters.search.toLowerCase();
+          const searchable = [claim.claimNumber, claim.clientName, claim.propertyAddress, claim.description]
+            .filter(Boolean).join(' ').toLowerCase();
+          if (!searchable.includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const statusDiff = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+        if (statusDiff !== 0) return statusDiff;
+        const priorityDiff = (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      });
   }, [claims, filters]);
 
   const handleViewDetail = (claim) => {
