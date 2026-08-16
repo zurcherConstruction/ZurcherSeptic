@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { bankAccountActions, bankTransactionActions } from '../../Redux/Actions/bankAccountActions';
 import {
@@ -20,7 +20,9 @@ const BankAccountDetail = () => {
   const [account, setAccount] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, deposit, withdrawal, transfer
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filter = searchParams.get('filter') || 'all';
+  const setFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('filter'); else p.set('filter', v); return p; });
 
   useEffect(() => {
     if (id) {

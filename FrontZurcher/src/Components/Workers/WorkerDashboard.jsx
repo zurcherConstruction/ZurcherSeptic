@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchWorks } from "../../Redux/Actions/workActions";
 import { 
   BriefcaseIcon, 
@@ -18,7 +18,9 @@ const WorkerDashboard = () => {
   const { user, currentStaff } = useSelector((state) => state.auth);
   const authStaff = currentStaff || user;
 
-  const [activeTab, setActiveTab] = useState('assigned'); // assigned, inProgress, completed
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'assigned';
+  const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
 
   useEffect(() => {
     const staffId = authStaff?.idStaff || authStaff?.id;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
 import {
@@ -17,7 +18,9 @@ import { PAYMENT_METHODS_GROUPED } from '../utils/paymentConstants'; // 🆕 Imp
 const AccountsReceivable = () => {
   const token = useSelector((state) => state.auth.token);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('invoices'); // invoices, overview, works, commissions
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'invoices';
+  const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
   const [commissionFilter, setCommissionFilter] = useState('all'); // all, paid, pending
   const [invoiceFilter, setInvoiceFilter] = useState({
     status: 'all', // all, pending_payment, partial, initial_only, completed

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FaCheck, FaTrash, FaExclamationTriangle, FaSyncAlt,
   FaCalendarAlt, FaUser, FaClipboardList, FaBell, FaComment,
@@ -1295,9 +1295,12 @@ export default function ReminderBoard() {
   const { staffList = [] }  = useSelector(s => s.admin);
   const isOwner = ['admin', 'owner'].includes(currentStaff?.role);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewMode  = searchParams.get('view') || 'pending';
+  const setViewMode = (v) => setSearchParams(prev => { prev.set('view', v); return prev; });
+
   const [board,      setBoard]      = useState([]);
   const [loading,    setLoading]    = useState(true);
-  const [viewMode,   setViewMode]   = useState('pending'); // 'pending' | 'week' | 'all'
   const [refreshing, setRefreshing] = useState(false);
   const [createTarget, setCreateTarget] = useState(null); // null=cerrado | 'general' | staffData
   const [detailTarget, setDetailTarget] = useState(null); // { reminderId, targetStaffId }

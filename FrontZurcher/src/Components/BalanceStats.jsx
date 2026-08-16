@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from 'react-router-dom';
 import api from '../utils/axios';
 
 const BalanceStats = () => {
@@ -10,12 +11,19 @@ const BalanceStats = () => {
   const [showPrintVersion, setShowPrintVersion] = useState(false);
   const [companyFilter, setCompanyFilter] = useState('all');
   
-  // 🆕 Inicializar con mes/año actual dinámicamente
+  const [searchParams, setSearchParams] = useSearchParams();
   const currentDate = new Date();
-  const [filters, setFilters] = useState({
-    month: currentDate.getMonth() + 1, // Mes actual (1-12)
-    year: currentDate.getFullYear(), // Año actual (2026, 2027, etc.)
-  });
+  const filters = {
+    month: parseInt(searchParams.get('month') || (currentDate.getMonth() + 1)),
+    year:  parseInt(searchParams.get('year')  || currentDate.getFullYear()),
+  };
+  const setFilters = (newFilters) => {
+    setSearchParams(prev => {
+      prev.set('month', String(newFilters.month));
+      prev.set('year',  String(newFilters.year));
+      return prev;
+    });
+  };
 
   const fetchDashboard = async () => {
     try {
@@ -152,7 +160,7 @@ const BalanceStats = () => {
 
   useEffect(() => {
     fetchDashboard();
-  }, [filters]);
+  }, [filters.month, filters.year]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 🔍 Ejecutar verificación cuando se actualicen los datos
   useEffect(() => {

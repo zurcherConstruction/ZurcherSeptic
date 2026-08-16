@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FaTruck,
   FaPlus,
@@ -33,7 +33,16 @@ export default function FleetDashboard() {
   const currentMonth = currentDate.getMonth() + 1;
   const currentYear = currentDate.getFullYear();
 
-  const [activeTab, setActiveTab] = useState('assets');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab  = searchParams.get('tab')    || 'assets';
+  const costPeriod = searchParams.get('period') || 'monthly';
+  const costYear   = parseInt(searchParams.get('year')  || currentYear);
+  const costMonth  = parseInt(searchParams.get('month') || currentMonth);
+  const setActiveTab  = (v) => setSearchParams(prev => { prev.set('tab',    v); return prev; });
+  const setCostPeriod = (v) => setSearchParams(prev => { prev.set('period', v); return prev; });
+  const setCostYear   = (v) => setSearchParams(prev => { prev.set('year',   String(v)); return prev; });
+  const setCostMonth  = (v) => setSearchParams(prev => { prev.set('month',  String(v)); return prev; });
+
   const [showForm, setShowForm] = useState(false);
   const [openSection, setOpenSection] = useState('registrations');
   const [filterStatus, setFilterStatus] = useState('');
@@ -42,11 +51,6 @@ export default function FleetDashboard() {
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
   const [printPeriod, setPrintPeriod] = useState('monthly');
-
-  // ── Gastos por activo ──────────────────────────────────────────────
-  const [costPeriod, setCostPeriod]       = useState('monthly');
-  const [costYear, setCostYear]           = useState(currentYear);
-  const [costMonth, setCostMonth]         = useState(currentMonth);
   const [costCompany, setCostCompany]     = useState('');
   const [costAssetType, setCostAssetType] = useState('');
   const [costData, setCostData]           = useState(null);

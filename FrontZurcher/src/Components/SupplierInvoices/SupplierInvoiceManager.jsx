@@ -33,17 +33,19 @@ const SupplierInvoiceManager = () => {
   const [showDetail, setShowDetail] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [activeTab, setActiveTab] = useState('list'); // 🆕 NUEVO: 'list', 'vendors', 'credit-card', 'amex', 'commissions'
+  const activeTab = searchParams.get('tab') || 'list';
+  const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
 
   // 🆕 Detectar si se debe abrir un invoice específico desde la URL
   useEffect(() => {
     const openInvoiceId = searchParams.get('openInvoice');
     if (openInvoiceId) {
-      // Cambiar a tab de vendors que es donde está el modal de pago
-      setActiveTab('vendors');
-      // Limpiar el parámetro de la URL
-      searchParams.delete('openInvoice');
-      setSearchParams(searchParams);
+      // Cambiar a tab de vendors y limpiar el parámetro en un solo setSearchParams
+      setSearchParams(prev => {
+        prev.set('tab', 'vendors');
+        prev.delete('openInvoice');
+        return prev;
+      });
       
       // Guardar el ID para que VendorsSummary lo use
       sessionStorage.setItem('openInvoiceId', openInvoiceId);

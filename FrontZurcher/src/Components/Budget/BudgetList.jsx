@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchBudgets,
@@ -247,10 +248,13 @@ const BudgetList = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   
+  const [searchParams, setSearchParams] = useSearchParams();
   // ✅ Estados para filtros y búsqueda
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchTerm, setSearchTermState] = useState(searchParams.get('q') || '');
+  const setSearchTerm = (v) => { setSearchTermState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const statusFilter = searchParams.get('status') || 'all';
+  const setStatusFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('status'); else p.set('status', v); return p; });
   const [monthFilter, setMonthFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
 

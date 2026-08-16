@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   FaArrowLeft, FaEdit, FaWrench, FaTachometerAlt, FaClock,
@@ -61,7 +61,9 @@ export default function FleetAssetDetail() {
   const { currentAsset, maintenanceByAsset, loading } = useSelector((s) => s.fleet);
   const { currentStaff } = useSelector((s) => s.auth);
 
-  const [activeTab, setActiveTab]                 = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
   const [maintenanceYear, setMaintenanceYear]     = useState(String(new Date().getFullYear()));
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
   const [showEditForm, setShowEditForm]           = useState(false);

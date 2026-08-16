@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   incomeActions,
@@ -29,16 +30,17 @@ import { PAYMENT_METHODS, PAYMENT_METHODS_GROUPED, INCOME_TYPES, EXPENSE_TYPES }
 import StripePaymentBadge from "./Stripe/StripePaymentBadge";
 
 const Summary = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState({
-    startDate: "",
-    endDate: "",
-    type: "",
-    typeIncome: "",
-    typeExpense: "",
-    staffId: "",
-    verified: "",
-    paymentMethod: "",
-    search: "",
+    startDate:     searchParams.get('startDate')     || "",
+    endDate:       searchParams.get('endDate')       || "",
+    type:          searchParams.get('type')          || "",
+    typeIncome:    searchParams.get('typeIncome')    || "",
+    typeExpense:   searchParams.get('typeExpense')   || "",
+    staffId:       searchParams.get('staffId')       || "",
+    verified:      searchParams.get('verified')      || "",
+    paymentMethod: searchParams.get('paymentMethod') || "",
+    search:        searchParams.get('q')             || "",
   });
   const [movements, setMovements] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -382,6 +384,11 @@ const Summary = () => {
 
   const handleFilter = (e) => {
     e.preventDefault();
+    setSearchParams(p => {
+      const map = { startDate: 'startDate', endDate: 'endDate', type: 'type', typeIncome: 'typeIncome', typeExpense: 'typeExpense', staffId: 'staffId', verified: 'verified', paymentMethod: 'paymentMethod', search: 'q' };
+      Object.entries(map).forEach(([k, pk]) => { if (filters[k]) p.set(pk, filters[k]); else p.delete(pk); });
+      return p;
+    });
     fetchMovements();
   };
 
@@ -937,6 +944,7 @@ const Summary = () => {
                     paymentMethod: "",
                     search: "",
                   });
+                  setSearchParams(new URLSearchParams());
                   fetchMovements();
                 }}
                 className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-medium py-1.5 px-4 rounded transition-colors flex items-center justify-center gap-1.5"

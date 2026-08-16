@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   fetchSimpleWorks,
   deleteSimpleWork,
@@ -106,7 +106,21 @@ const SimpleWorkList = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingWork, setEditingWork] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({ status: '', workType: '', search: '' });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
+  const filters = { status: searchParams.get('status') || '', workType: searchParams.get('type') || '', search: searchInput };
+  const setFilters = (updater) => {
+    const next = typeof updater === 'function' ? updater(filters) : updater;
+    setSearchParams(p => {
+      if (next.status)   p.set('status', next.status);   else p.delete('status');
+      if (next.workType) p.set('type',   next.workType); else p.delete('type');
+      return p;
+    });
+    if (next.search !== filters.search) {
+      setSearchInput(next.search);
+      setSearchParams(p => { if (next.search) p.set('q', next.search); else p.delete('q'); return p; }, { replace: true });
+    }
+  };
 
   // PDF modal
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   ArrowLeftIcon,
@@ -46,7 +46,9 @@ const SimpleWorkDetail = () => {
   const { currentSimpleWork, loading } = useSelector(state => state.simpleWork);
   const { staffList } = useSelector(state => state.admin);
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
   const [showEditModal, setShowEditModal] = useState(false);
   const [isUploadingCompletion, setIsUploadingCompletion] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);

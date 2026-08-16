@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { bankAccountActions, bankTransactionActions } from '../../Redux/Actions/bankAccountActions';
 import {
@@ -15,10 +15,13 @@ import {
 
 const BankAccountMonthlyReport = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const month = parseInt(searchParams.get('month') || (new Date().getMonth() + 1));
+  const year  = parseInt(searchParams.get('year')  || new Date().getFullYear());
+  const setMonth = (m) => setSearchParams(prev => { prev.set('month', String(m)); return prev; });
+  const setYear  = (y) => setSearchParams(prev => { prev.set('year',  String(y)); return prev; });
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingPDF, setLoadingPDF] = useState(false);

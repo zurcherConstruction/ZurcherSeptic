@@ -2132,6 +2132,15 @@ const getVendorsSummary = async (req, res) => {
         'verified',
         'notes'
       ],
+      include: [
+        {
+          model: Work,
+          as: 'linkedWorks',
+          required: false,
+          attributes: ['idWork', 'propertyAddress'],
+          through: { attributes: [] }
+        }
+      ],
       order: [['vendor', 'ASC'], ['issueDate', 'ASC']]
     });
 
@@ -2155,6 +2164,9 @@ const getVendorsSummary = async (req, res) => {
 
       vendorMap[vendorKey].totalPending += pendingAmount;
       vendorMap[vendorKey].invoiceCount += 1;
+      const works = (invoice.linkedWorks || [])
+        .map(w => ({ idWork: w.idWork, propertyAddress: w.propertyAddress }));
+
       vendorMap[vendorKey].invoices.push({
         idSupplierInvoice: invoice.idSupplierInvoice,
         invoiceNumber: invoice.invoiceNumber,
@@ -2165,7 +2177,8 @@ const getVendorsSummary = async (req, res) => {
         pendingAmount: pendingAmount.toFixed(2),
         paymentStatus: invoice.paymentStatus,
         verified: invoice.verified,
-        notes: invoice.notes
+        notes: invoice.notes,
+        linkedWorks: works
       });
     });
 

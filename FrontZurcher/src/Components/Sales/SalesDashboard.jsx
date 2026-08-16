@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../utils/axios';
 import MentionTextarea from '../Common/MentionTextarea';
@@ -21,7 +22,9 @@ const SalesDashboard = () => {
   });
 
   // Estado de vista activa (budgets o works)
-  const [activeView, setActiveView] = useState('budgets');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeView = searchParams.get('view') || 'budgets';
+  const setActiveView = (v) => setSearchParams(prev => { prev.set('view', v); return prev; });
   
   // Estado para modal de notas
   const [notesModal, setNotesModal] = useState({
