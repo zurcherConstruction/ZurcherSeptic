@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CalendarIcon,
   BuildingOfficeIcon,
@@ -37,17 +37,18 @@ const invoiceLabel = (s) => {
 
 const CompletedInstallations = () => {
   const navigate = useNavigate();
-  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const now = new Date();
-  const [selectedYear, setSelectedYear]   = useState(location.state?.year  || now.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(location.state?.month || (now.getMonth() + 1));
+  const selectedYear  = parseInt(searchParams.get('year')  || now.getFullYear());
+  const selectedMonth = parseInt(searchParams.get('month') || (now.getMonth() + 1));
+  const viewMode      = searchParams.get('view') || 'monthly';
+
   const [availableYears, setAvailableYears] = useState([]);
   const [works, setWorks]         = useState([]);
   const [yearTotals, setYearTotals] = useState({});
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState(null);
-  const [viewMode, setViewMode]   = useState('monthly');
   // yearly summary: array of { month, monthName, count, profit }
   const [yearlySummary, setYearlySummary] = useState([]);
 
@@ -104,20 +105,19 @@ const CompletedInstallations = () => {
   }, [selectedYear, selectedMonth, viewMode, fetchMonth, fetchYear]);
 
   const handleYearChange = (year) => {
-    setSelectedYear(year);
-    if (viewMode === 'monthly') fetchMonth(year, selectedMonth);
-    else fetchYear(year);
+    setSearchParams(prev => { prev.set('year', String(year)); return prev; });
   };
 
   const handleMonthChange = (month) => {
-    setSelectedMonth(month);
-    fetchMonth(selectedYear, month);
+    setSearchParams(prev => { prev.set('month', String(month)); return prev; });
+  };
+
+  const setViewMode = (mode) => {
+    setSearchParams(prev => { prev.set('view', mode); return prev; });
   };
 
   const goToWork = (workId) => {
-    navigate(`/work/${workId}`, {
-      state: { from: '/completed-installations', year: selectedYear, month: selectedMonth }
-    });
+    navigate(`/work/${workId}`);
   };
 
   // ── Loading ──────────────────────────────────────────────────────────
@@ -397,7 +397,7 @@ const CompletedInstallations = () => {
                 {yearlySummary.map(m => (
                   <div
                     key={m.month}
-                    onClick={() => { setSelectedMonth(m.month); setViewMode('monthly'); }}
+                    onClick={() => setSearchParams(prev => { prev.set('month', String(m.month)); prev.set('view', 'monthly'); return prev; })}
                     className={`p-4 rounded-lg border-2 transition-colors cursor-pointer ${
                       m.month === selectedMonth
                         ? 'border-blue-500 bg-blue-50'

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatters';
 import api from '../utils/apiClient';
 
@@ -6,8 +7,10 @@ const MonthlyExpensesView = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // 🆕 Por defecto el mes actual
+  const [searchParams, setSearchParams] = useSearchParams();
+  const now = new Date();
+  const selectedYear  = parseInt(searchParams.get('year')  || now.getFullYear());
+  const selectedMonth = parseInt(searchParams.get('month') || (now.getMonth() + 1));
   const [refreshing, setRefreshing] = useState(false);
   
   // Estados para controlar qué secciones están expandidas
@@ -179,7 +182,7 @@ const MonthlyExpensesView = () => {
               </label>
               <select
                 value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
+                onChange={(e) => setSearchParams(prev => { prev.set('year', e.target.value); return prev; })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               >
                 {years.map(year => (
@@ -193,7 +196,7 @@ const MonthlyExpensesView = () => {
               </label>
               <select
                 value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
+                onChange={(e) => setSearchParams(prev => { prev.set('month', e.target.value); return prev; })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
               >
                 {months.map(month => (

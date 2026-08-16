@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchFollowUpBudgets,
@@ -43,9 +44,12 @@ const FollowUpBudgets = () => {
   // Estados locales
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchTerm, setSearchTermState] = useState(searchParams.get('q') || '');
+  const setSearchTerm = (v) => { setSearchTermState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const statusFilter = searchParams.get('status') || 'all';
+  const setStatusFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('status'); else p.set('status', v); return p; });
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);

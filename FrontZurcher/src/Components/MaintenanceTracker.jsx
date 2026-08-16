@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchMaintenanceWorks } from "../Redux/Actions/workActions";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 const MaintenanceTracker = () => {
   const dispatch = useDispatch();
   const { works, loading, error } = useSelector((state) => state.work);
-  const [search, setSearch] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearchState] = useState(searchParams.get('q') || '');
+  const setSearch = (v) => { setSearchState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
   const [filteredData, setFilteredData] = useState([]);
   const hasFetched = useRef(false);
 

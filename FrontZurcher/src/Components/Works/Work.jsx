@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks, deleteWork } from "../../Redux/Actions/workActions"; // Acción para obtener y eliminar works
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { 
   BuildingOfficeIcon, 
   MapPinIcon, 
@@ -22,8 +22,10 @@ const Works = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(50);
   
+  const [searchParams, setSearchParams] = useSearchParams();
   // 🔍 Estado de búsqueda
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTermState] = useState(searchParams.get('q') || '');
+  const setSearchTerm = (v) => { setSearchTermState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
   const [isSearching, setIsSearching] = useState(false);
   
   // Obtener works desde el estado de Redux

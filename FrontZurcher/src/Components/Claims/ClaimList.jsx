@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchClaims, deleteClaim, updateClaim } from '../../Redux/Actions/claimActions';
 import ClaimFormModal from './ClaimFormModal';
@@ -59,18 +60,31 @@ const ClaimList = () => {
   const [editingClaim, setEditingClaim] = useState(null);
   const [selectedClaim, setSelectedClaim] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({ status: '', priority: '', search: '', claimType: '' });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
+  const filters = {
+    status:    searchParams.get('status')    || '',
+    priority:  searchParams.get('priority')  || '',
+    search:    searchInput,
+    claimType: searchParams.get('claimType') || '',
+  };
 
   useEffect(() => {
     dispatch(fetchClaims());
   }, [dispatch]);
 
   const handleFilterChange = (field, value) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
+    if (field === 'search') {
+      setSearchInput(value);
+      setSearchParams(p => { if (value) p.set('q', value); else p.delete('q'); return p; }, { replace: true });
+    } else {
+      setSearchParams(p => { if (value) p.set(field, value); else p.delete(field); return p; });
+    }
   };
 
   const clearFilters = () => {
-    setFilters({ status: '', priority: '', search: '', claimType: '' });
+    setSearchInput('');
+    setSearchParams(new URLSearchParams());
   };
 
   const hasActiveFilters = filters.status || filters.priority || filters.search || filters.claimType;

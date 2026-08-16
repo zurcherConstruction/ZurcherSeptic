@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchWorksInMaintenance } from '../../Redux/Actions/maintenanceActions.jsx';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   MapPinIcon, 
   BuildingOfficeIcon,
@@ -105,25 +105,18 @@ const MaintenanceWorks = () => {
   const { worksInMaintenance, loading, error } = useSelector(state => state.maintenance);
   const { user } = useSelector(state => state.auth);
   
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedMonth = searchParams.get('month') || 'all';
+  const selectedZone  = searchParams.get('zone')  || 'all';
+  const setSelectedMonth = (v) => setSearchParams(p => { if (v === 'all') p.delete('month'); else p.set('month', v); return p; });
+  const setSelectedZone  = (v) => setSearchParams(p => { if (v === 'all') p.delete('zone');  else p.set('zone',  v); return p; });
+
   const [zoneData, setZoneData] = useState({});
-  const [selectedMonth, setSelectedMonth] = useState('all');
-  const [selectedZone, setSelectedZone] = useState('all');
   const [visitsWithDateInfo, setVisitsWithDateInfo] = useState([]);
 
   useEffect(() => {
     dispatch(fetchWorksInMaintenance());
   }, [dispatch]);
-
-  // Restaurar filtros cuando se vuelve desde otra vista
-  useEffect(() => {
-    if (location.state?.filters) {
-      const { selectedMonth: savedMonth, selectedZone: savedZone } = location.state.filters;
-      if (savedMonth) setSelectedMonth(savedMonth);
-      if (savedZone) setSelectedZone(savedZone);
-      // Limpiar el state
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state, navigate, location.pathname]);
 
   // Función para extraer zip code de una dirección
   const extractZipCode = (address) => {

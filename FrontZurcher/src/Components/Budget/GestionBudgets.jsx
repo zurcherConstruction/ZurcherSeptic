@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom'; // ✅ AGREGAR
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   fetchBudgets,
   fetchBudgetById,
@@ -68,12 +68,17 @@ const GestionBudgets = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  const [searchParams, setSearchParams] = useSearchParams();
   // Estados para filtros y búsqueda
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(''); // ✅ Debounced search
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [monthFilter, setMonthFilter] = useState('all');
-  const [yearFilter, setYearFilter] = useState('all');
+  const [searchTerm, setSearchTermState] = useState(searchParams.get('q') || '');
+  const setSearchTerm = (v) => { setSearchTermState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const statusFilter = searchParams.get('status') || 'all';
+  const setStatusFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('status'); else p.set('status', v); return p; });
+  const monthFilter = searchParams.get('month') || 'all';
+  const setMonthFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('month'); else p.set('month', v); return p; });
+  const yearFilter = searchParams.get('year') || 'all';
+  const setYearFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('year'); else p.set('year', v); return p; });
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState(null);
   const [showSignedPdfModal, setShowSignedPdfModal] = useState(false);

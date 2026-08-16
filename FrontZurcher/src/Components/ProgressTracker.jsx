@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obtener los works
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Importar el ícono
 import { FaFileExcel, FaTimes } from 'react-icons/fa'; // 🆕 Iconos para exportar
 import { getInspectionFollowUp, formatDateShort } from '../utils/inspectionTracking';
@@ -22,7 +22,9 @@ const ProgressTracker = () => {
   const { works, loading, error } = useSelector((state) => state.work);
   const token = useSelector((state) => state.auth.token); // 🆕 Token para export
   const { currentStaff } = useSelector((state) => state.auth);
-  const [search, setSearch] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [search, setSearchState] = useState(searchParams.get('q') || '');
+  const setSearch = (v) => { setSearchState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
   const [filteredData, setFilteredData] = useState([]);
   const hasFetched = useRef(false); // 🆕 Prevenir fetch duplicado
 

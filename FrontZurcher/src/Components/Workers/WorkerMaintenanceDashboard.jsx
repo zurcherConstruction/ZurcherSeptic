@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   WrenchScrewdriverIcon, 
   ClockIcon, 
@@ -83,9 +83,13 @@ const WorkerMaintenanceDashboard = () => {
   
   const [maintenances, setMaintenances] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('pending'); // pending, completed
-  const [selectedMonth, setSelectedMonth] = useState('all');
-  const [selectedZone, setSelectedZone] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab     = searchParams.get('tab')   || 'pending';
+  const selectedMonth = searchParams.get('month') || 'all';
+  const selectedZone  = searchParams.get('zone')  || 'all';
+  const setActiveTab     = (v) => setSearchParams(p => { p.set('tab', v); return p; });
+  const setSelectedMonth = (v) => setSearchParams(p => { if (v === 'all') p.delete('month'); else p.set('month', v); return p; });
+  const setSelectedZone  = (v) => setSearchParams(p => { if (v === 'all') p.delete('zone');  else p.set('zone',  v); return p; });
   const [zoneData, setZoneData] = useState({});
 
   // ✅ FIX: Usar useMemo para evitar recalcular staffId en cada render

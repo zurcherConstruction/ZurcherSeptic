@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../utils/axios';
 import { toast } from 'react-toastify';
 
@@ -23,10 +23,27 @@ const TYPE_BADGE = {
 
 export default function CustomInvoiceList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchInput, setSearchInput] = useState(searchParams.get('q') || '');
+  const filters = {
+    invoiceType: searchParams.get('type')   || '',
+    status:      searchParams.get('status') || '',
+    year:        searchParams.get('year')   || '',
+    search:      searchInput,
+  };
+  const setFilters = (updater) => {
+    const next = typeof updater === 'function' ? updater(filters) : updater;
+    setSearchParams(p => {
+      if (next.invoiceType) p.set('type',   next.invoiceType); else p.delete('type');
+      if (next.status)      p.set('status', next.status);      else p.delete('status');
+      if (next.year)        p.set('year',   next.year);        else p.delete('year');
+      return p;
+    }, { replace: next.search !== filters.search });
+    if (next.search !== filters.search) setSearchInput(next.search);
+  };
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [years, setYears] = useState([]);
-  const [filters, setFilters] = useState({ invoiceType: '', status: '', year: '', search: '' });
   const [deleting, setDeleting] = useState(null);
 
   const fetchYears = useCallback(async () => {
@@ -51,7 +68,7 @@ export default function CustomInvoiceList() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters.invoiceType, filters.status, filters.year, filters.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetchYears(); }, [fetchYears]);
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);

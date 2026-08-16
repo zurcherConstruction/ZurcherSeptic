@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { FaBook, FaSearch, FaStar, FaPlus, FaRegStar } from 'react-icons/fa';
 import { fetchCategories } from '../../Redux/Actions/knowledgeBaseActions';
@@ -10,8 +11,11 @@ const KnowledgeBase = () => {
   const dispatch = useDispatch();
   const categories = useSelector((state) => state.knowledgeBase.categories); // Selector específico
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [activeTab, setActiveTab] = useState('contacts'); // contacts, procedures, documents
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'contacts';
+  const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
+  const [searchQuery, setSearchQueryState] = useState(searchParams.get('q') || '');
+  const setSearchQuery = (v) => { setSearchQueryState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   useEffect(() => {
