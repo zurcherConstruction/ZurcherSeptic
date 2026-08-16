@@ -188,11 +188,10 @@ const BalanceStats = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
+    if (!dateString) return '';
+    const [y, m, d] = String(dateString).split('-');
+    if (!y || !m || !d) return dateString;
+    return `${m}/${d}/${y}`;
   };
 
   const formatCategoryLabel = (category) => {

@@ -182,7 +182,7 @@ const AttachReceipt = () => {
   const [finalInvoiceDetails, setFinalInvoiceDetails] = useState(null);
   const [isGeneralTransaction, setIsGeneralTransaction] = useState(false); // Nuevo estado para marcar si es transacción general
   const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]); // 🆕 Fecha de pago (por defecto hoy)
+  const [paymentDate, setPaymentDate] = useState(new Date().toLocaleDateString('en-CA')); // 🆕 Fecha de pago (por defecto hoy)
   const [paymentDetails, setPaymentDetails] = useState(''); // 🆕 Detalles adicionales del pago
   const [fixedExpenses, setFixedExpenses] = useState([]); // 🆕 Lista de gastos fijos
   const [selectedFixedExpense, setSelectedFixedExpense] = useState(''); // 🆕 Gasto fijo seleccionado
@@ -690,7 +690,7 @@ const AttachReceipt = () => {
 
             // Si es pago completo, agregar fecha de pago
             if (isFullPayment) {
-              updateData.paidDate = new Date().toISOString().split('T')[0];
+              updateData.paidDate = new Date().toLocaleDateString('en-CA');
             }
 
             await api.patch(`/fixed-expenses/${fixedExpense.idFixedExpense}`, updateData);
@@ -938,7 +938,7 @@ const AttachReceipt = () => {
       setFinalInvoiceDetails(null);
       setIsGeneralTransaction(false);
       setPaymentMethod(""); // 🆕 Limpiar método de pago
-      setPaymentDate(new Date().toISOString().split('T')[0]); // 🆕 Resetear fecha de pago a hoy
+      setPaymentDate(new Date().toLocaleDateString('en-CA')); // 🆕 Resetear fecha de pago a hoy
       setPaymentDetails(""); // 🆕 Limpiar detalles del pago
       setSelectedFixedExpense(""); // 🆕 Limpiar gasto fijo seleccionado
       setFixedExpensePaymentAmount(""); // 🆕 Limpiar monto de pago de gasto fijo
