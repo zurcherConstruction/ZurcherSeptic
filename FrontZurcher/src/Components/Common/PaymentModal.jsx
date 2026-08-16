@@ -38,7 +38,7 @@ const PaymentModal = ({
   // Estados del formulario
   const [paymentData, setPaymentData] = useState({
     amount: '',
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: new Date().toLocaleDateString('en-CA'),
     paymentMethod: defaultPaymentMethod || expense.paymentMethod || '',
     notes: '',
     receipt: null,
@@ -212,7 +212,7 @@ const PaymentModal = ({
     // Reset formulario
     setPaymentData({
       amount: '',
-      paymentDate: new Date().toISOString().split('T')[0],
+      paymentDate: new Date().toLocaleDateString('en-CA'),
       paymentMethod: defaultPaymentMethod || expense.paymentMethod || '',
       notes: '',
       receipt: null,
