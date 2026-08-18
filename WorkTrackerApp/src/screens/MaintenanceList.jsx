@@ -31,28 +31,29 @@ const MaintenanceListScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   
   const staffId = staff?.id;
+  const isCapataz = staff?.role === 'capataz';
 
   useEffect(() => {
-    if (staffId) {
+    if (isCapataz || staffId) {
       loadMaintenances();
     }
-  }, [staffId]);
+  }, [staffId, isCapataz]);
 
   useFocusEffect(
     useCallback(() => {
-      if (staffId) {
+      if (isCapataz || staffId) {
         loadMaintenances();
       }
-    }, [staffId])
+    }, [staffId, isCapataz])
   );
 
   const loadMaintenances = async () => {
-    if (!staffId) {
+    if (!isCapataz && !staffId) {
       Alert.alert('Error', 'No se pudo identificar el usuario');
       return;
     }
     try {
-      await dispatch(fetchAssignedMaintenances(staffId)).unwrap();
+      await dispatch(fetchAssignedMaintenances(isCapataz ? undefined : staffId)).unwrap();
     } catch (err) {
       Alert.alert('Error', err || 'Error al cargar mantenimientos');
     }
@@ -80,8 +81,8 @@ const MaintenanceListScreen = ({ navigation }) => {
 
   // ── Agrupar por zona y ordenar por más vencido ──
   const sections = useMemo(() => {
-    const pendingVisits = assignedMaintenances.filter(v => 
-      v.status !== 'completed' && v.staffId === staffId
+    const pendingVisits = assignedMaintenances.filter(v =>
+      v.status !== 'completed' && (isCapataz || v.staffId === staffId)
     );
 
     if (pendingVisits.length === 0) return [];

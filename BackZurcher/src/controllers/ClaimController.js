@@ -445,9 +445,12 @@ const ClaimController = {
   async getAssignedClaims(req, res) {
     try {
       const staffId = req.staff.id;
+      const isCapataz = req.staff.role === 'capataz';
+
+      const whereClause = isCapataz ? {} : { assignedStaffId: staffId };
 
       const claims = await Claim.findAll({
-        where: { assignedStaffId: staffId },
+        where: whereClause,
         attributes: [
           'id', 'claimNumber', 'clientName', 'clientPhone', 'clientEmail',
           'propertyAddress', 'description', 'claimType', 'priority', 'status',
@@ -469,7 +472,7 @@ const ClaimController = {
       res.status(200).json({
         error: false,
         claims,
-        message: claims.length === 0 ? 'No tienes reclamos asignados' : undefined
+        message: claims.length === 0 ? (isCapataz ? 'No hay reclamos' : 'No tienes reclamos asignados') : undefined
       });
     } catch (error) {
       console.error('❌ [getAssignedClaims] Error:', error);

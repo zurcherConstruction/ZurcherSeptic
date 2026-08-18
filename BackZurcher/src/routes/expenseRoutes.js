@@ -20,7 +20,7 @@ const { allowRoles } = require('../middleware/byRol');
 router.get('/types', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'finance-viewer', 'worker']), getExpenseTypes);
 
 // 📱 Ruta para obtener gastos del usuario logueado (app móvil)
-router.get('/my', verifyToken, allowRoles(['worker', 'maintenance', 'admin', 'owner']), getMyExpenses);
+router.get('/my', verifyToken, allowRoles(['worker', 'maintenance', 'capataz', 'admin', 'owner']), getMyExpenses);
 
 // 🆕 Ruta para crear gasto general con recibo (workers)
 router.post('/general', verifyToken, allowRoles(['worker', 'admin', 'owner', 'capataz']), upload.single('receipt'), createGeneralExpenseWithReceipt);
@@ -31,7 +31,7 @@ router.get('/unpaid', verifyToken, allowRoles(['admin', 'recept', 'owner', 'fina
 // 🆕 Ruta para obtener gastos por estado de pago
 router.get('/by-status/:status', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'finance-viewer']), getExpensesByPaymentStatus);
 
-router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'worker', 'maintenance']), upload.single('file'), createExpense);
+router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'worker', 'maintenance', 'capataz']), upload.single('file'), createExpense);
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'finance-viewer', 'worker']), getAllExpenses);
 router.get('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'finance-viewer', 'worker']), getExpenseById);
 router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'worker']), updateExpense);

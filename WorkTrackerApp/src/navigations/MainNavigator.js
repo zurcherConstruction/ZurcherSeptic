@@ -328,9 +328,32 @@ const AppDrawerNavigator = () => {
             name="MaintenanceList"
             component={MaintenanceList}
             options={{
-              title: 'Mis Mantenimientos',
+              title: 'Mantenimientos Pendientes',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="clipboard-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
+            name="MyAllWorksView"
+            component={AllMyWorksScreen}
+            options={{
+              title: 'Historial de Obras',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="time-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
+            name="MySimpleWorks"
+            component={AssignedSimpleWorksScreen}
+            options={{
+              headerShown: false,
+              title: 'Trabajos Varios',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="construct-outline" color={color} size={size} />
               ),
             }}
           />
@@ -340,7 +363,7 @@ const AppDrawerNavigator = () => {
             component={AssignedClaimsScreen}
             options={{
               headerShown: false,
-              title: 'Mis Reclamos',
+              title: 'Reclamos',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="alert-circle-outline" color={color} size={size} />
               ),
@@ -354,6 +377,17 @@ const AppDrawerNavigator = () => {
               title: 'Gastos Generales',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="receipt-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
+            name="MyExpenses"
+            component={MyExpensesScreen}
+            options={{
+              title: 'Mis Gastos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="wallet-outline" color={color} size={size} />
               ),
             }}
           />

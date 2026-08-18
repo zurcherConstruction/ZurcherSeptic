@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zurcher.construction",
-      "buildNumber": "42",
+      "buildNumber": "43",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSFaceIDUsageDescription": "Use Face ID to authenticate yourself and access your account",

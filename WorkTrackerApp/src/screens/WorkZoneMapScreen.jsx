@@ -92,24 +92,24 @@ const WorkZoneMapListScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedZone, setSelectedZone] = useState('all');
 
+  const isCapataz = staff?.role === 'capataz';
+
   useEffect(() => {
-    // 🎯 OBTENER STAFFID: Usar el mismo patrón que el resto de la app
-    const staffId = staff?.idStaff || staff?.id;
-    
-    if (staffId) {
-      console.log(`🗺️ WorkZoneMapScreen: Fetching works for staffId: ${staffId}`);
-      dispatch(fetchWorks(staffId));
+    if (isCapataz) {
+      dispatch(fetchWorks()); // sin filtro → trae todos los trabajos
     } else {
-      console.warn('⚠️ WorkZoneMapScreen: No staffId found for current staff');
+      const staffId = staff?.idStaff || staff?.id;
+      if (staffId) dispatch(fetchWorks(staffId));
     }
-  }, [dispatch, staff]);
+  }, [dispatch, staff, isCapataz]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
-    const staffId = staff?.idStaff || staff?.id;
-    if (staffId) {
-      await dispatch(fetchWorks(staffId));
+    if (isCapataz) {
+      await dispatch(fetchWorks());
+    } else {
+      const staffId = staff?.idStaff || staff?.id;
+      if (staffId) await dispatch(fetchWorks(staffId));
     }
     setRefreshing(false);
   };

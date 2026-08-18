@@ -894,19 +894,20 @@ const createMaintenanceVisit = async (req, res) => {
 const getAssignedMaintenances = async (req, res) => {
   try {
     const { workerId } = req.query;
-    
-    if (!workerId) {
+    const userRole = req.user?.role;
+    const isPrivileged = ['capataz', 'admin', 'owner'].includes(userRole);
+
+    if (!workerId && !isPrivileged) {
       return res.status(400).json({ error: true, message: 'Se requiere workerId.' });
     }
 
-    console.log(`[getAssignedMaintenances] Fetching for workerId: ${workerId}`);
+    console.log(`[getAssignedMaintenances] Fetching for workerId: ${workerId || 'ALL (capataz/admin/owner)'}`);
+
+    const whereClause = workerId ? { staffId: workerId } : {};
 
     // ✅ OPTIMIZACIÓN: Usar JOIN directo en lugar de query separada
     const visitsRaw = await MaintenanceVisit.findAll({
-      where: {
-        staffId: workerId
-        // No filtrar por status aquí - el frontend maneja los tabs
-      },
+      where: whereClause,
       attributes: { 
         exclude: [] // Traer todos los campos de MaintenanceVisit
       },
