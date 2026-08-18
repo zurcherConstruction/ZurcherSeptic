@@ -1543,72 +1543,80 @@ const customCategoryOrder = [
                   </div>
                 </div>
 
-                {/* --- 🆕 SECCIÓN ORIGEN Y VENDEDOR --- */}
-                <div className="border-2 border-yellow-400 rounded-lg p-6 bg-gradient-to-r from-yellow-50 to-amber-50 shadow-lg">
-                  <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
-                    <svg className="w-6 h-6 mr-2 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    Lead Source & Sales Representative
-                    <span className="ml-2 text-red-600 font-bold">*REQUIRED</span>
-                  </h4>
-                  <p className="text-sm text-gray-700 mb-4 font-medium">⚠️ You must select where this lead came from before submitting the budget.</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                    {/* Lead Source */}
-                    <div>
-                      <label htmlFor="leadSource" className="block text-sm font-medium text-gray-700 mb-1">
-                        Where did the lead come from? <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        id="leadSource"
-                        name="leadSource"
-                        value={formData.leadSource}
-                        onChange={handleGeneralInputChange}
-                        required
-                        className="mt-1 block w-full px-3 py-2.5 bg-white border-2 border-yellow-500 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-600 focus:border-yellow-600 sm:text-sm font-semibold"
-                      >
-                        <option value="web">Website / Web Form</option>
-                        <option value="direct_client">Direct Client (Walk-in/Call)</option>
-                        <option value="social_media">Social Media</option>
-                        <option value="referral">Referral (Generic)</option>
-                        <option value="sales_rep">Sales Representative (Staff)</option>
-                        <option value="external_referral">External Referral (Non-Staff)</option>
-                      </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Select the origin of this budget request
-                      </p>
+                {/* --- ORIGEN DEL PRESUPUESTO --- */}
+                <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                  {/* Header */}
+                  <div className="bg-gray-50 border-b border-gray-200 px-5 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                      </svg>
+                      <span className="text-sm font-semibold text-gray-700">Origen del Presupuesto</span>
                     </div>
+                    <span className="text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full">Requerido</span>
+                  </div>
 
-                    {/* Sales Rep (solo si leadSource === 'sales_rep') */}
+                  <div className="p-5">
+                    {/* Chips de selección */}
+                    {(() => {
+                      const SOURCES = [
+                        { value: 'web',               icon: '🌐', label: 'Web' },
+                        { value: 'direct_client',      icon: '🚶', label: 'Cliente Directo' },
+                        { value: 'social_media',       icon: '📱', label: 'Social Media' },
+                        { value: 'sales_rep',          icon: '💼', label: 'Sales Rep' },
+                        { value: 'external_referral',  icon: '🌟', label: 'Ref. Externo' },
+                        { value: 'sales_lead',         icon: '🎯', label: 'Venta Interna' },
+                      ];
+                      return (
+                        <div className="flex flex-wrap gap-2">
+                          {SOURCES.map(src => {
+                            const isSelected = formData.leadSource === src.value;
+                            return (
+                              <button
+                                key={src.value}
+                                type="button"
+                                onClick={() => handleGeneralInputChange({ target: { name: 'leadSource', value: src.value } })}
+                                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-all ${
+                                  isSelected
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+                                }`}
+                              >
+                                <span>{src.icon}</span>
+                                <span>{src.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Sales Rep: selector + comisión */}
                     {formData.leadSource === 'sales_rep' && (
-                      <div>
-                        <label htmlFor="createdByStaffId" className="block text-sm font-medium text-gray-700 mb-1">
-                          Sales Representative <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          id="createdByStaffId"
-                          name="createdByStaffId"
-                          value={formData.createdByStaffId}
-                          onChange={handleGeneralInputChange}
-                          required={formData.leadSource === 'sales_rep'}
-                          className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                        >
-                          <option value="">Select a sales representative...</option>
-                          {loadingStaff ? (
-                            <option disabled>Loading sales reps...</option>
-                          ) : salesReps.length === 0 ? (
-                            <option disabled>No sales representatives available</option>
-                          ) : (
-                            salesReps.map(rep => (
-                              <option key={rep.id} value={rep.id}>
-                                {rep.name} ({rep.email})
-                              </option>
-                            ))
-                          )}
-                        </select>
-                        <div className="mt-2">
-                          <label className="block text-xs font-medium text-indigo-700 mb-1">💰 Commission Amount (USD)</label>
+                      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                        <div>
+                          <label className="block text-xs font-semibold text-blue-800 mb-1">
+                            Vendedor <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            name="createdByStaffId"
+                            value={formData.createdByStaffId}
+                            onChange={handleGeneralInputChange}
+                            required
+                            className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          >
+                            <option value="">Seleccionar vendedor...</option>
+                            {loadingStaff ? (
+                              <option disabled>Cargando...</option>
+                            ) : (
+                              salesReps.map(rep => (
+                                <option key={rep.id} value={rep.id}>{rep.name}</option>
+                              ))
+                            )}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-blue-800 mb-1">Comisión (USD)</label>
                           <input
                             type="number"
                             min="0"
@@ -1616,135 +1624,64 @@ const customCategoryOrder = [
                             value={staffCommissionOverride}
                             onChange={(e) => setStaffCommissionOverride(e.target.value)}
                             placeholder="500"
-                            className="block w-full px-3 py-2 bg-white border-2 border-indigo-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            className="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                           />
-                          <p className="text-xs text-indigo-500 mt-1">Will be added to the client's total price</p>
+                          <p className="text-xs text-blue-500 mt-1">Se agrega al total del cliente</p>
                         </div>
+                      </div>
+                    )}
+
+                    {/* External Referral */}
+                    {formData.leadSource === 'external_referral' && (
+                      <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                        <p className="text-xs font-semibold text-emerald-800 mb-3">Datos del Referido Externo</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Nombre <span className="text-red-500">*</span></label>
+                            <input type="text" value={externalReferralInfo.name}
+                              onChange={(e) => setExternalReferralInfo(prev => ({ ...prev, name: e.target.value }))}
+                              className={standardInputClasses} placeholder="John Doe" required />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                            <input type="email" value={externalReferralInfo.email}
+                              onChange={(e) => setExternalReferralInfo(prev => ({ ...prev, email: e.target.value }))}
+                              className={standardInputClasses} placeholder="referral@example.com" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Teléfono</label>
+                            <input type="tel" value={externalReferralInfo.phone}
+                              onChange={(e) => setExternalReferralInfo(prev => ({ ...prev, phone: e.target.value }))}
+                              className={standardInputClasses} placeholder="+1 (954) 123-4567" />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Empresa</label>
+                            <input type="text" value={externalReferralInfo.company}
+                              onChange={(e) => setExternalReferralInfo(prev => ({ ...prev, company: e.target.value }))}
+                              className={standardInputClasses} placeholder="ABC Company LLC" />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Comisión ($) <span className="text-red-500">*</span></label>
+                            <div className="flex items-center gap-3">
+                              <input type="number" step="0.01" min="0" value={externalReferralInfo.commissionAmount}
+                                onChange={(e) => setExternalReferralInfo(prev => ({ ...prev, commissionAmount: e.target.value }))}
+                                className="w-40 px-3 py-2 bg-white border-2 border-emerald-300 rounded-lg text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                                placeholder="250.00" required />
+                              <span className="text-xs text-emerald-700">Se agrega al total del cliente</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Venta Interna: solo info */}
+                    {formData.leadSource === 'sales_lead' && (
+                      <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center gap-2">
+                        <span className="text-indigo-400 text-lg">🎯</span>
+                        <p className="text-sm text-indigo-700">Presupuesto generado desde la sección de <strong>Ventas Internas</strong>.</p>
                       </div>
                     )}
                   </div>
-
-                  {/* 🆕 External Referral Fields (solo si leadSource === 'external_referral') */}
-                  {formData.leadSource === 'external_referral' && (
-                    <div className="mt-4 p-5 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg shadow-sm">
-                      <h5 className="text-sm font-bold text-green-900 mb-4 flex items-center">
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        External Referral Information
-                      </h5>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Nombre del Referido */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Referral Name <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={externalReferralInfo.name}
-                            onChange={(e) => setExternalReferralInfo(prev => ({
-                              ...prev,
-                              name: e.target.value
-                            }))}
-                            className={standardInputClasses}
-                            placeholder="John Doe"
-                            required
-                          />
-                        </div>
-
-                        {/* Email del Referido */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Email
-                          </label>
-                          <input
-                            type="email"
-                            value={externalReferralInfo.email}
-                            onChange={(e) => setExternalReferralInfo(prev => ({
-                              ...prev,
-                              email: e.target.value
-                            }))}
-                            className={standardInputClasses}
-                            placeholder="referral@example.com"
-                          />
-                        </div>
-
-                        {/* Teléfono del Referido */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Phone
-                          </label>
-                          <input
-                            type="tel"
-                            value={externalReferralInfo.phone}
-                            onChange={(e) => setExternalReferralInfo(prev => ({
-                              ...prev,
-                              phone: e.target.value
-                            }))}
-                            className={standardInputClasses}
-                            placeholder="+1 (954) 123-4567"
-                          />
-                        </div>
-
-                        {/* Empresa del Referido */}
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Company (Optional)
-                          </label>
-                          <input
-                            type="text"
-                            value={externalReferralInfo.company}
-                            onChange={(e) => setExternalReferralInfo(prev => ({
-                              ...prev,
-                              company: e.target.value
-                            }))}
-                            className={standardInputClasses}
-                            placeholder="ABC Company LLC"
-                          />
-                        </div>
-
-                        {/* Monto de Comisión */}
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Commission Amount ($) <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={externalReferralInfo.commissionAmount}
-                            onChange={(e) => setExternalReferralInfo(prev => ({
-                              ...prev,
-                              commissionAmount: e.target.value
-                            }))}
-                            className="mt-1 block w-full md:w-1/2 px-3 py-2 bg-white border-2 border-green-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm font-semibold"
-                            placeholder="250.00"
-                            required
-                          />
-                          <p className="text-xs text-gray-600 mt-1">
-                            This commission will be added to the client's total price
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Mensaje informativo */}
-                      <div className="mt-4 p-3 bg-white border border-green-200 rounded-md">
-                        <p className="text-sm text-green-800">
-                          <strong>💰 External Referral Commission:</strong> ${externalReferralInfo.commissionAmount || '0.00'} USD will be added to the client's total price. This commission must be paid manually to the external referral.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Mensaje informativo si es vendedor */}
-                  {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
-                    <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-md">
-                      <p className="text-sm text-indigo-800">
-                        <strong>👤 Sales Commission:</strong> A commission will be automatically added to the client's total price for the selected sales representative (default $500 if not specified).
-                      </p>
-                    </div>
-                    )}
                 </div>
               </div>
             </div>

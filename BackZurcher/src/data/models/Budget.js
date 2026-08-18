@@ -217,7 +217,8 @@ module.exports = (sequelize) => {
       'social_media',     // Redes sociales
       'referral',         // Referido genérico
       'sales_rep',        // Vendedor/Representante de ventas (Staff)
-      'external_referral' // 🆕 Referido externo (persona NO staff que envía clientes)
+      'external_referral', // Referido externo (persona NO staff que envía clientes)
+      'sales_lead'        // Lead del sistema de ventas (sin comisión)
     ),
     allowNull: true,
     defaultValue: 'web'
