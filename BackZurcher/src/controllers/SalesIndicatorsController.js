@@ -16,6 +16,7 @@ const LEAD_SOURCE_LABELS = {
   referral: 'Referido',
   sales_rep: 'Sales Rep',
   external_referral: 'Referido Externo',
+  sales_lead: 'Internal Sales',
   unknown: 'No especificado',
 };
 

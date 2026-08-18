@@ -12,7 +12,7 @@ export const fetchAllClaims = () => async (dispatch) => {
   dispatch(fetchClaimsRequest());
   try {
     const response = await api.get('/claims');
-    const claims = response.data.claims || response.data || [];
+    const claims = response.data.claims || response.data.data || [];
     dispatch(fetchClaimsSuccess(claims));
     return claims;
   } catch (error) {

@@ -28,30 +28,31 @@ const CompletedMaintenanceListScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   
   const staffId = staff?.id;
+  const isCapataz = staff?.role === 'capataz';
 
   useEffect(() => {
-    if (staffId) {
+    if (isCapataz || staffId) {
       loadMaintenances();
     }
-  }, [staffId]);
+  }, [staffId, isCapataz]);
 
   // 🔄 Auto-refresh al volver de editar mantenimiento
   useFocusEffect(
     useCallback(() => {
-      if (staffId) {
+      if (isCapataz || staffId) {
         loadMaintenances();
       }
-    }, [staffId])
+    }, [staffId, isCapataz])
   );
 
   const loadMaintenances = async () => {
-    if (!staffId) {
+    if (!isCapataz && !staffId) {
       Alert.alert('Error', 'No se pudo identificar el usuario');
       return;
     }
-    
+
     try {
-      await dispatch(fetchAssignedMaintenances(staffId)).unwrap();
+      await dispatch(fetchAssignedMaintenances(isCapataz ? undefined : staffId)).unwrap();
     } catch (err) {
       Alert.alert('Error', err || 'Error al cargar mantenimientos');
     }
@@ -136,9 +137,9 @@ const CompletedMaintenanceListScreen = ({ navigation }) => {
     );
   }
 
-  // Filtrar solo visitas completadas POR el usuario logueado
-  const completedVisits = assignedMaintenances.filter(v => 
-    v.status === 'completed' && v.completed_by_staff_id === staffId
+  // Filtrar solo visitas completadas (capataz ve todas, workers ven las suyas)
+  const completedVisits = assignedMaintenances.filter(v =>
+    v.status === 'completed' && (isCapataz || v.completed_by_staff_id === staffId)
   );
 
   return (

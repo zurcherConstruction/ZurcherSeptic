@@ -433,6 +433,17 @@ const SalesDashboard = () => {
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusInfo.color}`}>
                               {statusInfo.label}
                             </span>
+                            <div className="mt-1">
+                              {budget.leadSource === 'sales_lead' ? (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700">
+                                  🎯 Sales Lead
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700">
+                                  💼 Sales Rep
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatDate(budget.createdAt)}

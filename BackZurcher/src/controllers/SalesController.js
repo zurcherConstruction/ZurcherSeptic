@@ -25,15 +25,18 @@ class SalesController {
       }
 
       // === 📋 FILTROS ===
-      const budgetFilters = {
-        leadSource: 'sales_rep'
-      };
+      const isSalesRepOrRecept = user.role === 'sales_rep' || user.role === 'recept';
 
-      // sales_rep y recept ven solo sus propios presupuestos
-      // admin/owner ven TODOS los presupuestos de ventas
-      if (user.role === 'sales_rep' || user.role === 'recept') {
-        budgetFilters.createdByStaffId = userId;
-      }
+      // sales_rep/recept ven sus propios budgets + todos los sales_lead
+      // admin/owner ven TODOS los budgets de ventas (sales_rep + sales_lead)
+      const budgetFilters = isSalesRepOrRecept
+        ? {
+            [Op.or]: [
+              { leadSource: 'sales_rep', createdByStaffId: userId },
+              { leadSource: 'sales_lead' }
+            ]
+          }
+        : { leadSource: { [Op.in]: ['sales_rep', 'sales_lead'] } };
 
       // Filtro por mes/año
       if (month && year) {
@@ -79,10 +82,14 @@ class SalesController {
       }
 
       // Filtro condicional para budgets en works
-      const workBudgetWhere = { leadSource: 'sales_rep' };
-      if (user.role === 'sales_rep' || user.role === 'recept') {
-        workBudgetWhere.createdByStaffId = userId;
-      }
+      const workBudgetWhere = isSalesRepOrRecept
+        ? {
+            [Op.or]: [
+              { leadSource: 'sales_rep', createdByStaffId: userId },
+              { leadSource: 'sales_lead' }
+            ]
+          }
+        : { leadSource: { [Op.in]: ['sales_rep', 'sales_lead'] } };
 
       // Works que vienen de budgets del vendedor (o todos si es admin/owner)
       const works = await Work.findAll({
@@ -112,15 +119,18 @@ class SalesController {
       const monthStartDate = new Date(currentYear, currentMonth - 1, 1);
       const monthEndDate = new Date(currentYear, currentMonth, 0, 23, 59, 59);
 
-      const monthlyBudgetWhere = {
-        leadSource: 'sales_rep',
-        createdAt: {
-          [Op.between]: [monthStartDate, monthEndDate]
-        }
-      };
-      if (user.role === 'sales_rep' || user.role === 'recept') {
-        monthlyBudgetWhere.createdByStaffId = userId;
-      }
+      const monthlyBudgetWhere = isSalesRepOrRecept
+        ? {
+            [Op.or]: [
+              { leadSource: 'sales_rep', createdByStaffId: userId },
+              { leadSource: 'sales_lead' }
+            ],
+            createdAt: { [Op.between]: [monthStartDate, monthEndDate] }
+          }
+        : {
+            leadSource: { [Op.in]: ['sales_rep', 'sales_lead'] },
+            createdAt: { [Op.between]: [monthStartDate, monthEndDate] }
+          };
 
       const monthlyBudgets = await Budget.findAll({
         where: monthlyBudgetWhere,
@@ -128,10 +138,14 @@ class SalesController {
       });
 
       // Contar works concretados del mes
-      const monthlyWorkBudgetWhere = { leadSource: 'sales_rep' };
-      if (user.role === 'sales_rep' || user.role === 'recept') {
-        monthlyWorkBudgetWhere.createdByStaffId = userId;
-      }
+      const monthlyWorkBudgetWhere = isSalesRepOrRecept
+        ? {
+            [Op.or]: [
+              { leadSource: 'sales_rep', createdByStaffId: userId },
+              { leadSource: 'sales_lead' }
+            ]
+          }
+        : { leadSource: { [Op.in]: ['sales_rep', 'sales_lead'] } };
 
       const monthlyWorks = await Work.count({
         where: {
@@ -171,6 +185,7 @@ class SalesController {
         budgets: budgets.map(b => ({
           idBudget: b.idBudget,
           status: b.status,
+          leadSource: b.leadSource,
           propertyAddress: b.propertyAddress,
           totalPrice: parseFloat(b.totalPrice || 0),
           date: b.date,

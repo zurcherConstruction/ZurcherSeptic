@@ -8,6 +8,7 @@ const LEAD_SOURCE_COLORS = {
   referral:          'bg-purple-100 text-purple-700',
   sales_rep:         'bg-orange-100 text-orange-700',
   external_referral: 'bg-yellow-100 text-yellow-700',
+  sales_lead:        'bg-indigo-100 text-indigo-700',
   unknown:           'bg-gray-100 text-gray-600',
 };
 
@@ -229,6 +230,7 @@ const SalesIndicators = () => {
                                   LEAD_SOURCE_COLORS[s.key]?.includes('blue')   ? 'bg-blue-400'   :
                                   LEAD_SOURCE_COLORS[s.key]?.includes('green')  ? 'bg-green-400'  :
                                   LEAD_SOURCE_COLORS[s.key]?.includes('pink')   ? 'bg-pink-400'   :
+                                  LEAD_SOURCE_COLORS[s.key]?.includes('indigo') ? 'bg-indigo-400' :
                                   LEAD_SOURCE_COLORS[s.key]?.includes('purple') ? 'bg-purple-400' :
                                   LEAD_SOURCE_COLORS[s.key]?.includes('orange') ? 'bg-orange-400' :
                                   LEAD_SOURCE_COLORS[s.key]?.includes('yellow') ? 'bg-yellow-400' :

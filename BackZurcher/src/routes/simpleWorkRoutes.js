@@ -33,7 +33,7 @@ const upload = multer({
  */
 
 // 🔍 GET /api/simple-works/assigned - Obtener trabajos asignados al staff autenticado (app móvil)
-router.get('/assigned', verifyToken, allowRoles(['owner', 'worker', 'maintenance', 'admin']), SimpleWorkController.getAssignedSimpleWorks);
+router.get('/assigned', verifyToken, allowRoles(['owner', 'worker', 'maintenance', 'admin', 'capataz']), SimpleWorkController.getAssignedSimpleWorks);
 
 // ✅ POST /approve/:token ahora está en simpleWorkPublicRoutes.js (montada antes de verifyToken)
 

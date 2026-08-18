@@ -112,15 +112,16 @@ const TAG_COLORS = {
 };
 
 const STATUS_LABELS = {
-  new: 'Nuevo',
-  contacted: 'Contactado',
-  no_answer: 'No Contesta',
-  interested: 'Interesado',
-  quoted: 'Cotizado',
+  new:         'Nuevo',
+  contacted:   'Contactado',      // presupuesto general enviado
+  no_answer:   'No Contesta',
+  quoted:      'Cotizado',        // documentos + cotización real
+  won:         'Ganado',
+  lost:        'Perdido',
+  archived:    'Archivado',
+  // legacy — se mantienen para registros existentes
+  interested:  'Interesado',
   negotiating: 'Negociando',
-  won: 'Ganado',
-  lost: 'Perdido',
-  archived: 'Archivado'
 };
 
 const STATUS_COLORS = {
@@ -141,6 +142,16 @@ const PRIORITY_COLORS = {
   high: 'border-l-4 border-orange-500',
   urgent: 'border-l-4 border-red-600'
 };
+
+// Etapas del pipeline que se muestran en las tarjetas de estado
+const PIPELINE_STAGES = [
+  { key: 'new',       label: 'Nuevo',        subtitle: 'Leads recientes' },
+  { key: 'contacted', label: 'Contactado',   subtitle: 'Presupuesto enviado' },
+  { key: 'no_answer', label: 'No Contesta',  subtitle: 'Sin respuesta' },
+  { key: 'quoted',    label: 'Cotizado',     subtitle: 'Cotización real enviada' },
+  { key: 'won',       label: 'Ganado',       subtitle: 'Contrataron' },
+  { key: 'lost',      label: 'Perdido',      subtitle: 'No avanzaron' },
+];
 
 const SalesLeads = () => {
   const dispatch = useDispatch();
@@ -729,46 +740,52 @@ const SalesLeads = () => {
         </div>
       )}
 
-      {/* Estadísticas por Estado - Botones Clickeables */}
-      {stats && Object.keys(stats).length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
-          {Object.entries(stats).map(([status, count]) => {
-            const isActive = statusFilter === status;
+      {/* Tarjetas de estado del pipeline */}
+      {stats && (
+        <div className="flex flex-wrap gap-3 mb-5">
+          {PIPELINE_STAGES.map(({ key, label, subtitle }) => {
+            const count = stats[key] || 0;
+            const isActive = statusFilter === key;
             return (
               <button
-                key={status}
-                onClick={() => { 
-                  setStatusFilter(isActive ? 'all' : status); 
-                  setPage(1); 
-                }}
-                className={`p-4 rounded-lg shadow border text-left transition-all cursor-pointer
-                  ${isActive
-                    ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400'
-                    : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-md'
-                  }`}
+                key={key}
+                onClick={() => { setStatusFilter(isActive ? 'all' : key); setPage(1); }}
+                className={`flex-1 min-w-[120px] max-w-[180px] text-left px-4 py-3 rounded-xl border transition-all ${
+                  isActive
+                    ? 'bg-blue-600 border-blue-600 shadow-md'
+                    : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                }`}
               >
-                <p className={`text-sm uppercase font-semibold ${isActive ? 'text-blue-700' : 'text-gray-600'}`}>
-                  {STATUS_LABELS[status] || status}
-                </p>
-                <p className={`text-2xl font-bold ${isActive ? 'text-blue-600' : 'text-gray-800'}`}>
+                <p className={`text-xl font-bold leading-none mb-1 ${isActive ? 'text-white' : 'text-gray-900'}`}>
                   {count}
+                </p>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${isActive ? 'text-blue-100' : 'text-gray-700'}`}>
+                  {label}
+                </p>
+                <p className={`text-xs mt-0.5 ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>
+                  {subtitle}
                 </p>
               </button>
             );
           })}
+          {/* Total */}
           <button
-            onClick={() => { 
-              setStatusFilter('all'); 
-              setPage(1); 
-            }}
-            className={`p-4 rounded-lg shadow border text-left transition-all cursor-pointer
-              ${statusFilter === 'all'
-                ? 'bg-blue-100 border-blue-500 ring-2 ring-blue-500'
-                : 'bg-blue-50 border-blue-200 hover:border-blue-400 hover:shadow-md'
-              }`}
+            onClick={() => { setStatusFilter('all'); setPage(1); }}
+            className={`flex-1 min-w-[100px] max-w-[140px] text-left px-4 py-3 rounded-xl border transition-all ${
+              statusFilter === 'all'
+                ? 'bg-gray-800 border-gray-800 shadow-md'
+                : 'bg-gray-50 border-gray-200 hover:border-gray-400 hover:shadow-sm'
+            }`}
           >
-            <p className="text-sm text-blue-800 uppercase font-semibold">Total</p>
-            <p className="text-2xl font-bold text-blue-600">{total || 0}</p>
+            <p className={`text-xl font-bold leading-none mb-1 ${statusFilter === 'all' ? 'text-white' : 'text-gray-900'}`}>
+              {total || 0}
+            </p>
+            <p className={`text-xs font-semibold uppercase tracking-wide ${statusFilter === 'all' ? 'text-gray-300' : 'text-gray-600'}`}>
+              Total
+            </p>
+            <p className={`text-xs mt-0.5 ${statusFilter === 'all' ? 'text-gray-400' : 'text-gray-400'}`}>
+              Todos los leads
+            </p>
           </button>
         </div>
       )}
@@ -798,9 +815,13 @@ const SalesLeads = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Todos los estados</option>
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
+              <option value="new">Nuevo</option>
+              <option value="contacted">Contactado</option>
+              <option value="no_answer">No Contesta</option>
+              <option value="quoted">Cotizado</option>
+              <option value="won">Ganado</option>
+              <option value="lost">Perdido</option>
+              <option value="archived">Archivado</option>
             </select>
           </div>
 
@@ -982,7 +1003,7 @@ const SalesLeads = () => {
         </div>
       )}
 
-      {/* Lista de Leads - Tabla Desktop */}
+      {/* Lista de Leads */}
       {loading ? (
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1081,9 +1102,13 @@ const SalesLeads = () => {
                     className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[lead.status]}`}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
+                    <option value="new">Nuevo</option>
+                    <option value="contacted">Contactado</option>
+                    <option value="no_answer">No Contesta</option>
+                    <option value="quoted">Cotizado</option>
+                    <option value="won">Ganado</option>
+                    <option value="lost">Perdido</option>
+                    <option value="archived">Archivado</option>
                   </select>
 
                   <div className="flex items-center gap-2">
@@ -1235,9 +1260,13 @@ const SalesLeads = () => {
                         className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[lead.status]}`}
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                          <option key={value} value={value}>{label}</option>
-                        ))}
+                        <option value="new">Nuevo</option>
+                        <option value="contacted">Contactado</option>
+                        <option value="no_answer">No Contesta</option>
+                        <option value="quoted">Cotizado</option>
+                        <option value="won">Ganado</option>
+                        <option value="lost">Perdido</option>
+                        <option value="archived">Archivado</option>
                       </select>
                     </td>
                     <td className="px-4 py-4">
@@ -1630,7 +1659,7 @@ const SalesLeads = () => {
                       className="p-4 rounded-lg border border-yellow-200 bg-yellow-50 hover:bg-yellow-100 transition-colors cursor-pointer"
                       onClick={() => {
                         setShowNoAnswerModal(false);
-                        handleShowNotes(lead);
+                        handleOpenNotes(lead);
                       }}
                     >
                       <div className="flex items-start justify-between gap-3">
