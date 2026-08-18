@@ -70,7 +70,7 @@ const ClaimList = () => {
   };
 
   useEffect(() => {
-    dispatch(fetchClaims());
+    dispatch(fetchClaims({ limit: 500 }));
   }, [dispatch]);
 
   const handleFilterChange = (field, value) => {
@@ -148,7 +148,7 @@ const ClaimList = () => {
     try {
       await dispatch(updateClaim(claim.id, { status: newStatus }));
       toast.success(`Estado actualizado a ${STATUS_CONFIG[newStatus]?.label || newStatus}`);
-      dispatch(fetchClaims());
+      dispatch(fetchClaims({ limit: 500 }));
     } catch (error) {
       toast.error('Error actualizando estado');
     }
@@ -160,7 +160,7 @@ const ClaimList = () => {
   };
 
   const handleSaved = () => {
-    dispatch(fetchClaims());
+    dispatch(fetchClaims({ limit: 500 }));
   };
 
   // Summary
@@ -203,7 +203,7 @@ const ClaimList = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => dispatch(fetchClaims())}
+              onClick={() => dispatch(fetchClaims({ limit: 500 }))}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition shadow-sm"
               title="Actualizar"
             >
@@ -219,6 +219,27 @@ const ClaimList = () => {
             </button>
           </div>
         </div>
+
+        {/* --- Banner filtros activos --- */}
+        {hasActiveFilters && (
+          <div className="flex items-center justify-between bg-amber-50 border border-amber-300 rounded-xl px-4 py-2.5 mb-4">
+            <div className="flex items-center gap-2 text-sm text-amber-800">
+              <FunnelIcon className="h-4 w-4 flex-shrink-0" />
+              <span className="font-medium">Filtros activos:</span>
+              {filters.status && <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-xs font-semibold">{STATUS_CONFIG[filters.status]?.label || filters.status}</span>}
+              {filters.priority && <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-xs font-semibold">{PRIORITY_CONFIG[filters.priority]?.label || filters.priority}</span>}
+              {filters.claimType && <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-xs font-semibold">{TYPE_CONFIG[filters.claimType]?.label || filters.claimType}</span>}
+              {filters.search && <span className="bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full text-xs font-semibold">"{filters.search}"</span>}
+              <span className="text-amber-600">— mostrando {filteredClaims.length} de {summary.total}</span>
+            </div>
+            <button
+              onClick={clearFilters}
+              className="text-xs font-semibold text-amber-800 hover:text-amber-900 underline whitespace-nowrap ml-4"
+            >
+              Ver todos
+            </button>
+          </div>
+        )}
 
         {/* --- Summary Cards --- */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
