@@ -210,19 +210,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
           const changeOrderRowY = doc.y;
           const includedText = "CHANGE ORDER";
           
-          let dynamicDescription = '';
-          const originalDescription = (item.description || '').toUpperCase();
-          const quantity = parseFloat(item.quantity || 0).toFixed(2);
-
-          if (originalDescription.includes('SAND')) {
-            dynamicDescription = `SAND ${quantity} TRUCKS`;
-          } else if (originalDescription.includes('DIRT')) {
-            dynamicDescription = `DIRT ${quantity} TRUCKS`;
-          } else if (originalDescription.includes('ROCK REMOVAL')) {
-            dynamicDescription = `ROCK REMOVAL ${quantity} HOURS`;
-          } else {
-            dynamicDescription = item.description || 'Additional Work';
-          }
+          const dynamicDescription = item.description || 'Additional Work';
 
           doc.text(includedText, xIncludedText, changeOrderRowY, { width: wIncluded });
           doc.text(dynamicDescription.toUpperCase(), xDescText, changeOrderRowY, { width: wDesc });
