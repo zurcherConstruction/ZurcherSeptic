@@ -34,6 +34,7 @@ const workChecklistRoutes = require('./workChecklistRoutes'); // 🆕 Checklist 
 const monthlyInstallationsRoutes = require('./monthlyInstallationsRoutes'); // 🆕 Instalaciones mensuales (covered)
 const completedInstallationsRoutes = require('./completedInstallationsRoutes'); // 🆕 Instalaciones completadas (ok final)
 const staffAttendanceRoutes = require('./staffAttendanceRoutes'); // 🆕 Asistencia del personal
+const staffActivityRoutes = require('./staffActivityRoutes'); // 🆕 Actividad web del personal
 //const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
 const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
 
@@ -94,7 +95,9 @@ router.post('/invoice/:token/approve', clientApprove);
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');
+const activityLogger = require('../middleware/activityLogger');
 router.use(verifyToken); // Middleware global para rutas protegidas
+router.use(activityLogger); // Registra actividad web de cada usuario autenticado
 router.use('/admin', adminRoutes);
 router.use('/budget', budgetRoutes);
 router.use('/budget-notes', budgetNoteRoutes); // 🆕 Rutas para notas de seguimiento
@@ -129,6 +132,7 @@ router.use('/export', exportRoutes); // 🆕 Ruta para exportar datos a Excel
 router.use('/monthly-installations', monthlyInstallationsRoutes); // 🆕 Ruta para instalaciones mensuales
 router.use('/completed-installations', completedInstallationsRoutes); // 🆕 Ruta para instalaciones completadas (ok final)
 router.use('/staff-attendance', staffAttendanceRoutes); // 🆕 Ruta para asistencia del personal
+router.use('/staff-activity', staffActivityRoutes); // 🆕 Ruta para actividad web del personal
 router.use('/simple-works', simpleWorkRoutes); // 🆕 Ruta para trabajos varios (culvert, drainfield, etc.)
 router.use('/claims', claimRoutes); // 🆕 Ruta para reclamos/garantías
 router.use('/sales', salesRoutes); // 🆕 Ruta para dashboard de ventas

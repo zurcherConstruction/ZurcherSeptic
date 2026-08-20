@@ -101,7 +101,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, ReminderRead, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, FleetAssetDocument, NotificationRouting, CustomInvoice } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, ReminderRead, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, FleetAssetDocument, NotificationRouting, CustomInvoice, StaffActivityLog } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -727,6 +727,10 @@ StaffAttendance.belongsTo(Staff, {
   foreignKey: 'createdBy',
   as: 'CreatedByStaff'
 });
+
+// ========================= STAFF ACTIVITY LOG ========================= //
+Staff.hasMany(StaffActivityLog, { foreignKey: 'staffId', as: 'activityLogs' });
+StaffActivityLog.belongsTo(Staff, { foreignKey: 'staffId', as: 'Staff' });
 
 // ========================= SIMPLE WORK ASSOCIATIONS ========================= //
 // 🔗 SimpleWork tiene muchos pagos
