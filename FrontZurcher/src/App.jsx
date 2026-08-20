@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { restoreSession } from "./Redux/Actions/authActions";
+import socket from "./utils/io";
 import PrivateRoute from "./Components/PrivateRoute";
 import Header from "./Components/Header";
 import { ToastContainer } from "react-toastify";
@@ -30,6 +31,7 @@ import MonthlyInstallations from "./Components/MonthlyInstallations"; // 🆕 Vi
 import CompletedInstallations from "./Components/CompletedInstallations"; // 🆕 Vista de instalaciones completadas (ok final)
 import SalesIndicators from "./Components/SalesIndicators"; // 🆕 Indicadores mensuales de ventas
 import StaffAttendance from "./Components/StaffAttendance"; // 🆕 Vista de asistencia del personal
+import StaffActivityDashboard from "./Components/StaffActivity/StaffActivityDashboard"; // 🆕 Monitor de actividad web
 import WorkDetail from "./Components/Works/WorkDetail";
 import Materiales from "./Components/Materiales";
 import MaterialsCheck from "./Components/Seguimiento/WorkStatusManager";
@@ -122,12 +124,29 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, currentStaff } = useSelector((state) => state.auth);
   const [isSessionRestored, setIsSessionRestored] = useState(false);
 
   useEffect(() => {
     dispatch(restoreSession()).finally(() => setIsSessionRestored(true));
   }, [dispatch]);
+
+  // 🟢 Presencia en tiempo real: unir el socket apenas hay sesión iniciada,
+  // sin depender de que el usuario visite la página de Notificaciones.
+  // Así el "conectado ahora" del Monitor de Actividad refleja a todo el equipo.
+  useEffect(() => {
+    if (!isAuthenticated || !currentStaff?.id) return;
+    const staffId = currentStaff.id;
+
+    const joinPresence = () => socket.emit("join", staffId);
+    joinPresence(); // por si el socket ya estaba conectado
+    socket.on("connect", joinPresence); // por si se reconecta (red inestable, etc.)
+
+    return () => {
+      socket.off("connect", joinPresence);
+      socket.emit("leave", staffId); // logout sin cerrar la pestaña
+    };
+  }, [isAuthenticated, currentStaff?.id]);
 
   useEffect(() => {
     // Lista de rutas públicas que no requieren redirección automática
@@ -291,6 +310,15 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner", "finance"]}>
                     <StaffAttendance />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/staff-activity"
+                element={
+                  <PrivateRoute allowedRoles={["owner"]}>
+                    <StaffActivityDashboard />
                   </PrivateRoute>
                 }
               />

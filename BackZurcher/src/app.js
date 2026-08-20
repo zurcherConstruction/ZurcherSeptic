@@ -49,26 +49,47 @@ createUploadDirectories();
 app.set('io', io);
 
 // Configuración de eventos de Socket.IO
-const connectedUsers = {}; // Objeto para almacenar los usuarios conectados
+// Objeto para almacenar los usuarios conectados: staffId -> Set de socket.id
+// (un Set permite múltiples pestañas/dispositivos por usuario sin perder el estado "online"
+// cuando se cierra solo una de ellas)
+const connectedUsers = {};
+app.set('connectedUsers', connectedUsers); // Middleware/controladores pueden leer quién está online en tiempo real
+
+const broadcastOnlineStaff = () => {
+  io.emit('onlineStaffUpdate', Object.keys(connectedUsers));
+};
 
 io.on("connection", (socket) => {
   //console.log("Usuario conectado:", socket.id);
 
   // Escuchar el evento "join" para asociar el staffId con el socket.id
   socket.on("join", (staffId) => {
-    connectedUsers[staffId] = socket.id; // Asociar el staffId con el socket.id
+    socket.data.staffId = staffId; // Guardado en el socket para poder ubicarlo rápido al desconectar
+    if (!connectedUsers[staffId]) connectedUsers[staffId] = new Set();
+    connectedUsers[staffId].add(socket.id);
+    broadcastOnlineStaff();
     //console.log(`Usuario con staffId ${staffId} conectado con socket.id ${socket.id}`);
   });
 
-  // Eliminar al usuario del objeto cuando se desconecta
-  socket.on("disconnect", () => {
-    const staffId = Object.keys(connectedUsers).find(
-      (key) => connectedUsers[key] === socket.id
-    );
-    if (staffId) {
-      delete connectedUsers[staffId];
-      //console.log(`Usuario con staffId ${staffId} desconectado`);
+  // Salida explícita (ej. logout sin cerrar la pestaña): saca al usuario del mapa
+  // de conectados sin esperar a que el socket se desconecte por completo.
+  const removeFromConnected = (staffId) => {
+    if (staffId && connectedUsers[staffId]) {
+      connectedUsers[staffId].delete(socket.id);
+      if (connectedUsers[staffId].size === 0) delete connectedUsers[staffId];
+      broadcastOnlineStaff();
     }
+  };
+
+  socket.on("leave", (staffId) => {
+    removeFromConnected(staffId || socket.data.staffId);
+    socket.data.staffId = null;
+  });
+
+  // Eliminar al usuario del objeto cuando se desconecta (solo si no le quedan más pestañas abiertas)
+  socket.on("disconnect", () => {
+    removeFromConnected(socket.data.staffId);
+    //console.log(`Usuario con staffId ${socket.data.staffId} desconectado`);
   });
 });
 

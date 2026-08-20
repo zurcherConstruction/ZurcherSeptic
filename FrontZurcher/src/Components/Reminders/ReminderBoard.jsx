@@ -1294,6 +1294,8 @@ export default function ReminderBoard() {
   const { currentStaff }    = useSelector(s => s.auth);
   const { staffList = [] }  = useSelector(s => s.admin);
   const isOwner = ['admin', 'owner'].includes(currentStaff?.role);
+  const bellClicksRef = useRef(0);
+  const bellTimerRef  = useRef(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const viewMode  = searchParams.get('view') || 'pending';
@@ -1347,7 +1349,19 @@ export default function ReminderBoard() {
 
             {/* Título */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 flex-shrink-0">
+              <div
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 flex-shrink-0 cursor-pointer select-none"
+                onClick={() => {
+                  if (currentStaff?.role !== 'owner') return;
+                  bellClicksRef.current += 1;
+                  clearTimeout(bellTimerRef.current);
+                  bellTimerRef.current = setTimeout(() => { bellClicksRef.current = 0; }, 600);
+                  if (bellClicksRef.current >= 3) {
+                    bellClicksRef.current = 0;
+                    navigate('/staff-activity');
+                  }
+                }}
+              >
                 <FaBell className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div>
