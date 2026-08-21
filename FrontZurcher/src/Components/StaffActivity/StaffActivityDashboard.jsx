@@ -3,7 +3,7 @@ import api from '../../utils/axios';
 import socket from '../../utils/io';
 
 const ROLE_LABELS = {
-  owner: 'Owner', admin: 'Admin', recept: 'Recept', finance: 'Finance',
+  owner: 'Owner', admin: 'Admin', recept: 'Recept', finance: 'Finance', capataz: 'Capataz',
   'finance-viewer': 'Finance Viewer', sales_rep: 'Sales Rep', 'follow-up': 'Follow-up',
 };
 
@@ -12,14 +12,23 @@ const ROLE_BADGE = {
   admin: 'bg-blue-100 text-blue-700',
   recept: 'bg-emerald-100 text-emerald-700',
   finance: 'bg-amber-100 text-amber-700',
+  capataz: 'bg-teal-100 text-teal-700',
   'finance-viewer': 'bg-gray-100 text-gray-600',
   sales_rep: 'bg-orange-100 text-orange-700',
   'follow-up': 'bg-pink-100 text-pink-700',
 };
 
 const ROLE_AVATAR = {
-  owner: 'bg-purple-500', admin: 'bg-blue-500', recept: 'bg-emerald-500', finance: 'bg-amber-500',
+  owner: 'bg-purple-500', admin: 'bg-blue-500', recept: 'bg-emerald-500', finance: 'bg-amber-500', capataz: 'bg-teal-500',
   'finance-viewer': 'bg-gray-400', sales_rep: 'bg-orange-500', 'follow-up': 'bg-pink-500',
+};
+
+// Orden de visualización preferido: Owner primero, luego Admin/Finance/Recept/Capataz,
+// y Sales Rep / Finance Viewer al final (roles con menos necesidad de seguimiento diario).
+const ROLE_ORDER = ['owner', 'admin', 'finance', 'recept', 'capataz', 'follow-up', 'sales_rep', 'finance-viewer'];
+const roleSortIndex = (role) => {
+  const idx = ROLE_ORDER.indexOf(role);
+  return idx === -1 ? ROLE_ORDER.length : idx;
 };
 
 const formatMinutes = (min) => {
@@ -386,7 +395,10 @@ export default function StaffActivityDashboard() {
     : null;
   const weekendWorkersCount = staffWithPresence.filter((s) => s.workedWeekend).length;
 
-  const roles = useMemo(() => [...new Set(staffWithPresence.map((s) => s.role))], [staffWithPresence]);
+  const roles = useMemo(
+    () => [...new Set(staffWithPresence.map((s) => s.role))].sort((a, b) => roleSortIndex(a) - roleSortIndex(b)),
+    [staffWithPresence]
+  );
 
   const filtered = useMemo(() => {
     let result = staffWithPresence.filter((s) => {
@@ -398,9 +410,11 @@ export default function StaffActivityDashboard() {
       if (sortBy === 'todayMinutes') return (b.todayMinutes || 0) - (a.todayMinutes || 0);
       if (sortBy === 'weekMinutes') return (b.weekMinutes || 0) - (a.weekMinutes || 0);
       if (sortBy === 'name') return a.name.localeCompare(b.name);
-      // default: online primero, luego última actividad
+      // default: online primero, luego por rol (Owner, Admin, Finance, Recept, Capataz... al final Sales Rep/Finance Viewer), luego última actividad
       if (sortBy === 'lastSeen') {
         if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        const roleDiff = roleSortIndex(a.role) - roleSortIndex(b.role);
+        if (roleDiff !== 0) return roleDiff;
       }
       return new Date(b.lastSeen || 0) - new Date(a.lastSeen || 0);
     });
