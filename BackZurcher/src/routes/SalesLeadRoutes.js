@@ -41,7 +41,11 @@ router.post('/', verifyToken, allowRoles(authorizedRoles), SalesLeadController.c
 // GET /sales-leads?page=1&pageSize=20&status=new&priority=high&search=john&tags=urgent&source=website
 router.get('/', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getLeads);
 
-// 🔍 Obtener un lead por ID
+// � Exportar a Excel los leads que cumplen el filtro actual (sin paginar)
+// GET /sales-leads/export/excel?status=new&priority=high&search=john&tags=urgent&source=website
+router.get('/export/excel', verifyToken, allowRoles(authorizedRoles), SalesLeadController.exportLeadsExcel);
+
+// �🔍 Obtener un lead por ID
 router.get('/:id', verifyToken, allowRoles(authorizedRoles), SalesLeadController.getLeadById);
 
 // ✏️ Actualizar un lead

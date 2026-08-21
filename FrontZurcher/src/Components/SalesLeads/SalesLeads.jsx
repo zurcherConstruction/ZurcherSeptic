@@ -24,7 +24,8 @@ import {
   BellIcon,
   PencilSquareIcon,
   TrashIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import LeadNotesModal from './LeadNotesModal';
 import EditLeadModal from './EditLeadModal';
@@ -143,14 +144,19 @@ const PRIORITY_COLORS = {
   urgent: 'border-l-4 border-red-600'
 };
 
-// Etapas del pipeline que se muestran en las tarjetas de estado
+// Etapas del pipeline que se muestran en las tarjetas de estado.
+// `statusValue` es lo que se envía al backend al hacer click (puede ser
+// más de un status separado por coma). `countKeys` indica de qué claves
+// de `stats` hay que sumar el número mostrado en la tarjeta (por defecto,
+// solo la propia `key`). "Perdido" agrupa lost + archived porque un lead
+// archivado también es, en la práctica, un negocio que no avanzó.
 const PIPELINE_STAGES = [
-  { key: 'new',       label: 'Nuevo',        subtitle: 'Leads recientes' },
+  { key: 'new',       label: 'Nuevo',        subtitle: 'Sin contactar aún' },
   { key: 'contacted', label: 'Contactado',   subtitle: 'Presupuesto enviado' },
   { key: 'no_answer', label: 'No Contesta',  subtitle: 'Sin respuesta' },
-  { key: 'quoted',    label: 'Cotizado',     subtitle: 'Cotización real enviada' },
+  { key: 'quoted',    label: 'Cotizado',     subtitle: 'Cotización + documentación enviada' },
   { key: 'won',       label: 'Ganado',       subtitle: 'Contrataron' },
-  { key: 'lost',      label: 'Perdido',      subtitle: 'No avanzaron' },
+  { key: 'lost',      label: 'Perdido',      subtitle: 'No avanzaron / Archivados', statusValue: 'lost,archived', countKeys: ['lost', 'archived'] },
 ];
 
 const SalesLeads = () => {
@@ -158,7 +164,7 @@ const SalesLeads = () => {
   const navigate = useNavigate();
   
   // Estados de Redux
-  const { leads, loading, stats, total, page: reduxPage, pageSize: reduxPageSize, totalPages } = useSelector((state) => state.salesLeads);
+  const { leads, loading, stats, statsTotal, total, page: reduxPage, pageSize: reduxPageSize, totalPages } = useSelector((state) => state.salesLeads);
   const { currentStaff } = useSelector((state) => state.auth);
   const userRole = currentStaff?.role || '';
 
@@ -229,6 +235,39 @@ const SalesLeads = () => {
   // � Agrupación por contacto duplicado
   const [groupDuplicates, setGroupDuplicates] = useState(false);
 
+  // 📥 Descarga de Excel según el filtro actualmente aplicado
+  const [exportingExcel, setExportingExcel] = useState(false);
+  const handleExportExcel = async () => {
+    setExportingExcel(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (priorityFilter !== 'all') params.append('priority', priorityFilter);
+      if (sourceFilter !== 'all') params.append('source', sourceFilter);
+      if (tagFilter !== 'all') params.append('tags', tagFilter);
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+      params.append('sortBy', groupDuplicates ? 'contact_group' : 'lastActivityDate');
+
+      const response = await api.get(`/sales-leads/export/excel?${params.toString()}`, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `sales-leads-${new Date().toISOString().split('T')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error al exportar leads a Excel:', error);
+      alert('Error al exportar el Excel: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   // _groupType viene del backend cuando groupDuplicates está activo (calculado en DB,
   // funciona en TODAS las páginas, no solo la actual).
   const displayedLeads = useMemo(() => {
@@ -279,6 +318,14 @@ const SalesLeads = () => {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Reiniciar a la página 1 cada vez que cambia algún filtro (búsqueda, estado,
+  // prioridad, origen, tag o agrupar duplicados). Evita quedar "atascado" en una
+  // página que ya no existe para el nuevo filtro (ej: página 5 con 0 resultados).
+  useEffect(() => {
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, tagFilter, groupDuplicates]);
 
   // Cargar leads cuando cambian filtros
   useEffect(() => {
@@ -743,13 +790,16 @@ const SalesLeads = () => {
       {/* Tarjetas de estado del pipeline */}
       {stats && (
         <div className="flex flex-wrap gap-3 mb-5">
-          {PIPELINE_STAGES.map(({ key, label, subtitle }) => {
-            const count = stats[key] || 0;
-            const isActive = statusFilter === key;
+          {PIPELINE_STAGES.map(({ key, label, subtitle, statusValue, countKeys }) => {
+            const filterValue = statusValue || key;
+            const count = countKeys
+              ? countKeys.reduce((sum, k) => sum + (stats[k] || 0), 0)
+              : (stats[key] || 0);
+            const isActive = statusFilter === filterValue;
             return (
               <button
                 key={key}
-                onClick={() => { setStatusFilter(isActive ? 'all' : key); setPage(1); }}
+                onClick={() => { setStatusFilter(isActive ? 'all' : filterValue); setPage(1); }}
                 className={`flex-1 min-w-[120px] max-w-[180px] text-left px-4 py-3 rounded-xl border transition-all ${
                   isActive
                     ? 'bg-blue-600 border-blue-600 shadow-md'
@@ -768,7 +818,9 @@ const SalesLeads = () => {
               </button>
             );
           })}
-          {/* Total */}
+          {/* Total: siempre es la suma de TODAS las tarjetas de arriba (respeta los
+              filtros de búsqueda/prioridad/origen/tag activos, pero no el status),
+              así nunca vuelve a mostrar un número que no cuadra con el pipeline. */}
           <button
             onClick={() => { setStatusFilter('all'); setPage(1); }}
             className={`flex-1 min-w-[100px] max-w-[140px] text-left px-4 py-3 rounded-xl border transition-all ${
@@ -778,7 +830,7 @@ const SalesLeads = () => {
             }`}
           >
             <p className={`text-xl font-bold leading-none mb-1 ${statusFilter === 'all' ? 'text-white' : 'text-gray-900'}`}>
-              {total || 0}
+              {statsTotal || 0}
             </p>
             <p className={`text-xs font-semibold uppercase tracking-wide ${statusFilter === 'all' ? 'text-gray-300' : 'text-gray-600'}`}>
               Total
@@ -811,7 +863,7 @@ const SalesLeads = () => {
           <div>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Todos los estados</option>
@@ -820,8 +872,9 @@ const SalesLeads = () => {
               <option value="no_answer">No Contesta</option>
               <option value="quoted">Cotizado</option>
               <option value="won">Ganado</option>
-              <option value="lost">Perdido</option>
-              <option value="archived">Archivado</option>
+              <option value="lost,archived">Perdido (incl. Archivados)</option>
+              <option value="lost">Perdido (solo)</option>
+              <option value="archived">Archivado (solo)</option>
             </select>
           </div>
 
@@ -829,7 +882,7 @@ const SalesLeads = () => {
           <div>
             <select
               value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
+              onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Todas las prioridades</option>
@@ -871,6 +924,15 @@ const SalesLeads = () => {
 
         {/* Botón agrupar duplicados */}
         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3">
+          <button
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border bg-green-600 text-white border-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+            title="Descargar Excel de los leads que cumplen el filtro actual"
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            {exportingExcel ? 'Generando...' : 'Descargar Excel'}
+          </button>
           <button
             onClick={() => { setGroupDuplicates(v => !v); setPage(1); }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
