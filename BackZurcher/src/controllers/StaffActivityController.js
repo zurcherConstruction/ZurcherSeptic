@@ -236,4 +236,63 @@ const getStaffDetail = async (req, res) => {
   }
 };
 
-module.exports = { getActivitySummary, getStaffDetail };
+const getActivityReport = async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const fromDate = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const toDate = to ? new Date(to) : new Date();
+
+    const staffList = await Staff.findAll({
+      where: { role: { [Op.in]: WEB_ROLES }, isActive: true },
+      attributes: ['id', 'name', 'role', 'email'],
+      order: [['name', 'ASC']],
+    });
+
+    const results = await Promise.all(staffList.map(async (s) => {
+      const logs = await StaffActivityLog.findAll({
+        where: { staffId: s.id, createdAt: { [Op.between]: [fromDate, toDate] } },
+        order: [['createdAt', 'ASC']],
+        attributes: ['endpoint', 'method', 'section', 'createdAt'],
+      });
+
+      const byDay = {};
+      logs.forEach((log) => {
+        const day = new Date(log.createdAt).toISOString().split('T')[0];
+        if (!byDay[day]) byDay[day] = [];
+        byDay[day].push(log);
+      });
+
+      const days = Object.entries(byDay)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, dayLogs]) => {
+          const weekend = isWeekendDate(date);
+          const minutes = calculateActiveMinutes(dayLogs);
+          const sessions = buildSessions(dayLogs);
+          return {
+            date,
+            minutes,
+            actions: dayLogs.length,
+            sections: [...new Set(dayLogs.map((l) => l.section).filter(Boolean))],
+            sessions,
+            isWeekend: weekend,
+          };
+        });
+
+      return {
+        id: s.id,
+        name: s.name,
+        role: s.role,
+        totalMinutes: calculateActiveMinutes(logs),
+        totalActions: logs.length,
+        days,
+      };
+    }));
+
+    res.json({ success: true, data: results, from: fromDate, to: toDate });
+  } catch (error) {
+    console.error('❌ [getActivityReport]', error);
+    res.status(500).json({ success: false, message: 'Error generando reporte' });
+  }
+};
+
+module.exports = { getActivitySummary, getStaffDetail, getActivityReport };
