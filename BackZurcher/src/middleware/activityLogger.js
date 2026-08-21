@@ -78,10 +78,15 @@ const lastLogged = new Map(); // staffId → timestamp
 let StaffActivityLog = null;
 
 const activityLogger = (req, res, next) => {
+  // Guardar el path ANTES de llamar next(), porque Express muta req.url
+  // al enrutar hacia sub-routers (ej: /work/123 → /123 al entrar en workRoutes).
+  const originalPath = req.path;
+  const originalMethod = req.method;
+
   next();
 
   if (!req.user?.id) return;
-  if (SKIP_PATTERNS.some((p) => p.test(req.path))) return;
+  if (SKIP_PATTERNS.some((p) => p.test(originalPath))) return;
 
   const staffId = req.user.id;
   const now = Date.now();
@@ -90,9 +95,9 @@ const activityLogger = (req, res, next) => {
   if (now - last < DEBOUNCE_MS) return; // demasiado reciente, no registrar
   lastLogged.set(staffId, now);
 
-  const endpoint = req.path.substring(0, 255);
-  const method = req.method;
-  const section = getSection(req.path);
+  const endpoint = originalPath.substring(0, 255);
+  const method = originalMethod;
+  const section = getSection(originalPath);
 
   setImmediate(async () => {
     try {

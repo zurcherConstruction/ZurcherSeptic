@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -319,19 +319,33 @@ const SalesLeads = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Reiniciar a la página 1 cada vez que cambia algún filtro (búsqueda, estado,
-  // prioridad, origen, tag o agrupar duplicados). Evita quedar "atascado" en una
-  // página que ya no existe para el nuevo filtro (ej: página 5 con 0 resultados).
-  useEffect(() => {
-    setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, tagFilter, groupDuplicates]);
+  // Clave que identifica los filtros activos (sin página). Si cambia → resetear a página 1.
+  const prevFilterKey = useRef(`${statusFilter}|${priorityFilter}|${sourceFilter}|${tagFilter}|${debouncedSearchTerm}|${groupDuplicates}`);
 
-  // Cargar leads cuando cambian filtros
   useEffect(() => {
-    if (canAccess) {
-      loadLeads();
+    if (!canAccess) return;
+    const currentFilterKey = `${statusFilter}|${priorityFilter}|${sourceFilter}|${tagFilter}|${debouncedSearchTerm}|${groupDuplicates}`;
+    const filtersChanged = prevFilterKey.current !== currentFilterKey;
+    prevFilterKey.current = currentFilterKey;
+
+    // Si cambiaron los filtros y la página no es 1, resetearla primero.
+    // El efecto se volverá a ejecutar por el cambio de `page` y ahí sí despachamos.
+    if (filtersChanged && page !== 1) {
+      setPage(1);
+      return;
     }
+
+    dispatch(fetchLeads({
+      page: filtersChanged ? 1 : page,
+      pageSize,
+      search: debouncedSearchTerm,
+      status: statusFilter,
+      priority: priorityFilter,
+      source: sourceFilter,
+      tags: tagFilter !== 'all' ? tagFilter : undefined,
+      sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate',
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, tagFilter, groupDuplicates, canAccess]);
 
   const loadLeads = async () => {
@@ -578,28 +592,29 @@ const SalesLeads = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2">
-              <UserCircleIcon className="h-7 w-7 md:h-8 md:w-8 text-blue-600" />
-              Sales Leads
-            </h1>
-            <p className="text-gray-600 mt-1 text-sm md:text-base">
-              Lead management and sales pipeline tracking
-            </p>
-          </div>
+      <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-blue-900 shadow-xl mb-6">
+        <div className="max-w-full px-4 sm:px-6 py-5">
+          <div className="flex flex-wrap justify-between items-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 flex-shrink-0">
+                <UserCircleIcon className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">Sales Leads</h1>
+                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">Pipeline de ventas y gestión de prospectos</p>
+              </div>
+            </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* 🔔 Botón Verificar Recordatorios */}
             <button
               onClick={handleCheckReminders}
               disabled={verifyingReminders}
-              className={`inline-flex items-center px-3 md:px-4 py-2 md:py-3 rounded-lg font-medium text-sm transition-all ${
+              className={`inline-flex items-center px-3 py-2 rounded-lg font-medium text-sm transition-all ${
                 verifyingReminders
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-amber-600 text-white hover:bg-amber-700 hover:shadow-lg'
+                  ? 'bg-white/10 text-white/50 cursor-not-allowed'
+                  : 'bg-amber-500/90 text-white hover:bg-amber-500 hover:shadow-lg border border-amber-400/50'
               }`}
             >
               {verifyingReminders ? (
@@ -619,7 +634,7 @@ const SalesLeads = () => {
             </button>
             <button
               onClick={() => navigate('/sales-leads/new')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg hover:shadow-xl text-sm md:text-base"
+              className="bg-white text-slate-800 hover:bg-blue-50 px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-lg hover:shadow-xl text-sm font-semibold border border-white/80"
             >
               <PlusIcon className="h-5 w-5" />
               New Lead
@@ -627,7 +642,7 @@ const SalesLeads = () => {
             {/* 📊 Botón reporte semanal */}
             <button
               onClick={() => setShowWeeklyReport(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-300 hover:bg-indigo-100 text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm font-medium transition-colors"
               title="Ver reporte semanal de actividad"
             >
               <ChartBarIcon className="h-5 w-5" />
@@ -636,7 +651,7 @@ const SalesLeads = () => {
             {/* 📊 Botón reporte mensual */}
             <button
               onClick={() => setShowMonthlyReport(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-50 text-purple-700 border border-purple-300 hover:bg-purple-100 text-sm font-medium transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm font-medium transition-colors"
               title="Ver reporte mensual de actividad"
             >
               <ChartBarIcon className="h-5 w-5" />
@@ -645,7 +660,7 @@ const SalesLeads = () => {
             {/* � Botón cola de llamadas */}
             <button
               onClick={() => setShowCallQueue(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100 text-sm font-medium"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm font-medium"
               title="Cola de llamadas del día"
             >
               📋 <span className="hidden md:inline">Llamadas</span>
@@ -654,7 +669,7 @@ const SalesLeads = () => {
             {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && (
               <button
                 onClick={() => setShowMergeModal(true)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-300 hover:bg-orange-100 text-sm font-medium"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm font-medium"
                 title="Detectar y unificar contactos duplicados"
               >
                 🔀 <span className="hidden md:inline">Duplicados</span>
@@ -664,7 +679,7 @@ const SalesLeads = () => {
             {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && activityMetrics?.noContactCount > 0 && (
               <button
                 onClick={handleOpenNoContactModal}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 text-sm font-medium"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/80 text-white border border-red-400/50 hover:bg-red-500 text-sm font-medium"
                 title="Leads sin teléfono ni email"
               >
                 🚫 Sin contacto
@@ -677,7 +692,7 @@ const SalesLeads = () => {
             {noAnswerLeadIds.size > 0 && (
               <button
                 onClick={handleOpenNoAnswerModal}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-300 hover:bg-yellow-100 text-sm font-medium"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/80 text-white border border-amber-400/50 hover:bg-amber-500 text-sm font-medium"
                 title="Leads con múltiples intentos sin respuesta"
               >
                 📵 No contestan
@@ -689,6 +704,10 @@ const SalesLeads = () => {
           </div>
         </div>
       </div>
+      </div>
+
+      {/* Content */}
+      <div className="px-4 sm:px-6 py-4">
 
       {/* 📈 Panel de Métricas de Actividad */}
       {activityMetrics && (
@@ -789,7 +808,7 @@ const SalesLeads = () => {
 
       {/* Tarjetas de estado del pipeline */}
       {stats && (
-        <div className="flex flex-wrap gap-3 mb-5">
+        <div className="flex flex-wrap gap-2 mb-4">
           {PIPELINE_STAGES.map(({ key, label, subtitle, statusValue, countKeys }) => {
             const filterValue = statusValue || key;
             const count = countKeys
@@ -800,42 +819,39 @@ const SalesLeads = () => {
               <button
                 key={key}
                 onClick={() => { setStatusFilter(isActive ? 'all' : filterValue); setPage(1); }}
-                className={`flex-1 min-w-[120px] max-w-[180px] text-left px-4 py-3 rounded-xl border transition-all ${
+                className={`flex-1 min-w-[110px] max-w-[160px] text-left px-3 py-2.5 rounded-xl border-2 transition-all duration-150 ${
                   isActive
-                    ? 'bg-blue-600 border-blue-600 shadow-md'
-                    : 'bg-white border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                    ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-200 scale-[1.02]'
+                    : 'bg-white border-gray-100 hover:border-blue-300 hover:shadow-md'
                 }`}
               >
-                <p className={`text-xl font-bold leading-none mb-1 ${isActive ? 'text-white' : 'text-gray-900'}`}>
+                <p className={`text-2xl font-bold leading-none mb-1 ${isActive ? 'text-white' : 'text-slate-800'}`}>
                   {count}
                 </p>
-                <p className={`text-xs font-semibold uppercase tracking-wide ${isActive ? 'text-blue-100' : 'text-gray-700'}`}>
+                <p className={`text-[11px] font-bold uppercase tracking-wider ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>
                   {label}
                 </p>
-                <p className={`text-xs mt-0.5 ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>
+                <p className={`text-[10px] mt-0.5 ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>
                   {subtitle}
                 </p>
               </button>
             );
           })}
-          {/* Total: siempre es la suma de TODAS las tarjetas de arriba (respeta los
-              filtros de búsqueda/prioridad/origen/tag activos, pero no el status),
-              así nunca vuelve a mostrar un número que no cuadra con el pipeline. */}
           <button
             onClick={() => { setStatusFilter('all'); setPage(1); }}
-            className={`flex-1 min-w-[100px] max-w-[140px] text-left px-4 py-3 rounded-xl border transition-all ${
+            className={`flex-1 min-w-[90px] max-w-[130px] text-left px-3 py-2.5 rounded-xl border-2 transition-all duration-150 ${
               statusFilter === 'all'
-                ? 'bg-gray-800 border-gray-800 shadow-md'
-                : 'bg-gray-50 border-gray-200 hover:border-gray-400 hover:shadow-sm'
+                ? 'bg-slate-700 border-slate-700 shadow-lg scale-[1.02]'
+                : 'bg-gray-50 border-gray-100 hover:border-gray-300 hover:shadow-md'
             }`}
           >
-            <p className={`text-xl font-bold leading-none mb-1 ${statusFilter === 'all' ? 'text-white' : 'text-gray-900'}`}>
+            <p className={`text-2xl font-bold leading-none mb-1 ${statusFilter === 'all' ? 'text-white' : 'text-slate-800'}`}>
               {statsTotal || 0}
             </p>
-            <p className={`text-xs font-semibold uppercase tracking-wide ${statusFilter === 'all' ? 'text-gray-300' : 'text-gray-600'}`}>
+            <p className={`text-[11px] font-bold uppercase tracking-wider ${statusFilter === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>
               Total
             </p>
-            <p className={`text-xs mt-0.5 ${statusFilter === 'all' ? 'text-gray-400' : 'text-gray-400'}`}>
+            <p className={`text-[10px] mt-0.5 ${statusFilter === 'all' ? 'text-slate-400' : 'text-gray-400'}`}>
               Todos los leads
             </p>
           </button>
@@ -843,28 +859,27 @@ const SalesLeads = () => {
       )}
 
       {/* Filtros */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-5">
+        <div className="flex flex-col gap-3">
           {/* Búsqueda */}
-          <div className="md:col-span-2">
-            <div className="relative">
-              <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por nombre, email, teléfono, dirección..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+          <div className="relative">
+            <MagnifyingGlassIcon className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por nombre, email, teléfono, dirección..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white transition-colors"
+            />
           </div>
 
-          {/* Filtro de estado */}
-          <div>
+          {/* Filtros secundarios en fila */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {/* Filtro de estado */}
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${statusFilter !== 'all' ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
             >
               <option value="all">Todos los estados</option>
               <option value="new">Nuevo</option>
@@ -876,14 +891,12 @@ const SalesLeads = () => {
               <option value="lost">Perdido (solo)</option>
               <option value="archived">Archivado (solo)</option>
             </select>
-          </div>
 
-          {/* Filtro de prioridad */}
-          <div>
+            {/* Filtro de prioridad */}
             <select
               value={priorityFilter}
               onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${priorityFilter !== 'all' ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
             >
               <option value="all">Todas las prioridades</option>
               <option value="low">Baja</option>
@@ -891,28 +904,24 @@ const SalesLeads = () => {
               <option value="high">Alta</option>
               <option value="urgent">Urgente</option>
             </select>
-          </div>
 
-          {/* Filtro de origen */}
-          <div>
+            {/* Filtro de origen */}
             <select
               value={sourceFilter}
               onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${sourceFilter !== 'all' ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
             >
               <option value="all">Todos los orígenes</option>
               {Object.entries(SOURCE_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
-          </div>
 
-          {/* Filtro de tag */}
-          <div>
+            {/* Filtro de tag */}
             <select
               value={tagFilter}
               onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${tagFilter !== 'all' ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
             >
               <option value="all">Todos los tipos</option>
               {Object.entries(TAG_LABELS).map(([value, label]) => (
@@ -920,6 +929,24 @@ const SalesLeads = () => {
               ))}
             </select>
           </div>
+
+          {/* Indicador de filtros activos */}
+          {(statusFilter !== 'all' || priorityFilter !== 'all' || sourceFilter !== 'all' || tagFilter !== 'all' || searchTerm) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-gray-500 font-medium">Filtros activos:</span>
+              {searchTerm && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🔍 "{searchTerm}"</span>}
+              {statusFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Estado: {STATUS_LABELS[statusFilter] || statusFilter}</span>}
+              {priorityFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Prioridad: {priorityFilter}</span>}
+              {sourceFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Origen: {SOURCE_LABELS[sourceFilter] || sourceFilter}</span>}
+              {tagFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Tipo: {tagFilter}</span>}
+              <button
+                onClick={() => { setStatusFilter('all'); setPriorityFilter('all'); setSourceFilter('all'); setTagFilter('all'); setSearchTerm(''); setPage(1); }}
+                className="text-xs text-red-500 hover:text-red-700 font-medium underline ml-1"
+              >
+                Limpiar todo
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Botón agrupar duplicados */}
@@ -1794,6 +1821,7 @@ const SalesLeads = () => {
           </div>
         </div>
       )}
+      </div>{/* end content wrapper */}
     </div>
   );
 };
