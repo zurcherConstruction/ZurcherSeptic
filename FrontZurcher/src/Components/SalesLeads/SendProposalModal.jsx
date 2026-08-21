@@ -72,11 +72,17 @@ Please feel free to reply to this email or contact us at sales@zurcherseptic.com
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      // Crear nota automática en el lead
+      // Crear nota automática en el lead. Si el mensaje es el genérico por
+      // defecto, no lo volcamos completo en la nota (queda ilegible en la
+      // lista/Excel) — solo indicamos que se envió la cotización.
       const attachmentNames = attachments.map(f => f.name).join(', ');
-      const noteText = `📧 Proposal email sent to ${formData.to}${
-        attachmentNames ? ` with attachments: ${attachmentNames}` : ''
-      }${formData.personalMessage ? `\nMessage: "${formData.personalMessage.substring(0, 120)}${formData.personalMessage.length > 120 ? '...' : ''}"` : ''}`;
+      const isDefaultMessage = formData.personalMessage.trim() === DEFAULT_MESSAGE.trim();
+      const customMessageSnippet = !isDefaultMessage && formData.personalMessage
+        ? `\nMensaje: "${formData.personalMessage.substring(0, 120)}${formData.personalMessage.length > 120 ? '...' : ''}"`
+        : '';
+      const noteText = `📧 Cotización enviada a ${formData.to}${
+        attachmentNames ? ` con adjuntos: ${attachmentNames}` : ''
+      }${customMessageSnippet}`;
 
       await api.post('/lead-notes', {
         leadId: lead.id,

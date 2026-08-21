@@ -70,6 +70,30 @@ const PRIORITY_LABELS_ES = {
   urgent: 'Urgente'
 };
 
+// 📝 Convierte una nota (potencialmente larga, con HTML o el texto genérico
+// de una propuesta auto-enviada) en un resumen corto y legible para el Excel.
+// Las notas automáticas de "Send Proposal" (SendProposalModal.jsx) dumpean el
+// email completo con tags HTML residuales (<strong>...) — acá las resumimos a
+// "Cotización enviada a <email>" en vez de mostrar ese texto crudo.
+function sanitizeNoteForExport(rawMessage) {
+  if (!rawMessage) return '';
+
+  // Soporta tanto el formato viejo en inglés ("Proposal email sent to X...")
+  // como el nuevo en español ("Cotización enviada a X...") — en ambos casos
+  // el Excel solo muestra el resumen corto, nunca el mensaje completo.
+  const proposalMatch = rawMessage.match(
+    /^\s*(?:📧\s*)?(?:Proposal email sent to|Cotizaci[oó]n enviada a)\s*(\S+)/i
+  );
+  if (proposalMatch) {
+    return `Cotización enviada a ${proposalMatch[1].replace(/[.,;:]+$/, '')}`;
+  }
+
+  // Quitar tags HTML residuales y colapsar espacios/saltos de línea
+  const stripped = rawMessage.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const maxLen = 300;
+  return stripped.length > maxLen ? `${stripped.slice(0, maxLen)}…` : stripped;
+}
+
 const SalesLeadController = {
   
   // 📝 Crear un nuevo lead
@@ -456,6 +480,15 @@ const SalesLeadController = {
 
       const { whereClause } = buildSalesLeadWhereClause({ status, priority, search, tags, source });
 
+      // Por defecto (sin filtro de estado explícito) excluimos los "Archivado":
+      // son leads con rechazo explícito (ver find-and-prioritize-sales-leads.js)
+      // y no aportan a una lista de seguimiento/contacto. Si el usuario elige
+      // explícitamente "Archivado" o "Perdido + Archivado" desde el filtro de
+      // estado, sí se incluyen normalmente (whereClause.status ya lo maneja).
+      if (!status || status === 'all') {
+        whereClause.status = { [Op.ne]: 'archived' };
+      }
+
       const validSortFields = ['lastActivityDate', 'createdAt', 'applicantName', 'status', 'priority'];
       const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'lastActivityDate';
 
@@ -524,7 +557,7 @@ const SalesLeadController = {
           estado: STATUS_LABELS_ES[lead.status] || lead.status,
           prioridad: PRIORITY_LABELS_ES[lead.priority] || lead.priority,
           fechaUltimoContacto: lastContactDate ? new Date(lastContactDate).toLocaleDateString('es-US') : '',
-          notaUltimoContacto: lastNote?.message || ''
+          notaUltimoContacto: sanitizeNoteForExport(lastNote?.message)
         });
       });
 
