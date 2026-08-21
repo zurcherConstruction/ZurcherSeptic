@@ -62,7 +62,7 @@ const SECTION_MAP = [
   ['/archive', 'Budgets'],
   ['/pdf', 'Documents'],
 ];
-];
+
 
 const getSection = (path) => {
   for (const [prefix, label] of SECTION_MAP) {
