@@ -25,6 +25,7 @@ const initialState = {
   loading: false,
   error: null,
   stats: null,
+  statsTotal: 0,
   dashboardStats: null,
   total: 0,
   page: 1,
@@ -77,6 +78,7 @@ const salesLeadSlice = createSlice({
         state.pageSize = action.payload.pageSize;
         state.totalPages = action.payload.totalPages;
         state.stats = action.payload.stats;
+        state.statsTotal = action.payload.statsTotal ?? 0;
       })
       .addCase(fetchLeads.rejected, (state, action) => {
         state.loading = false;

@@ -1,5 +1,74 @@
 ﻿const { SalesLead, LeadNote, Budget, Permit, Staff, sequelize } = require('../data');
 const { Op } = require('sequelize');
+const ExcelJS = require('exceljs');
+
+// 🔧 Construye los filtros de búsqueda de leads a partir de los query params.
+// Se usa tanto en el listado paginado (getLeads) como en la exportación a Excel
+// (exportLeadsExcel) para garantizar que el Excel descargado refleje EXACTAMENTE
+// el mismo filtro que se está viendo en pantalla.
+// - baseWhereClause: búsqueda/prioridad/origen/tags (sin status). Se usa además
+//   para las estadísticas del pipeline (no deben variar según el status activo).
+// - whereClause: baseWhereClause + status (soporta uno o varios separados por
+//   coma, ej: "lost,archived").
+function buildSalesLeadWhereClause({ status, priority, search, tags, source }) {
+  const baseWhereClause = {};
+
+  if (priority && priority !== 'all') {
+    baseWhereClause.priority = priority;
+  }
+
+  if (source && source !== 'all') {
+    baseWhereClause.source = source;
+  }
+
+  if (tags) {
+    // Buscar leads que contengan al menos uno de los tags
+    // Usamos literal con cast ::text[] para evitar incompatibilidad text[] vs varchar[]
+    const tagsArray = Array.isArray(tags) ? tags : [tags];
+    const escapedTags = tagsArray.map(t => `'${t.replace(/'/g, "''")}'`).join(',');
+    baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
+    baseWhereClause[Op.and].push(
+      sequelize.literal(`"SalesLead"."tags" && ARRAY[${escapedTags}]::text[]`)
+    );
+  }
+
+  if (search) {
+    baseWhereClause[Op.or] = [
+      { applicantName: { [Op.iLike]: `%${search}%` } },
+      { applicantEmail: { [Op.iLike]: `%${search}%` } },
+      { applicantPhone: { [Op.iLike]: `%${search}%` } },
+      { propertyAddress: { [Op.iLike]: `%${search}%` } },
+      { serviceType: { [Op.iLike]: `%${search}%` } }
+    ];
+  }
+
+  const whereClause = { ...baseWhereClause };
+  if (status && status !== 'all') {
+    const statusList = status.split(',').map(s => s.trim()).filter(Boolean);
+    whereClause.status = statusList.length > 1 ? { [Op.in]: statusList } : statusList[0];
+  }
+
+  return { baseWhereClause, whereClause };
+}
+
+const STATUS_LABELS_ES = {
+  new: 'Nuevo',
+  contacted: 'Contactado',
+  no_answer: 'No Contesta',
+  interested: 'Interesado',
+  quoted: 'Cotizado',
+  negotiating: 'Negociando',
+  won: 'Ganado',
+  lost: 'Perdido',
+  archived: 'Archivado'
+};
+
+const PRIORITY_LABELS_ES = {
+  low: 'Baja',
+  medium: 'Media',
+  high: 'Alta',
+  urgent: 'Urgente'
+};
 
 const SalesLeadController = {
   
@@ -238,41 +307,12 @@ const SalesLeadController = {
         sortOrder = 'DESC'
       } = req.query;
 
-      // Construir filtros
-      const whereClause = {};
-
-      if (status && status !== 'all') {
-        whereClause.status = status;
-      }
-
-      if (priority && priority !== 'all') {
-        whereClause.priority = priority;
-      }
-
-      if (source && source !== 'all') {
-        whereClause.source = source;
-      }
-
-      if (tags) {
-        // Buscar leads que contengan al menos uno de los tags
-        // Usamos literal con cast ::text[] para evitar incompatibilidad text[] vs varchar[]
-        const tagsArray = Array.isArray(tags) ? tags : [tags];
-        const escapedTags = tagsArray.map(t => `'${t.replace(/'/g, "''")}'`).join(',');
-        whereClause[Op.and] = whereClause[Op.and] || [];
-        whereClause[Op.and].push(
-          sequelize.literal(`"SalesLead"."tags" && ARRAY[${escapedTags}]::text[]`)
-        );
-      }
-
-      if (search) {
-        whereClause[Op.or] = [
-          { applicantName: { [Op.iLike]: `%${search}%` } },
-          { applicantEmail: { [Op.iLike]: `%${search}%` } },
-          { applicantPhone: { [Op.iLike]: `%${search}%` } },
-          { propertyAddress: { [Op.iLike]: `%${search}%` } },
-          { serviceType: { [Op.iLike]: `%${search}%` } }
-        ];
-      }
+      // Filtros que NO dependen del status (búsqueda, prioridad, origen, tags).
+      // Se usan tanto para el listado paginado como para las estadísticas del
+      // pipeline, así ambos números son siempre consistentes entre sí.
+      // Filtro completo para el listado paginado: agrega el status (soporta uno
+      // o varios separados por coma, ej: "lost,archived" para la tarjeta "Perdido").
+      const { baseWhereClause, whereClause } = buildSalesLeadWhereClause({ status, priority, search, tags, source });
 
       // Paginación
       const offset = (parseInt(page) - 1) * parseInt(pageSize);
@@ -354,8 +394,14 @@ const SalesLeadController = {
         offset
       });
 
-      // Estadísticas
+      // 📊 Estadísticas del pipeline: respetan los mismos filtros activos que el
+      // listado (búsqueda, prioridad, origen, tags) pero NUNCA el status, para que
+      // las tarjetas (Nuevo/Contactado/Cotizado/etc.) siempre sumen lo mismo sin
+      // importar en qué estado esté parado el usuario. Así "Total" y la suma de
+      // las tarjetas del pipeline son siempre el mismo número (antes no lo eran,
+      // porque las stats se calculaban sin filtros y el total sí los aplicaba).
       const stats = await SalesLead.findAll({
+        where: baseWhereClause,
         attributes: [
           'status',
           [sequelize.fn('COUNT', sequelize.col('id')), 'count']
@@ -367,6 +413,7 @@ const SalesLeadController = {
       const statsMap = {
         new: 0,
         contacted: 0,
+        no_answer: 0,
         interested: 0,
         quoted: 0,
         negotiating: 0,
@@ -379,13 +426,16 @@ const SalesLeadController = {
         statsMap[stat.status] = parseInt(stat.count);
       });
 
+      const statsTotal = Object.values(statsMap).reduce((sum, n) => sum + n, 0);
+
       res.json({
         leads,
         total: count,
         page: parseInt(page),
         pageSize: parseInt(pageSize),
         totalPages: Math.ceil(count / parseInt(pageSize)),
-        stats: statsMap
+        stats: statsMap,
+        statsTotal
       });
 
     } catch (error) {
@@ -397,7 +447,106 @@ const SalesLeadController = {
     }
   },
 
-  // 🔍 Obtener un lead por ID
+  // � Exportar a Excel los leads que cumplen el filtro actual (sin paginar).
+  // Columnas: Empresa/Cliente, Contacto, Dirección, Estado, Prioridad,
+  // Fecha de Último Contacto y la Nota de esa última actividad.
+  async exportLeadsExcel(req, res) {
+    try {
+      const { status, priority, search, tags, source, sortBy = 'lastActivityDate', sortOrder = 'DESC' } = req.query;
+
+      const { whereClause } = buildSalesLeadWhereClause({ status, priority, search, tags, source });
+
+      const validSortFields = ['lastActivityDate', 'createdAt', 'applicantName', 'status', 'priority'];
+      const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'lastActivityDate';
+
+      const leads = await SalesLead.findAll({
+        where: whereClause,
+        attributes: [
+          'id', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress',
+          'status', 'priority', 'source', 'lastActivityDate'
+        ],
+        order: [[safeSortBy, sortOrder === 'ASC' ? 'ASC' : 'DESC']]
+      });
+
+      // Última nota de cada lead (una sola consulta usando DISTINCT ON, en vez
+      // de N consultas por lead) — solo si hay leads que exportar.
+      let lastNoteByLeadId = {};
+      if (leads.length > 0) {
+        const leadIds = leads.map(l => l.id);
+        const lastNotes = await sequelize.query(
+          `
+            SELECT DISTINCT ON (lead_id) lead_id, message, created_at
+            FROM "LeadNotes"
+            WHERE lead_id IN (:leadIds)
+            ORDER BY lead_id, created_at DESC
+          `,
+          {
+            replacements: { leadIds },
+            type: sequelize.QueryTypes.SELECT
+          }
+        );
+        lastNoteByLeadId = lastNotes.reduce((acc, n) => {
+          acc[n.lead_id] = { message: n.message, createdAt: n.created_at };
+          return acc;
+        }, {});
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Sales Leads');
+
+      sheet.columns = [
+        { header: 'Empresa / Cliente', key: 'empresa', width: 30 },
+        { header: 'Contacto', key: 'contacto', width: 30 },
+        { header: 'Dirección', key: 'direccion', width: 35 },
+        { header: 'Estado', key: 'estado', width: 16 },
+        { header: 'Prioridad', key: 'prioridad', width: 12 },
+        { header: 'Fecha Último Contacto', key: 'fechaUltimoContacto', width: 20 },
+        { header: 'Nota Último Contacto', key: 'notaUltimoContacto', width: 50 }
+      ];
+      sheet.getRow(1).font = { bold: true };
+      sheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFD9E1F2' }
+      };
+
+      leads.forEach(lead => {
+        const contactoParts = [lead.applicantPhone, lead.applicantEmail].filter(Boolean);
+        const lastNote = lastNoteByLeadId[lead.id];
+        // Fecha de último contacto: preferimos la fecha de la última nota real;
+        // si no hay notas, usamos lastActivityDate del lead como respaldo.
+        const lastContactDate = lastNote?.createdAt || lead.lastActivityDate;
+
+        sheet.addRow({
+          empresa: lead.applicantName || '',
+          contacto: contactoParts.join(' / ') || '',
+          direccion: lead.propertyAddress || '',
+          estado: STATUS_LABELS_ES[lead.status] || lead.status,
+          prioridad: PRIORITY_LABELS_ES[lead.priority] || lead.priority,
+          fechaUltimoContacto: lastContactDate ? new Date(lastContactDate).toLocaleDateString('es-US') : '',
+          notaUltimoContacto: lastNote?.message || ''
+        });
+      });
+
+      sheet.getColumn('notaUltimoContacto').alignment = { wrapText: true, vertical: 'top' };
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const filename = `sales-leads-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+
+    } catch (error) {
+      console.error('Error al exportar leads a Excel:', error);
+      res.status(500).json({
+        error: 'Error al exportar los leads a Excel',
+        details: error.message
+      });
+    }
+  },
+
+  // �🔍 Obtener un lead por ID
   async getLeadById(req, res) {
     try {
       const { id } = req.params;
