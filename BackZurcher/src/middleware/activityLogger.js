@@ -55,6 +55,13 @@ const SECTION_MAP = [
   ['/supplier-invoices', 'Invoices'],
   ['/ai', 'AI Assistant'],
   ['/export', 'Exports'],
+  ['/import', 'Import'],
+  ['/material', 'Materials'],
+  ['/system', 'System'],
+  ['/notification-routing', 'Notifications'],
+  ['/archive', 'Budgets'],
+  ['/pdf', 'Documents'],
+];
 ];
 
 const getSection = (path) => {

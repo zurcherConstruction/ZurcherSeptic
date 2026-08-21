@@ -5,7 +5,7 @@ const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutos sin actividad = nueva sesi√
 const SESSION_BUFFER_MS = 5 * 60 * 1000; // 5 min buffer por lectura al final de cada sesi√≥n
 const EXPECTED_DAILY_MINUTES = 8 * 60; // Jornada esperada: 8hs, lunes a viernes
 
-const WEB_ROLES = ['owner', 'admin', 'recept', 'finance', 'finance-viewer', 'sales_rep', 'follow-up'];
+const WEB_ROLES = ['owner', 'admin', 'recept', 'finance', 'finance-viewer', 'sales_rep', 'follow-up', 'capataz'];
 
 function isWeekendDate(dateOrKey) {
   const d = typeof dateOrKey === 'string' ? new Date(dateOrKey + 'T12:00:00') : dateOrKey;
