@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -174,16 +174,19 @@ const SalesLeads = () => {
   // Estados locales
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTermState] = useState(searchParams.get('q') || '');
-  const setSearchTerm = (v) => { setSearchTermState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
+  const setSearchTerm = (v) => { setSearchTermState(v); setSearchParams(prev => { const p = new URLSearchParams(prev); if (v) p.set('q', v); else p.delete('q'); p.delete('page'); return p; }, { replace: true }); };
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const statusFilter = searchParams.get('status') || 'all';
-  const setStatusFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('status'); else p.set('status', v); return p; });
+  // Cada setter crea un nuevo URLSearchParams (no muta el objeto recibido) y resetea page=1 de forma atómica.
+  const setStatusFilter = (v) => setSearchParams(prev => { const p = new URLSearchParams(prev); if (v === 'all') p.delete('status'); else p.set('status', v); p.delete('page'); return p; });
   const priorityFilter = searchParams.get('priority') || 'all';
-  const setPriorityFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('priority'); else p.set('priority', v); return p; });
+  const setPriorityFilter = (v) => setSearchParams(prev => { const p = new URLSearchParams(prev); if (v === 'all') p.delete('priority'); else p.set('priority', v); p.delete('page'); return p; });
   const sourceFilter = searchParams.get('source') || 'all';
-  const setSourceFilter = (v) => setSearchParams(p => { if (v === 'all') p.delete('source'); else p.set('source', v); return p; });
+  const setSourceFilter = (v) => setSearchParams(prev => { const p = new URLSearchParams(prev); if (v === 'all') p.delete('source'); else p.set('source', v); p.delete('page'); return p; });
   const [tagFilter, setTagFilter] = useState('all');
-  const [page, setPage] = useState(1);
+  // page vive en la URL para que los cambios de filtro y de página sean atómicos (un solo setSearchParams).
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const setPage = (v) => setSearchParams(prev => { const n = typeof v === 'function' ? v(parseInt(prev.get('page') || '1', 10)) : v; const p = new URLSearchParams(prev); if (n <= 1) p.delete('page'); else p.set('page', String(n)); return p; }, { replace: true });
   const [pageSize] = useState(20);
   
   // Estados para modal de notas
@@ -319,24 +322,10 @@ const SalesLeads = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Clave que identifica los filtros activos (sin página). Si cambia → resetear a página 1.
-  const prevFilterKey = useRef(`${statusFilter}|${priorityFilter}|${sourceFilter}|${tagFilter}|${debouncedSearchTerm}|${groupDuplicates}`);
-
   useEffect(() => {
     if (!canAccess) return;
-    const currentFilterKey = `${statusFilter}|${priorityFilter}|${sourceFilter}|${tagFilter}|${debouncedSearchTerm}|${groupDuplicates}`;
-    const filtersChanged = prevFilterKey.current !== currentFilterKey;
-    prevFilterKey.current = currentFilterKey;
-
-    // Si cambiaron los filtros y la página no es 1, resetearla primero.
-    // El efecto se volverá a ejecutar por el cambio de `page` y ahí sí despachamos.
-    if (filtersChanged && page !== 1) {
-      setPage(1);
-      return;
-    }
-
     dispatch(fetchLeads({
-      page: filtersChanged ? 1 : page,
+      page,
       pageSize,
       search: debouncedSearchTerm,
       status: statusFilter,
@@ -345,7 +334,6 @@ const SalesLeads = () => {
       tags: tagFilter !== 'all' ? tagFilter : undefined,
       sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate',
     }));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, tagFilter, groupDuplicates, canAccess]);
 
   const loadLeads = async () => {
@@ -619,7 +607,7 @@ const SalesLeads = () => {
             >
               {verifyingReminders ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -627,8 +615,8 @@ const SalesLeads = () => {
                 </>
               ) : (
                 <>
-                  <span className="text-lg mr-2">🔔</span>
-                  Verificar Recordatorios
+               
+                  Verificar 🔔
                 </>
               )}
             </button>
@@ -818,7 +806,7 @@ const SalesLeads = () => {
             return (
               <button
                 key={key}
-                onClick={() => { setStatusFilter(isActive ? 'all' : filterValue); setPage(1); }}
+                onClick={() => setStatusFilter(isActive ? 'all' : filterValue)}
                 className={`flex-1 min-w-[110px] max-w-[160px] text-left px-3 py-2.5 rounded-xl border-2 transition-all duration-150 ${
                   isActive
                     ? 'bg-blue-600 border-blue-600 shadow-lg shadow-blue-200 scale-[1.02]'
@@ -838,7 +826,7 @@ const SalesLeads = () => {
             );
           })}
           <button
-            onClick={() => { setStatusFilter('all'); setPage(1); }}
+            onClick={() => setStatusFilter('all')}
             className={`flex-1 min-w-[90px] max-w-[130px] text-left px-3 py-2.5 rounded-xl border-2 transition-all duration-150 ${
               statusFilter === 'all'
                 ? 'bg-slate-700 border-slate-700 shadow-lg scale-[1.02]'
@@ -878,7 +866,7 @@ const SalesLeads = () => {
             {/* Filtro de estado */}
             <select
               value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              onChange={(e) => setStatusFilter(e.target.value)}
               className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${statusFilter !== 'all' ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
             >
               <option value="all">Todos los estados</option>
@@ -895,7 +883,7 @@ const SalesLeads = () => {
             {/* Filtro de prioridad */}
             <select
               value={priorityFilter}
-              onChange={(e) => { setPriorityFilter(e.target.value); setPage(1); }}
+              onChange={(e) => setPriorityFilter(e.target.value)}
               className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${priorityFilter !== 'all' ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
             >
               <option value="all">Todas las prioridades</option>
@@ -908,7 +896,7 @@ const SalesLeads = () => {
             {/* Filtro de origen */}
             <select
               value={sourceFilter}
-              onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
+              onChange={(e) => setSourceFilter(e.target.value)}
               className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${sourceFilter !== 'all' ? 'border-blue-400 bg-blue-50 text-blue-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
             >
               <option value="all">Todos los orígenes</option>
@@ -940,7 +928,7 @@ const SalesLeads = () => {
               {sourceFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Origen: {SOURCE_LABELS[sourceFilter] || sourceFilter}</span>}
               {tagFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Tipo: {tagFilter}</span>}
               <button
-                onClick={() => { setStatusFilter('all'); setPriorityFilter('all'); setSourceFilter('all'); setTagFilter('all'); setSearchTerm(''); setPage(1); }}
+                onClick={() => { setTagFilter('all'); setSearchTermState(''); setSearchParams({}); }}
                 className="text-xs text-red-500 hover:text-red-700 font-medium underline ml-1"
               >
                 Limpiar todo
