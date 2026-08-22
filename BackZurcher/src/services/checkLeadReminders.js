@@ -34,7 +34,7 @@ const checkLeadReminders = async () => {
         reminderCompletedAt: null,
         reminderEmailSentAt: null,
         [Op.and]: [
-          sequelize.literal(`DATE("reminderDate" AT TIME ZONE '${ORLANDO_TZ}') = DATE '${tomorrowOrlando}'`)
+          sequelize.literal(`DATE("LeadNote"."reminder_date" AT TIME ZONE '${ORLANDO_TZ}') = DATE '${tomorrowOrlando}'`)
         ]
       },
       include: [
