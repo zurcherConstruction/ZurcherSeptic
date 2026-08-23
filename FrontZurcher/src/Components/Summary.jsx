@@ -63,6 +63,7 @@ const Summary = () => {
   const [fleetAssetsLoading, setFleetAssetsLoading] = useState(false);
   const [works, setWorks] = useState([]);
   const [worksLoading, setWorksLoading] = useState(false);
+  const [fixedExpenses, setFixedExpenses] = useState([]);
   
   const dispatch = useDispatch();
   const { currentStaff: staff } = useSelector((state) => state.auth);
@@ -319,15 +320,20 @@ const Summary = () => {
     }
   };
 
+  const fetchFixedExpenses = async () => {
+    try {
+      const response = await api.get('/fixed-expenses?isActive=true');
+      const list = response?.data?.fixedExpenses || response?.data || [];
+      setFixedExpenses(Array.isArray(list) ? list : []);
+    } catch (error) {
+      console.error('Error al cargar gastos fijos:', error);
+      setFixedExpenses([]);
+    }
+  };
+
   const shouldShowWorkLinkField = (movementType, data) => {
     if (movementType === 'Ingreso') {
-      const incomeTypesLinkedToWork = [
-        'Factura Pago Inicial Budget',
-        'Factura Pago Final Budget',
-        'Factura Cambio de Bomba',
-        'Factura Sistema Completo'
-      ];
-      return incomeTypesLinkedToWork.includes(data?.typeIncome) || !!data?.workId;
+      return true;
     }
 
     if (movementType === 'Gasto') {
@@ -339,7 +345,8 @@ const Summary = () => {
         'Inspección Final',
         'Comprobante Gasto',
         'Gastos Generales',
-        'Gasto Flota'
+        'Gasto Flota',
+        'Subcontratista'
       ];
       return expenseTypesLinkedToWork.includes(data?.typeExpense) || !!data?.workId;
     }
@@ -365,6 +372,7 @@ const Summary = () => {
     fetchTypes(); // Cargar tipos primero
     fetchFleetAssets();
     fetchWorks();
+    fetchFixedExpenses();
     fetchMovements();
     // eslint-disable-next-line
   }, []);
@@ -480,6 +488,7 @@ const Summary = () => {
       verified: mov.verified || false,
       periodStart: mov.periodStart ? mov.periodStart.toString().slice(0, 10) : "",
       periodEnd: mov.periodEnd ? mov.periodEnd.toString().slice(0, 10) : "",
+      fixedExpenseId: mov.relatedFixedExpenseId || "",
     });
     
     // Inicializar estados de comprobantes
@@ -599,7 +608,11 @@ const Summary = () => {
           paymentMethod: editData.paymentMethod,
           verified: editData.verified,
         };
-        if (mov.relatedFixedExpenseId) {
+        if (editData.typeExpense === 'Gasto Fijo') {
+          expensePayload.relatedFixedExpenseId = editData.fixedExpenseId || null;
+        }
+        const hasFixedExpenseLink = mov.relatedFixedExpenseId || (editData.typeExpense === 'Gasto Fijo' && editData.fixedExpenseId);
+        if (hasFixedExpenseLink) {
           if (editData.periodStart) expensePayload.periodStart = editData.periodStart;
           if (editData.periodEnd)   expensePayload.periodEnd   = editData.periodEnd;
         }
@@ -1308,6 +1321,33 @@ const Summary = () => {
                   </div>
                 )}
 
+                {editModal.movement.movimiento === "Gasto" && editData.typeExpense === 'Gasto Fijo' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Gasto Fijo vinculado
+                    </label>
+                    <select
+                      value={editData.fixedExpenseId || ''}
+                      onChange={(e) =>
+                        setEditData({ ...editData, fixedExpenseId: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
+                    >
+                      <option value="">Sin vincular a gasto fijo</option>
+                      {fixedExpenses.map(fe => (
+                        <option key={fe.idFixedExpense} value={fe.idFixedExpense}>
+                          {fe.name}
+                          {fe.vendor ? ` · ${fe.vendor}` : ''}
+                          {fe.totalAmount ? ` · $${parseFloat(fe.totalAmount).toFixed(2)}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Selecciona a cuál gasto fijo pertenece este pago.
+                    </p>
+                  </div>
+                )}
+
                 {shouldShowWorkLinkField(editModal.movement.movimiento, editData) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1384,7 +1424,7 @@ const Summary = () => {
                 </div>
 
                 {/* Período de pago — solo para gastos fijos */}
-                {editModal.movement.movimiento === "Gasto" && editModal.movement.relatedFixedExpenseId && (
+                {editModal.movement.movimiento === "Gasto" && (editModal.movement.relatedFixedExpenseId || (editData.typeExpense === 'Gasto Fijo' && editData.fixedExpenseId)) && (
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
                     <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
                       Gasto Fijo — Período pagado
