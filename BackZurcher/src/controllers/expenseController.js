@@ -501,7 +501,7 @@ const getExpenseById = async (req, res) => {
 // Actualizar un gasto
 const updateExpense = async (req, res) => {
   const { id } = req.params;
-  let { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified, fleetAssetId, periodStart, periodEnd } = req.body;
+  let { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified, fleetAssetId, periodStart, periodEnd, relatedFixedExpenseId } = req.body;
   
   // ✅ Normalizar fecha si se proporciona
   if (date) {
@@ -539,6 +539,10 @@ const updateExpense = async (req, res) => {
 
     const hasFleetAssetIdInPayload = Object.prototype.hasOwnProperty.call(req.body, 'fleetAssetId');
     const hasWorkIdInPayload = Object.prototype.hasOwnProperty.call(req.body, 'workId');
+    const hasRelatedFixedExpenseIdInPayload = Object.prototype.hasOwnProperty.call(req.body, 'relatedFixedExpenseId');
+    const nextRelatedFixedExpenseId = hasRelatedFixedExpenseIdInPayload
+      ? (relatedFixedExpenseId || null)
+      : prev.relatedFixedExpenseId;
     const nextTypeExpense = typeExpense ?? prev.typeExpense;
     const nextWorkId = hasWorkIdInPayload ? normalizeUuid(workId) : prev.workId;
 
@@ -571,6 +575,7 @@ const updateExpense = async (req, res) => {
       paymentDetails: paymentDetails ?? expense.paymentDetails,
       verified: verified ?? expense.verified,
       fleetAssetId: nextFleetAssetId,
+      relatedFixedExpenseId: nextRelatedFixedExpenseId,
     };
 
     // Actualizar el gasto
@@ -700,6 +705,48 @@ const updateExpense = async (req, res) => {
             if (periodEnd)   expenseUpdate.periodEnd   = periodEnd;
             await expense.update(expenseUpdate, { transaction: dbTransaction });
           }
+        }
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Vincular a nuevo Fixed Expense si se asignó uno por primera vez
+    // ─────────────────────────────────────────────────────────────
+    if (!prev.relatedFixedExpenseId && nextRelatedFixedExpenseId) {
+      const { FixedExpense, FixedExpensePayment } = require('../data');
+      const fixedExpense = await FixedExpense.findByPk(nextRelatedFixedExpenseId, { transaction: dbTransaction });
+
+      if (fixedExpense) {
+        const paymentAmount = parseFloat(next.amount || 0);
+        const currentPaid = parseFloat(fixedExpense.paidAmount || 0);
+        const totalAmount = parseFloat(fixedExpense.totalAmount || 0);
+        const newPaidAmount = currentPaid + paymentAmount;
+
+        const newStatus = newPaidAmount >= totalAmount ? 'paid' : newPaidAmount > 0 ? 'partial' : 'unpaid';
+
+        await fixedExpense.update({
+          paidAmount: newPaidAmount,
+          paymentStatus: newStatus,
+        }, { transaction: dbTransaction });
+
+        await FixedExpensePayment.create({
+          fixedExpenseId: nextRelatedFixedExpenseId,
+          amount: paymentAmount,
+          paymentDate: next.date || new Date().toISOString().split('T')[0],
+          paymentMethod: next.paymentMethod || null,
+          notes: next.notes || null,
+          expenseId: expense.idExpense,
+          createdByStaffId: next.staffId || null,
+          periodStart: periodStart || null,
+          periodEnd: periodEnd || null,
+        }, { transaction: dbTransaction });
+
+        // Sincronizar period en el Expense si se proporcionó
+        if (periodStart || periodEnd) {
+          const expUpdate = {};
+          if (periodStart) expUpdate.periodStart = periodStart;
+          if (periodEnd)   expUpdate.periodEnd   = periodEnd;
+          await expense.update(expUpdate, { transaction: dbTransaction });
         }
       }
     }

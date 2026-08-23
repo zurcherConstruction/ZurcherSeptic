@@ -66,8 +66,8 @@ const salesLeadSlice = createSlice({
 
     // ========== FETCH LEADS ==========
     builder
-      .addCase(fetchLeads.pending, (state) => {
-        state.loading = true;
+      .addCase(fetchLeads.pending, (state, action) => {
+        if (!action.meta.arg?.silent) state.loading = true;
         state.error = null;
       })
       .addCase(fetchLeads.fulfilled, (state, action) => {
@@ -89,6 +89,8 @@ const salesLeadSlice = createSlice({
     builder
       .addCase(fetchLeadById.pending, (state) => {
         state.loading = true;
+        state.currentLead = null;
+        state.notes = [];
         state.error = null;
       })
       .addCase(fetchLeadById.fulfilled, (state, action) => {

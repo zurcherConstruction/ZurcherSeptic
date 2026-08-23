@@ -336,21 +336,19 @@ const SalesLeads = () => {
     }));
   }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, tagFilter, groupDuplicates, canAccess]);
 
-  const loadLeads = async () => {
-    try {
-      await dispatch(fetchLeads({
-        page,
-        pageSize,
-        search: debouncedSearchTerm,
-        status: statusFilter,
-        priority: priorityFilter,
-        source: sourceFilter,
-        tags: tagFilter !== 'all' ? tagFilter : undefined,
-        sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate'
-      }));
-    } catch (error) {
-      console.error('Error al cargar leads:', error);
-    }
+  // Refresco silencioso: actualiza la lista en fondo sin mostrar spinner.
+  const silentLoadLeads = () => {
+    dispatch(fetchLeads({
+      page,
+      pageSize,
+      search: debouncedSearchTerm,
+      status: statusFilter,
+      priority: priorityFilter,
+      source: sourceFilter,
+      tags: tagFilter !== 'all' ? tagFilter : undefined,
+      sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate',
+      silent: true,
+    }));
   };
 
   // 🔔 Cargar alertas de notas para todos los leads
@@ -455,7 +453,7 @@ const SalesLeads = () => {
       await api.delete('/sales-leads/no-contact/bulk', { data: { ids: [...selectedNoContactIds] } });
       setShowNoContactModal(false);
       setNoContactLeads([]);
-      loadLeads();
+      silentLoadLeads();
       loadActivityMetrics();
       alert(`✅ ${selectedNoContactIds.size} leads eliminados`);
       setSelectedNoContactIds(new Set());
@@ -495,7 +493,7 @@ const SalesLeads = () => {
   const handleQuickStatusChange = async (leadId, newStatus) => {
     try {
       await dispatch(updateLead({ id: leadId, updates: { status: newStatus } }));
-      loadLeads();
+      silentLoadLeads();
     } catch (error) {
       console.error('Error al actualizar estado:', error);
       alert('Error al actualizar el estado del lead');
@@ -508,7 +506,7 @@ const SalesLeads = () => {
     
     try {
       await dispatch(archiveLead(leadId));
-      loadLeads();
+      silentLoadLeads();
     } catch (error) {
       console.error('Error al archivar lead:', error);
       alert('Error al archivar el lead');
@@ -527,7 +525,7 @@ const SalesLeads = () => {
 
     try {
       await dispatch(deleteLead(leadId));
-      loadLeads();
+      silentLoadLeads();
       loadLeadAlerts();
     } catch (error) {
       console.error('Error al eliminar lead:', error);
@@ -545,8 +543,7 @@ const SalesLeads = () => {
   const handleCloseNotesModal = () => {
     setShowNotesModal(false);
     setSelectedLead(null);
-    // Recargar lista y alertas
-    loadLeads();
+    silentLoadLeads();
     loadLeadAlerts();
   };
 
@@ -564,7 +561,7 @@ const SalesLeads = () => {
   const handleSaveLead = async (leadId, formData) => {
     console.log('💾 Saving lead:', leadId, formData);
     await dispatch(updateLead({ id: leadId, updates: formData }));
-    loadLeads();
+    silentLoadLeads();
     loadLeadAlerts();
   };
 
@@ -1545,7 +1542,7 @@ const SalesLeads = () => {
           onClose={() => { setShowProposalModal(false); setLeadForProposal(null); }}
           onSent={(leadId) => {
             setProposalSentLeads(prev => new Set([...prev, leadId]));
-            loadLeads();
+            silentLoadLeads();
           }}
         />
       )}
@@ -1565,7 +1562,7 @@ const SalesLeads = () => {
       {showMergeModal && (
         <LeadMergeModal
           onClose={() => setShowMergeModal(false)}
-          onMerged={() => loadLeads()}
+          onMerged={() => silentLoadLeads()}
         />
       )}
       {/* � Modal Reporte Semanal */}
