@@ -147,6 +147,34 @@ module.exports = (sequelize) => {
       field: 'proposal_sent_at'
     },
     
+    // 🏢 CATEGORÍA DE LEAD
+    leadCategory: {
+      type: DataTypes.ENUM('cliente', 'constructora', 'subcontrato'),
+      allowNull: false,
+      defaultValue: 'cliente',
+      comment: 'Tipo: cliente normal, constructora grande, o constructora donde aplicamos como sub',
+      field: 'lead_category'
+    },
+    companyName: {
+      type: DataTypes.STRING(200),
+      allowNull: true,
+      comment: 'Nombre de la empresa (para constructoras y subcontratos)',
+      field: 'company_name'
+    },
+    applicationStatus: {
+      type: DataTypes.ENUM('pending', 'applied', 'in_review', 'approved', 'rejected'),
+      allowNull: true,
+      defaultValue: null,
+      comment: 'Estado de aplicación (solo para subcontrato)',
+      field: 'application_status'
+    },
+    applicationDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Fecha en que aplicamos como subcontratistas',
+      field: 'application_date'
+    },
+
     // 👤 CREACIÓN
     createdBy: {
       type: DataTypes.UUID,

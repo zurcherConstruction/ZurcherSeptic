@@ -84,6 +84,33 @@ const LeadAlertBadge = ({ leadId, alertData, className = "h-5 w-5" }) => {
   );
 };
 
+const LEAD_CATEGORY_LABELS = {
+  cliente:       'Cliente',
+  constructora:  'Constructora',
+  subcontrato:   'Subcontrato',
+};
+
+const LEAD_CATEGORY_STYLES = {
+  constructora: 'bg-amber-100 text-amber-800 border border-amber-300',
+  subcontrato:  'bg-indigo-100 text-indigo-800 border border-indigo-300',
+};
+
+const APPLICATION_STATUS_LABELS = {
+  pending:   '⏳ Pendiente',
+  applied:   '📨 Aplicado',
+  in_review: '🔍 En revisión',
+  approved:  '✅ Aprobado',
+  rejected:  '❌ Rechazado',
+};
+
+const APPLICATION_STATUS_STYLES = {
+  pending:   'bg-gray-100 text-gray-700',
+  applied:   'bg-blue-100 text-blue-800',
+  in_review: 'bg-yellow-100 text-yellow-800',
+  approved:  'bg-green-100 text-green-800',
+  rejected:  'bg-red-100 text-red-800',
+};
+
 const SOURCE_LABELS = {
   website:      '🌐 Web',
   walk_in:      '🚶 Recorrido',
@@ -183,6 +210,8 @@ const SalesLeads = () => {
   const setPriorityFilter = (v) => setSearchParams(prev => { const p = new URLSearchParams(prev); if (v === 'all') p.delete('priority'); else p.set('priority', v); p.delete('page'); return p; });
   const sourceFilter = searchParams.get('source') || 'all';
   const setSourceFilter = (v) => setSearchParams(prev => { const p = new URLSearchParams(prev); if (v === 'all') p.delete('source'); else p.set('source', v); p.delete('page'); return p; });
+  const leadCategoryFilter = searchParams.get('leadCategory') || 'all';
+  const setLeadCategoryFilter = (v) => setSearchParams(prev => { const p = new URLSearchParams(prev); if (v === 'all') p.delete('leadCategory'); else p.set('leadCategory', v); p.delete('page'); return p; });
   const [tagFilter, setTagFilter] = useState('all');
   // page vive en la URL para que los cambios de filtro y de página sean atómicos (un solo setSearchParams).
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -248,6 +277,7 @@ const SalesLeads = () => {
       if (priorityFilter !== 'all') params.append('priority', priorityFilter);
       if (sourceFilter !== 'all') params.append('source', sourceFilter);
       if (tagFilter !== 'all') params.append('tags', tagFilter);
+      if (leadCategoryFilter !== 'all') params.append('leadCategory', leadCategoryFilter);
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       params.append('sortBy', groupDuplicates ? 'contact_group' : 'lastActivityDate');
 
@@ -331,10 +361,11 @@ const SalesLeads = () => {
       status: statusFilter,
       priority: priorityFilter,
       source: sourceFilter,
+      leadCategory: leadCategoryFilter,
       tags: tagFilter !== 'all' ? tagFilter : undefined,
       sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate',
     }));
-  }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, tagFilter, groupDuplicates, canAccess]);
+  }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, leadCategoryFilter, tagFilter, groupDuplicates, canAccess]);
 
   // Refresco silencioso: actualiza la lista en fondo sin mostrar spinner.
   const silentLoadLeads = () => {
@@ -345,6 +376,7 @@ const SalesLeads = () => {
       status: statusFilter,
       priority: priorityFilter,
       source: sourceFilter,
+      leadCategory: leadCategoryFilter,
       tags: tagFilter !== 'all' ? tagFilter : undefined,
       sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate',
       silent: true,
@@ -902,6 +934,18 @@ const SalesLeads = () => {
               ))}
             </select>
 
+            {/* Filtro de categoría */}
+            <select
+              value={leadCategoryFilter}
+              onChange={(e) => setLeadCategoryFilter(e.target.value)}
+              className={`px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-colors ${leadCategoryFilter !== 'all' ? 'border-amber-400 bg-amber-50 text-amber-800 font-medium' : 'border-gray-200 bg-gray-50 text-gray-700'}`}
+            >
+              <option value="all">Todas las categorías</option>
+              <option value="cliente">👤 Cliente</option>
+              <option value="constructora">🏗️ Constructora</option>
+              <option value="subcontrato">👷 Subcontrato</option>
+            </select>
+
             {/* Filtro de tag */}
             <select
               value={tagFilter}
@@ -916,13 +960,14 @@ const SalesLeads = () => {
           </div>
 
           {/* Indicador de filtros activos */}
-          {(statusFilter !== 'all' || priorityFilter !== 'all' || sourceFilter !== 'all' || tagFilter !== 'all' || searchTerm) && (
+          {(statusFilter !== 'all' || priorityFilter !== 'all' || sourceFilter !== 'all' || leadCategoryFilter !== 'all' || tagFilter !== 'all' || searchTerm) && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-gray-500 font-medium">Filtros activos:</span>
               {searchTerm && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">🔍 "{searchTerm}"</span>}
               {statusFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Estado: {STATUS_LABELS[statusFilter] || statusFilter}</span>}
               {priorityFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Prioridad: {priorityFilter}</span>}
               {sourceFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Origen: {SOURCE_LABELS[sourceFilter] || sourceFilter}</span>}
+              {leadCategoryFilter !== 'all' && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Cat.: {LEAD_CATEGORY_LABELS[leadCategoryFilter] || leadCategoryFilter}</span>}
               {tagFilter !== 'all' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Tipo: {tagFilter}</span>}
               <button
                 onClick={() => { setTagFilter('all'); setSearchTermState(''); setSearchParams({}); }}
@@ -1111,6 +1156,20 @@ const SalesLeads = () => {
                     )}
                     {lead.propertyAddress && (
                       <p className="text-xs text-gray-500 truncate mt-0.5">{lead.propertyAddress}</p>
+                    )}
+                    {/* Categoría badge */}
+                    {lead.leadCategory && lead.leadCategory !== 'cliente' && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${LEAD_CATEGORY_STYLES[lead.leadCategory] || 'bg-gray-100 text-gray-600'}`}>
+                          {lead.leadCategory === 'constructora' ? '🏗️ Constructora' : '👷 Subcontrato'}
+                          {lead.companyName ? ` · ${lead.companyName}` : ''}
+                        </span>
+                        {lead.leadCategory === 'subcontrato' && lead.applicationStatus && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${APPLICATION_STATUS_STYLES[lead.applicationStatus] || 'bg-gray-100 text-gray-600'}`}>
+                            {APPLICATION_STATUS_LABELS[lead.applicationStatus] || lead.applicationStatus}
+                          </span>
+                        )}
+                      </div>
                     )}
                     {/* Source + Tags badges */}
                     <div className="flex flex-wrap gap-1 mt-1">
