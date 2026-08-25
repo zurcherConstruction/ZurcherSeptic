@@ -27,6 +27,7 @@ export const fetchLeads = createAsyncThunk(
         search = '',
         tags = null,
         source = 'all',
+        leadCategory = 'all',
         sortBy = 'lastActivityDate',
         sortOrder = 'DESC'
       } = params;
@@ -39,6 +40,7 @@ export const fetchLeads = createAsyncThunk(
       if (search) queryParams.append('search', search);
       if (tags) queryParams.append('tags', tags);
       if (source !== 'all') queryParams.append('source', source);
+      if (leadCategory !== 'all') queryParams.append('leadCategory', leadCategory);
       queryParams.append('sortBy', sortBy);
       queryParams.append('sortOrder', sortOrder);
 

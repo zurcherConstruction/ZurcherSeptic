@@ -31,7 +31,11 @@ const NewLeadForm = () => {
     notes: '',
     hasReminder: false,
     reminderDate: '',
-    reminderStaff: []
+    reminderStaff: [],
+    leadCategory: 'cliente',
+    companyName: '',
+    applicationStatus: '',
+    applicationDate: '',
   });
 
   const SOURCE_OPTIONS = [
@@ -169,6 +173,10 @@ const NewLeadForm = () => {
         propertyAddress: formData.propertyAddress,
         source: formData.source,
         tags: formData.tags,
+        leadCategory: formData.leadCategory,
+        companyName: formData.companyName || null,
+        applicationStatus: formData.applicationStatus || null,
+        applicationDate: formData.applicationDate || null,
       };
       
       const leadResult = await dispatch(createLead(leadData));
@@ -356,6 +364,73 @@ const NewLeadForm = () => {
                   ))}
                 </select>
               </div>
+
+              {/* Categoría del Lead */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Categoría
+                </label>
+                <select
+                  name="leadCategory"
+                  value={formData.leadCategory}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="cliente">👤 Cliente</option>
+                  <option value="constructora">🏗️ Constructora (cliente potencial grande)</option>
+                  <option value="subcontrato">👷 Subcontrato (aplicar como sub)</option>
+                </select>
+              </div>
+
+              {formData.leadCategory === 'subcontrato' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre de la Empresa
+                  </label>
+                  <input
+                    type="text"
+                    name="companyName"
+                    value={formData.companyName}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ej: ABC Construction LLC"
+                  />
+                </div>
+              )}
+
+              {formData.leadCategory === 'subcontrato' && (
+                <div className="md:col-span-2 bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
+                  <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Seguimiento de Aplicación</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                      <select
+                        name="applicationStatus"
+                        value={formData.applicationStatus}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Sin iniciar</option>
+                        <option value="pending">⏳ Pendiente de aplicar</option>
+                        <option value="applied">📨 Aplicado</option>
+                        <option value="in_review">🔍 En revisión</option>
+                        <option value="approved">✅ Aprobado</option>
+                        <option value="rejected">❌ Rechazado</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de aplicación</label>
+                      <input
+                        type="date"
+                        name="applicationDate"
+                        value={formData.applicationDate}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Tags predefinidos */}
               <div>

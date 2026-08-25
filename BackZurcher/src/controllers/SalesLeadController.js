@@ -10,11 +10,15 @@ const ExcelJS = require('exceljs');
 //   para las estadísticas del pipeline (no deben variar según el status activo).
 // - whereClause: baseWhereClause + status (soporta uno o varios separados por
 //   coma, ej: "lost,archived").
-function buildSalesLeadWhereClause({ status, priority, search, tags, source }) {
+function buildSalesLeadWhereClause({ status, priority, search, tags, source, leadCategory }) {
   const baseWhereClause = {};
 
   if (priority && priority !== 'all') {
     baseWhereClause.priority = priority;
+  }
+
+  if (leadCategory && leadCategory !== 'all') {
+    baseWhereClause.leadCategory = leadCategory;
   }
 
   if (source && source !== 'all') {
@@ -110,7 +114,11 @@ const SalesLeadController = {
         source,
         serviceType,
         estimatedValue,
-        notes
+        notes,
+        leadCategory,
+        companyName,
+        applicationStatus,
+        applicationDate
       } = req.body;
       
       const createdBy = req.user?.id;
@@ -137,7 +145,11 @@ const SalesLeadController = {
         notes: notes?.trim() || null,
         firstContactDate: (status && status !== 'new') ? new Date() : null,
         lastActivityDate: new Date(),
-        createdBy
+        createdBy,
+        leadCategory: leadCategory || 'cliente',
+        companyName: companyName?.trim() || null,
+        applicationStatus: applicationStatus || null,
+        applicationDate: applicationDate || null
       });
 
       // Cargar el lead con relaciones
@@ -327,6 +339,7 @@ const SalesLeadController = {
         search,
         tags,
         source,
+        leadCategory,
         sortBy = 'lastActivityDate',
         sortOrder = 'DESC'
       } = req.query;
@@ -336,7 +349,7 @@ const SalesLeadController = {
       // pipeline, así ambos números son siempre consistentes entre sí.
       // Filtro completo para el listado paginado: agrega el status (soporta uno
       // o varios separados por coma, ej: "lost,archived" para la tarjeta "Perdido").
-      const { baseWhereClause, whereClause } = buildSalesLeadWhereClause({ status, priority, search, tags, source });
+      const { baseWhereClause, whereClause } = buildSalesLeadWhereClause({ status, priority, search, tags, source, leadCategory });
 
       // Paginación
       const offset = (parseInt(page) - 1) * parseInt(pageSize);
@@ -476,18 +489,9 @@ const SalesLeadController = {
   // Fecha de Último Contacto y la Nota de esa última actividad.
   async exportLeadsExcel(req, res) {
     try {
-      const { status, priority, search, tags, source, sortBy = 'lastActivityDate', sortOrder = 'DESC' } = req.query;
+      const { status, priority, search, tags, source, leadCategory, sortBy = 'lastActivityDate', sortOrder = 'DESC' } = req.query;
 
-      const { whereClause } = buildSalesLeadWhereClause({ status, priority, search, tags, source });
-
-      // Por defecto (sin filtro de estado explícito) excluimos los "Archivado":
-      // son leads con rechazo explícito (ver find-and-prioritize-sales-leads.js)
-      // y no aportan a una lista de seguimiento/contacto. Si el usuario elige
-      // explícitamente "Archivado" o "Perdido + Archivado" desde el filtro de
-      // estado, sí se incluyen normalmente (whereClause.status ya lo maneja).
-      if (!status || status === 'all') {
-        whereClause.status = { [Op.ne]: 'archived' };
-      }
+      const { whereClause } = buildSalesLeadWhereClause({ status, priority, search, tags, source, leadCategory });
 
       const validSortFields = ['lastActivityDate', 'createdAt', 'applicantName', 'status', 'priority'];
       const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'lastActivityDate';
@@ -496,7 +500,8 @@ const SalesLeadController = {
         where: whereClause,
         attributes: [
           'id', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress',
-          'status', 'priority', 'source', 'lastActivityDate'
+          'status', 'priority', 'source', 'lastActivityDate',
+          'leadCategory', 'companyName', 'applicationStatus', 'applicationDate'
         ],
         order: [[safeSortBy, sortOrder === 'ASC' ? 'ASC' : 'DESC']]
       });
@@ -527,12 +532,19 @@ const SalesLeadController = {
       const workbook = new ExcelJS.Workbook();
       const sheet = workbook.addWorksheet('Sales Leads');
 
+      const CATEGORY_LABELS = { cliente: 'Cliente', constructora: 'Constructora', subcontrato: 'Subcontrato' };
+      const APP_STATUS_LABELS = { pending: 'Pendiente', applied: 'Aplicado', in_review: 'En revisión', approved: 'Aprobado', rejected: 'Rechazado' };
+
       sheet.columns = [
         { header: 'Empresa / Cliente', key: 'empresa', width: 30 },
+        { header: 'Categoría', key: 'categoria', width: 16 },
+        { header: 'Nombre Empresa', key: 'nombreEmpresa', width: 25 },
         { header: 'Contacto', key: 'contacto', width: 30 },
         { header: 'Dirección', key: 'direccion', width: 35 },
         { header: 'Estado', key: 'estado', width: 16 },
         { header: 'Prioridad', key: 'prioridad', width: 12 },
+        { header: 'Estado Aplicación', key: 'estadoAplicacion', width: 18 },
+        { header: 'Fecha Aplicación', key: 'fechaAplicacion', width: 18 },
         { header: 'Fecha Último Contacto', key: 'fechaUltimoContacto', width: 20 },
         { header: 'Nota Último Contacto', key: 'notaUltimoContacto', width: 50 }
       ];
@@ -552,10 +564,14 @@ const SalesLeadController = {
 
         sheet.addRow({
           empresa: lead.applicantName || '',
+          categoria: CATEGORY_LABELS[lead.leadCategory] || lead.leadCategory || 'Cliente',
+          nombreEmpresa: lead.companyName || '',
           contacto: contactoParts.join(' / ') || '',
           direccion: lead.propertyAddress || '',
           estado: STATUS_LABELS_ES[lead.status] || lead.status,
           prioridad: PRIORITY_LABELS_ES[lead.priority] || lead.priority,
+          estadoAplicacion: lead.applicationStatus ? (APP_STATUS_LABELS[lead.applicationStatus] || lead.applicationStatus) : '',
+          fechaAplicacion: lead.applicationDate ? new Date(lead.applicationDate).toLocaleDateString('es-US') : '',
           fechaUltimoContacto: lastContactDate ? new Date(lastContactDate).toLocaleDateString('es-US') : '',
           notaUltimoContacto: sanitizeNoteForExport(lastNote?.message)
         });
@@ -651,6 +667,12 @@ const SalesLeadController = {
 
       // Actualizar lastActivityDate
       updates.lastActivityDate = new Date();
+
+      // Sanitizar fecha — string vacío o inválido debe ser null, no 'Invalid date'
+      if (updates.applicationDate !== undefined) {
+        const d = updates.applicationDate;
+        updates.applicationDate = (d && d !== 'Invalid date') ? d : null;
+      }
 
       await lead.update(updates);
 

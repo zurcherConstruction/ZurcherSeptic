@@ -30,6 +30,10 @@ const EditLeadModal = ({ lead, onClose, onSave }) => {
     propertyAddress: lead.propertyAddress || '',
     source: lead.source || 'website',
     tags: lead.tags || [],
+    leadCategory: lead.leadCategory || 'cliente',
+    companyName: lead.companyName || '',
+    applicationStatus: lead.applicationStatus || '',
+    applicationDate: lead.applicationDate ? lead.applicationDate.toString().slice(0, 10) : '',
   });
 
   const toggleTag = (tag) => {
@@ -206,6 +210,77 @@ const EditLeadModal = ({ lead, onClose, onSave }) => {
                   ))}
                 </select>
               </div>
+
+              {/* Categoría del Lead */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Categoría
+                </label>
+                <select
+                  name="leadCategory"
+                  value={formData.leadCategory}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="cliente">👤 Cliente</option>
+                  <option value="constructora">🏗️ Constructora (cliente potencial grande)</option>
+                  <option value="subcontrato">👷 Subcontrato (aplicar como sub)</option>
+                </select>
+              </div>
+
+              {/* Nombre de empresa (solo para subcontrato — para constructora el nombre del lead ya es la empresa) */}
+              {formData.leadCategory === 'subcontrato' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre de la Empresa
+                  </label>
+                  <input
+                    type="text"
+                    name="companyName"
+                    value={formData.companyName}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Ej: ABC Construction LLC"
+                  />
+                </div>
+              )}
+
+              {/* Campos de aplicación (solo para subcontrato) */}
+              {formData.leadCategory === 'subcontrato' && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
+                  <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Seguimiento de Aplicación</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Estado de aplicación
+                    </label>
+                    <select
+                      name="applicationStatus"
+                      value={formData.applicationStatus}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                      <option value="">Sin iniciar</option>
+                      <option value="pending">⏳ Pendiente de aplicar</option>
+                      <option value="applied">📨 Aplicado</option>
+                      <option value="in_review">🔍 En revisión</option>
+                      <option value="approved">✅ Aprobado — somos proveedores</option>
+                      <option value="rejected">❌ Rechazado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha de aplicación
+                    </label>
+                    <input
+                      type="date"
+                      name="applicationDate"
+                      value={formData.applicationDate}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Tags predefinidos */}
               <div>
