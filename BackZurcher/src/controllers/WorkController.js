@@ -495,7 +495,7 @@ const getWorkById = async (req, res) => {
             },
             {
               model: Permit,
-              attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'systemType', 'isPBTS'],
+              attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'systemType', 'isPBTS', 'county', 'city'],
               required: false
             },
             {
@@ -793,7 +793,7 @@ const updateWork = async (req, res) => {
       const updatedWorkLight = await Work.findByPk(idWork, {
         include: [
           { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'applicantName']},
-          { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'systemType', 'isPBTS']},
+          { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'systemType', 'isPBTS', 'county', 'city']},
           { model: Staff, attributes: ['id', 'name', 'email'] }
         ],
       });
@@ -1744,7 +1744,7 @@ const getWorksInMaintenance = async (req, res) => {
         },
         {
           model: Permit,
-          attributes: ['propertyAddress', 'applicantName', 'applicantPhone', 'applicantEmail']
+          attributes: ['propertyAddress', 'applicantName', 'applicantPhone', 'applicantEmail', 'county', 'city']
         }
       ],
       order: [['createdAt', 'DESC']]
