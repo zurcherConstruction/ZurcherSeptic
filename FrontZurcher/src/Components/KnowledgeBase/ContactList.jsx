@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, memo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   FaPhone, FaEnvelope, FaMapMarkerAlt, FaStar, FaRegStar,
@@ -8,7 +8,7 @@ import { fetchContacts, deleteContact, toggleContactFavorite } from '../../Redux
 import ContactModal from './ContactModal';
 import ContactViewModal from './ContactViewModal';
 
-const ContactList = memo(({ categoryId, searchQuery, showFavoritesOnly, subCategoryFilter }) => {
+const ContactList = ({ categoryId, searchQuery, showFavoritesOnly, subCategoryFilter }) => {
   const dispatch = useDispatch();
   const contacts = useSelector(state => state.knowledgeBase.contacts);
   const loading  = useSelector(state => state.knowledgeBase.loading);
@@ -50,20 +50,38 @@ const ContactList = memo(({ categoryId, searchQuery, showFavoritesOnly, subCateg
     : [];
 
   const displayed = contacts.filter(c => {
-    if (subCategoryFilter && c.contactType !== subCategoryFilter) return false;
+    if (subCategoryFilter) {
+      const matchesMaterial = c.contactType === subCategoryFilter;
+      const matchesArea = c.tags?.includes(subCategoryFilter);
+      if (!matchesMaterial && !matchesArea) return false;
+    }
     if (activeFilter && c.contactType !== activeFilter && !c.tags?.includes(activeFilter)) return false;
     return true;
   });
 
   return (
     <div>
+      {/* Active filter banner */}
+      {(subCategoryFilter || activeFilter) && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-700 font-medium">
+          <span>Filtrando por:</span>
+          {subCategoryFilter && (
+            <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full capitalize">{subCategoryFilter}</span>
+          )}
+          {activeFilter && (
+            <span className="bg-blue-400 text-white px-2 py-0.5 rounded-full capitalize">{activeFilter}</span>
+          )}
+          <span className="ml-auto text-blue-500 font-bold">{displayed.length} resultado{displayed.length !== 1 ? 's' : ''}</span>
+        </div>
+      )}
+
       {/* Header row */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
           <h3 className="text-base font-semibold text-slate-800">Contactos</h3>
           {contacts.length > 0 && (
             <p className="text-xs text-slate-500 mt-0.5">
-              {activeFilter ? `${displayed.length} de ${contacts.length} registros` : `${contacts.length} registros`}
+              {(subCategoryFilter || activeFilter) ? `${displayed.length} de ${contacts.length} registros` : `${contacts.length} registros`}
             </p>
           )}
         </div>
@@ -291,7 +309,6 @@ const ContactList = memo(({ categoryId, searchQuery, showFavoritesOnly, subCateg
       )}
     </div>
   );
-});
+};
 
-ContactList.displayName = 'ContactList';
 export default ContactList;
