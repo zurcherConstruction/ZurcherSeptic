@@ -1,5 +1,17 @@
 import api from '../../utils/axios';
 import {
+  fetchCountiesRequest,
+  fetchCountiesSuccess,
+  fetchCountiesFailure,
+  createCountyRequest,
+  createCountySuccess,
+  createCountyFailure,
+  updateCountyRequest,
+  updateCountySuccess,
+  updateCountyFailure,
+  deleteCountyRequest,
+  deleteCountySuccess,
+  deleteCountyFailure,
   fetchCategoriesRequest,
   fetchCategoriesSuccess,
   fetchCategoriesFailure,
@@ -240,6 +252,58 @@ export const toggleDocumentFavorite = (id) => async (dispatch) => {
     dispatch(toggleDocumentFavoriteSuccess(response.data));
   } catch (error) {
     console.error('Error al actualizar favorito:', error);
+  }
+};
+
+// ========== COUNTIES ==========
+
+export const fetchCounties = (params = {}) => async (dispatch) => {
+  dispatch(fetchCountiesRequest());
+  try {
+    const qs = new URLSearchParams(params).toString();
+    const response = await api.get(`/knowledge-base/counties?${qs}`);
+    dispatch(fetchCountiesSuccess(response.data));
+  } catch (error) {
+    dispatch(fetchCountiesFailure(error.response?.data?.error || 'Error al obtener condados'));
+  }
+};
+
+export const createCounty = (data) => async (dispatch) => {
+  dispatch(createCountyRequest());
+  try {
+    const response = await api.post('/knowledge-base/counties', data);
+    dispatch(createCountySuccess(response.data));
+    return { success: true };
+  } catch (error) {
+    const msg = error.response?.data?.error || 'Error al crear condado';
+    dispatch(createCountyFailure(msg));
+    throw error;
+  }
+};
+
+export const updateCounty = (id, data) => async (dispatch) => {
+  dispatch(updateCountyRequest());
+  try {
+    const response = await api.put(`/knowledge-base/counties/${id}`, data);
+    dispatch(updateCountySuccess(response.data));
+    return { success: true };
+  } catch (error) {
+    const msg = error.response?.data?.error || 'Error al actualizar condado';
+    dispatch(updateCountyFailure(msg));
+    throw error;
+  }
+};
+
+export const deleteCounty = (id) => async (dispatch) => {
+  dispatch(deleteCountyRequest());
+  try {
+    await api.delete(`/knowledge-base/counties/${id}`);
+    dispatch(deleteCountySuccess(id));
+    return { success: true };
+  } catch (error) {
+    const msg = error.response?.data?.error || 'Error al eliminar condado';
+    dispatch(deleteCountyFailure(msg));
+    throw error;
   }
 };
 

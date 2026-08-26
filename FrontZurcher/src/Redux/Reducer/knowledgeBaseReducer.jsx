@@ -5,6 +5,7 @@ const initialState = {
   contacts: [],
   procedures: [],
   documents: [],
+  counties: [],
   selectedCategory: null,
   loading: false,
   error: null,
@@ -252,6 +253,37 @@ const knowledgeBaseSlice = createSlice({
       }
     },
 
+    // ========== COUNTIES ==========
+    fetchCountiesRequest: (state) => { state.loading = true; state.error = null; },
+    fetchCountiesSuccess: (state, action) => { state.loading = false; state.counties = action.payload; state.error = null; },
+    fetchCountiesFailure: (state, action) => { state.loading = false; state.error = action.payload; },
+
+    createCountyRequest: (state) => { state.loading = true; state.error = null; },
+    createCountySuccess: (state, action) => {
+      state.loading = false;
+      state.counties.push(action.payload);
+      state.successMessage = 'Condado creado correctamente';
+      state.error = null;
+    },
+    createCountyFailure: (state, action) => { state.loading = false; state.error = action.payload; },
+
+    updateCountyRequest: (state) => { state.loading = true; state.error = null; },
+    updateCountySuccess: (state, action) => {
+      state.loading = false;
+      const idx = state.counties.findIndex(c => c.id === action.payload.id);
+      if (idx !== -1) state.counties[idx] = action.payload;
+      state.successMessage = 'Condado actualizado correctamente';
+    },
+    updateCountyFailure: (state, action) => { state.loading = false; state.error = action.payload; },
+
+    deleteCountyRequest: (state) => { state.loading = true; state.error = null; },
+    deleteCountySuccess: (state, action) => {
+      state.loading = false;
+      state.counties = state.counties.filter(c => c.id !== action.payload);
+      state.successMessage = 'Condado eliminado correctamente';
+    },
+    deleteCountyFailure: (state, action) => { state.loading = false; state.error = action.payload; },
+
     // ========== CLEAR MESSAGES ==========
     clearMessages: (state) => {
       state.successMessage = null;
@@ -261,6 +293,18 @@ const knowledgeBaseSlice = createSlice({
 });
 
 export const {
+  fetchCountiesRequest,
+  fetchCountiesSuccess,
+  fetchCountiesFailure,
+  createCountyRequest,
+  createCountySuccess,
+  createCountyFailure,
+  updateCountyRequest,
+  updateCountySuccess,
+  updateCountyFailure,
+  deleteCountyRequest,
+  deleteCountySuccess,
+  deleteCountyFailure,
   fetchCategoriesRequest,
   fetchCategoriesSuccess,
   fetchCategoriesFailure,

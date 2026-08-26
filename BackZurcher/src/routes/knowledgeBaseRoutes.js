@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const knowledgeBaseController = require('../controllers/KnowledgeBaseController');
+const countyController = require('../controllers/KnowledgeCountyController');
 const { upload } = require('../middleware/multer');
 
 // ========== CATEGORÍAS ==========
@@ -38,5 +39,14 @@ router.delete('/documents/:id', knowledgeBaseController.deleteDocument);
 
 // ========== BÚSQUEDA GLOBAL ==========
 router.get('/search', knowledgeBaseController.globalSearch);
+
+// ========== CONDADOS ==========
+router.post('/counties/upload', upload.array('files', 10), countyController.uploadCountyFiles);
+router.get('/counties/regions', countyController.getRegions);
+router.get('/counties', countyController.getAllCounties);
+router.get('/counties/:id', countyController.getCountyById);
+router.post('/counties', countyController.createCounty);
+router.put('/counties/:id', countyController.updateCounty);
+router.delete('/counties/:id', countyController.deleteCounty);
 
 module.exports = router;
