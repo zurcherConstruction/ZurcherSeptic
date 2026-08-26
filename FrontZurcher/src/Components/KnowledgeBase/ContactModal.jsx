@@ -5,6 +5,7 @@ import { fetchCategories, createContact, updateContact } from '../../Redux/Actio
 const ContactModal = ({ contact, isEditing, onClose, defaultCategoryId }) => {
   const dispatch = useDispatch();
   const { categories } = useSelector((state) => state.knowledgeBase);
+  const [tagInput, setTagInput] = useState('');
   const [formData, setFormData] = useState({
     categoryId: defaultCategoryId || '',
     companyName: '',
@@ -127,17 +128,22 @@ const ContactModal = ({ contact, isEditing, onClose, defaultCategoryId }) => {
             />
           </div>
 
-          {/* Contact Type */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tipo (ej: "Inspección Privada", "Condado Cook")
-            </label>
+          {/* Contact Type — material */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base">🧱</span>
+              <label className="text-sm font-bold text-amber-800">
+                ¿Qué suministra / qué tipo de servicio ofrece?
+              </label>
+            </div>
+            <p className="text-xs text-amber-600 mb-2">Un solo valor: el material o servicio principal</p>
             <input
               type="text"
               name="contactType"
               value={formData.contactType}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="ej: Arena, Tierra, Grava, HDPE Pipe, Inspección privada..."
+              className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white text-sm"
             />
           </div>
 
@@ -277,6 +283,65 @@ const ContactModal = ({ contact, isEditing, onClose, defaultCategoryId }) => {
               rows="3"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          {/* Service Areas */}
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-base">📍</span>
+              <label className="text-sm font-bold text-teal-800">
+                ¿En qué counties o ciudades trabaja?
+              </label>
+            </div>
+            <p className="text-xs text-teal-600 mb-2">Podés agregar varios — uno por vez</p>
+            {formData.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {formData.tags.map((tag, i) => (
+                  <span key={i} className="flex items-center gap-1 text-xs bg-white text-teal-700 border border-teal-300 px-2.5 py-1 rounded-full font-medium">
+                    📍 {tag}
+                    <button
+                      type="button"
+                      onClick={() => setFormData(p => ({ ...p, tags: p.tags.filter((_, j) => j !== i) }))}
+                      className="ml-0.5 text-teal-400 hover:text-teal-700 font-bold leading-none text-sm"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={e => setTagInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const t = tagInput.trim().toLowerCase();
+                    if (t && !formData.tags.includes(t)) {
+                      setFormData(p => ({ ...p, tags: [...p.tags, t] }));
+                    }
+                    setTagInput('');
+                  }
+                }}
+                placeholder="ej: Miami-Dade, Broward, Palm Beach... Enter para agregar"
+                className="flex-1 px-3 py-2 border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const t = tagInput.trim().toLowerCase();
+                  if (t && !formData.tags.includes(t)) {
+                    setFormData(p => ({ ...p, tags: [...p.tags, t] }));
+                  }
+                  setTagInput('');
+                }}
+                className="px-3 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
+              >
+                + Agregar
+              </button>
+            </div>
           </div>
 
           {/* Action Buttons */}
