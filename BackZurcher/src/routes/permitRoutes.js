@@ -33,6 +33,9 @@ router.post(
 
 router.get('/check-by-address', verifyToken, allowRoles(['admin', 'recept', 'owner', 'sales_rep', 'follow-up']), PermitController.checkPermitByPropertyAddress);
 
+// Counties distintos para autocomplete
+router.get('/counties', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'capataz', 'sales_rep']), PermitController.getCounties);
+
 // 🆕 Verificar si un número de permit ya existe
 router.get('/check-permit-number/:permitNumber', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.checkPermitNumber);
 

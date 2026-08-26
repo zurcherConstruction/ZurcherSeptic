@@ -27,6 +27,7 @@ const PdfReceipt = () => {
     constructionPermitFor: "",
     applicant: "",
     propertyAddress: "",
+    county: "",
     systemType: "", // Mantener para mostrar/editar en el Permit si es necesario
     lot: "",
     block: "",
@@ -60,9 +61,19 @@ const PdfReceipt = () => {
   const [emailError, setEmailError] = useState('');
 
   const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
-  const [excavationUnit, setExcavationUnit] = useState("INCH"); 
+  const [excavationUnit, setExcavationUnit] = useState("INCH");
   const [displayDate, setDisplayDate] = useState(""); // Para mostrar fecha en formato MM-DD-YYYY
+  const [countySuggestions, setCountySuggestions] = useState([]);
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/permit/counties`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => setCountySuggestions(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [token]);
 
   // 🆕 Función centralizada para validar permit number
   const validatePermitNumber = async (permitNumber) => {
@@ -845,6 +856,8 @@ const PdfReceipt = () => {
                       ? "Phone"
                       : key === "propertyAddress"
                       ? "Property Address"
+                      : key === "county"
+                      ? "County"
                       : key === "permitNumber"
                       ? "Permit Number"
                       : key === "systemType"
@@ -954,6 +967,21 @@ const PdfReceipt = () => {
                         </p>
                       )}
                     </div>
+                  ) : key === "county" ? (
+                    <>
+                      <input
+                        type="text"
+                        name="county"
+                        value={formData.county ?? ""}
+                        onChange={handleInputChange}
+                        list="county-suggestions-pdf"
+                        placeholder="Ej: Lee, Collier, Charlotte..."
+                        className="mt-1 block w-full border border-gray-300 bg-gray-50 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                      <datalist id="county-suggestions-pdf">
+                        {countySuggestions.map(c => <option key={c} value={c} />)}
+                      </datalist>
+                    </>
                   ) : (
                     <input
                       type={

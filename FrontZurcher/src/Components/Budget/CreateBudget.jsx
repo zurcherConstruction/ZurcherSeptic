@@ -242,6 +242,7 @@ const CreateBudget = () => {
     excavationRequired: "",
     drainfieldDepth: "",
     systemType: "",
+    county: "",
     // 🆕 Campos de origen y vendedor
     leadSource: 'web',
     createdByStaffId: '',
@@ -583,6 +584,7 @@ const CreateBudget = () => {
          excavationRequired: selectedPermit.excavationRequired || "",
          drainfieldDepth: selectedPermit.drainfieldDepth || "",
          systemType: selectedPermit.systemType || "",
+         county: selectedPermit.county || "",
       }));
 
        // --- Establecer alerta de expiración del Permit ---
@@ -1457,6 +1459,12 @@ const customCategoryOrder = [
                     <label className="block text-xs font-medium text-gray-500">Property Address</label>
                     <p className="text-sm font-semibold text-gray-800 mt-1">{formData.propertyAddress || 'N/A'}</p>
                   </div>
+                  {formData.county && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500">County</label>
+                      <p className="text-sm font-semibold text-gray-800 mt-1">{formData.county}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* --- Línea Divisoria --- */}

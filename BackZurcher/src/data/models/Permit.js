@@ -209,6 +209,11 @@ module.exports = (sequelize) => {
     },
     
     // Part 2 - Property Information
+    county: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: 'Condado donde se ubica la propiedad'
+    },
     city: {
       type: DataTypes.STRING(100),
       allowNull: true,

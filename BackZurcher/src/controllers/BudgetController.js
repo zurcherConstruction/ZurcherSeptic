@@ -1896,8 +1896,8 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
           {
             model: Permit,
             attributes: [
-              'idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 
-              'drainfieldDepth', 'excavationRequired', 'lot', 'block', 
+              'idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType',
+              'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'county',
               'expirationDate', 'applicantPhone', 'applicantName',
               // ✅ URLs de Cloudinary (prioridad)
               'permitPdfUrl', 'permitPdfPublicId',

@@ -28,6 +28,7 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
     ppiPropertyOwnerEmail: 'admin@zurcherseptic.com',
     ppiPropertyOwnerPhone: '(954) 636-8200',
     // 🆕 Campos PPI Part 2
+    county: '',
     city: '',
     state: 'FL',
     zipCode: '',
@@ -59,7 +60,8 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [generatingPPI, setGeneratingPPI] = useState(false); // 🆕 Estado para generar PPI
+  const [generatingPPI, setGeneratingPPI] = useState(false);
+  const [countySuggestions, setCountySuggestions] = useState([]);
   
   // 🆕 Estados para validación en tiempo real
   const [permitNumberValidation, setPermitNumberValidation] = useState({ 
@@ -75,9 +77,12 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
   const [originalPermitNumber, setOriginalPermitNumber] = useState('');
   const [originalPropertyAddress, setOriginalPropertyAddress] = useState('');
 
-  // Cargar datos actuales del Permit
+  // Cargar datos actuales del Permit y counties para autocomplete
   useEffect(() => {
     loadPermitData();
+    axios.get(`${API_URL}/permit/counties`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => setCountySuggestions(r.data || []))
+      .catch(() => {});
   }, [permitId]);
 
   const loadPermitData = async () => {
@@ -117,6 +122,7 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
         ppiPropertyOwnerEmail: permit.ppiPropertyOwnerEmail || 'admin@zurcherseptic.com',
         ppiPropertyOwnerPhone: permit.ppiPropertyOwnerPhone || '(941) 505-5104',
         // 🆕 Campos PPI Part 2
+        county: permit.county || '',
         city: permit.city || '',
         state: permit.state || 'FL',
         zipCode: permit.zipCode || '',
@@ -510,6 +516,22 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+                <input
+                  type="text"
+                  name="county"
+                  value={formData.county}
+                  onChange={handleInputChange}
+                  list="county-suggestions-edit"
+                  placeholder="Ej: Lee, Collier, Charlotte..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <datalist id="county-suggestions-edit">
+                  {countySuggestions.map(c => <option key={c} value={c} />)}
+                </datalist>
               </div>
             </div>
           </section>

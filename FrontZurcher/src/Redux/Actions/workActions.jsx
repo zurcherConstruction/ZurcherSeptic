@@ -50,14 +50,22 @@ export const fetchWorks = (page = 1, limit = 'all', filters = {}) => async (disp
       page: page.toString(),
       limit: limit.toString(),
     });
-    
-    // Agregar filtros si están presentes
-    if (filters.staffId) {
-      queryParams.append('staffId', filters.staffId);
+
+    if (filters.staffId) queryParams.append('staffId', filters.staffId);
+    if (filters.status && filters.status !== 'all') queryParams.append('status', filters.status);
+    if (filters.search) queryParams.append('search', filters.search);
+    if (filters.county && filters.county !== 'all') queryParams.append('county', filters.county);
+    if (filters.city) queryParams.append('city', filters.city);
+    // ATU_PBTS y ATU_NO_PBTS son opciones combinadas del frontend — se traducen a systemType=ATU + isPBTS
+    if (filters.systemType === 'ATU_PBTS' || filters.systemType === 'ATU_NO_PBTS') {
+      queryParams.append('systemType', 'ATU');
+      queryParams.append('isPBTS', filters.systemType === 'ATU_PBTS' ? 'true' : 'false');
+    } else {
+      if (filters.systemType && filters.systemType !== 'all') queryParams.append('systemType', filters.systemType);
+      if (filters.isPBTS !== undefined && filters.isPBTS !== '' && filters.isPBTS !== 'all') queryParams.append('isPBTS', filters.isPBTS);
     }
-    if (filters.status) {
-      queryParams.append('status', filters.status);
-    }
+    if (filters.applicantName) queryParams.append('applicantName', filters.applicantName);
+    if (filters.applicantEmail) queryParams.append('applicantEmail', filters.applicantEmail);
     
     console.log(`📡 Fetching works: page=${page}, limit=${limit}, filters=${JSON.stringify(filters)}`);
     const response = await api.get(`/work?${queryParams.toString()}`);

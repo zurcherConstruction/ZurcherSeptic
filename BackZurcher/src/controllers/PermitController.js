@@ -195,6 +195,7 @@ const createPermit = async (req, res, next) => {
       constructionPermitFor,
       applicant,
       propertyAddress,
+      county,
       lot,
       block,
       propertyId,
@@ -394,6 +395,7 @@ const createPermit = async (req, res, next) => {
       constructionPermitFor,
       applicant,
       propertyAddress,
+      county: county ? county.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : null,
       // 🆕 GUARDAR COMPONENTES PARSEADOS
       ppiStreetAddress,
       city: cityParsed,
@@ -1344,6 +1346,7 @@ const updatePermitFields = async (req, res, next) => {
       ppiPropertyOwnerPhone,
       // 🆕 Campos PPI Part 2
       ppiStreetAddress, // 🆕 Dirección de calle parseada/editable
+      county,
       city,
       state,
       zipCode,
@@ -1465,7 +1468,13 @@ const updatePermitFields = async (req, res, next) => {
     if (ppiPropertyOwnerPhone !== undefined) updateData.ppiPropertyOwnerPhone = ppiPropertyOwnerPhone;
     
     // 🆕 Campos PPI Part 2
-    if (ppiStreetAddress !== undefined) updateData.ppiStreetAddress = ppiStreetAddress; // 🆕 Street Address editable
+    if (ppiStreetAddress !== undefined) updateData.ppiStreetAddress = ppiStreetAddress;
+    if (county !== undefined) {
+      // Normalizar a Title Case para evitar duplicados por mayúsculas
+      updateData.county = county
+        ? county.trim().replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        : null;
+    }
     if (city !== undefined) {
       const { normalizeCityName } = require('../utils/cityNormalizer');
       updateData.city = normalizeCityName(city); // ✅ Normalizar ciudad
@@ -3011,6 +3020,24 @@ const getCorruptedCloudinaryPermits = async (req, res) => {
   }
 };
 
+// Retorna lista de counties distintos (no nulos) para el autocomplete del frontend
+const getCounties = async (req, res) => {
+  try {
+    const { Permit } = require('../data');
+    const rows = await Permit.findAll({
+      attributes: ['county'],
+      where: { county: { [require('sequelize').Op.not]: null } },
+      group: ['county'],
+      order: [['county', 'ASC']],
+      raw: true
+    });
+    res.json(rows.map(r => r.county).filter(Boolean));
+  } catch (error) {
+    console.error('Error obteniendo counties:', error);
+    res.status(500).json({ error: 'Error al obtener counties' });
+  }
+};
+
 module.exports = {
   createPermit,
   getPermits,
@@ -3037,5 +3064,6 @@ module.exports = {
   verifyAllPPISignatures,
   uploadManualSignedPPI,
   updatePPIAddress,
-  getCorruptedCloudinaryPermits // 🆕 NUEVO: Diagnóstico de Cloudinary
+  getCorruptedCloudinaryPermits,
+  getCounties
 };
