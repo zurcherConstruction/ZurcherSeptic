@@ -31,7 +31,9 @@ const TAB_ACTIVE = {
 const KnowledgeBase = () => {
   const dispatch = useDispatch();
   const categories = useSelector((state) => state.knowledgeBase.categories);
+  const contacts   = useSelector((state) => state.knowledgeBase.contacts);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [subCategoryFilter, setSubCategoryFilter] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'contacts';
   const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
@@ -43,6 +45,20 @@ const KnowledgeBase = () => {
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+
+  const handleSelectCategory = (cat) => {
+    setSelectedCategory(cat);
+    setSubCategoryFilter(null);
+  };
+
+  // Compute sub-categories (unique contactType values) for the selected category
+  const subCategories = selectedCategory && activeTab === 'contacts'
+    ? [...new Set(
+        contacts
+          .filter(c => c.categoryId === selectedCategory.id && c.contactType)
+          .map(c => c.contactType)
+      )].sort()
+    : [];
 
   useEffect(() => {
     if (categories.length === 0) dispatch(fetchCategories());
@@ -129,7 +145,7 @@ const KnowledgeBase = () => {
               <div className="p-2 space-y-0.5">
                 {/* Todas */}
                 <button
-                  onClick={() => setSelectedCategory(null)}
+                  onClick={() => handleSelectCategory(null)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                     selectedCategory === null
                       ? 'bg-blue-50 text-blue-700'
@@ -146,37 +162,77 @@ const KnowledgeBase = () => {
                 {categories.map(category => {
                   const count = (category.contactsCount || 0) + (category.proceduresCount || 0) + (category.documentsCount || 0);
                   const isActive = selectedCategory?.id === category.id;
+                  const showSubs = isActive && subCategories.length > 0 && activeTab === 'contacts';
                   return (
-                    <div key={category.id} className={`group relative flex items-center rounded-xl transition-colors ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
-                      <button
-                        onClick={() => setSelectedCategory(category)}
-                        className="flex-1 flex items-center gap-2.5 px-3 py-2.5 text-sm min-w-0"
-                        style={isActive ? { borderLeft: `3px solid ${category.color || '#3B82F6'}` } : { borderLeft: '3px solid transparent' }}
-                      >
-                        <span className="text-base flex-shrink-0">{getCategoryIcon(category.icon)}</span>
-                        <span className={`flex-1 text-left font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-600'}`}>
-                          {category.name}
-                        </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
-                          {count}
-                        </span>
-                      </button>
-                      <div className="flex-shrink-0 flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div key={category.id}>
+                      <div className={`group relative flex items-center rounded-xl transition-colors ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
                         <button
-                          onClick={e => { e.stopPropagation(); setEditingCategory(category); setShowCategoryModal(true); }}
-                          className="p-1.5 rounded-lg hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
-                          title="Editar"
+                          onClick={() => handleSelectCategory(category)}
+                          className="flex-1 flex items-center gap-2.5 px-3 py-2.5 text-sm min-w-0"
+                          style={isActive ? { borderLeft: `3px solid ${category.color || '#3B82F6'}` } : { borderLeft: '3px solid transparent' }}
                         >
-                          <FaEdit className="text-[10px]" />
+                          <span className="text-base flex-shrink-0">{getCategoryIcon(category.icon)}</span>
+                          <span className={`flex-1 text-left font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-600'}`}>
+                            {category.name}
+                          </span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                            {count}
+                          </span>
                         </button>
-                        <button
-                          onClick={e => handleDeleteCategory(category, e)}
-                          className="p-1.5 rounded-lg hover:bg-red-100 text-slate-400 hover:text-red-500 transition-colors"
-                          title="Eliminar"
-                        >
-                          <FaTrash className="text-[10px]" />
-                        </button>
+                        <div className="flex-shrink-0 flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={e => { e.stopPropagation(); setEditingCategory(category); setShowCategoryModal(true); }}
+                            className="p-1.5 rounded-lg hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
+                            title="Editar"
+                          >
+                            <FaEdit className="text-[10px]" />
+                          </button>
+                          <button
+                            onClick={e => handleDeleteCategory(category, e)}
+                            className="p-1.5 rounded-lg hover:bg-red-100 text-slate-400 hover:text-red-500 transition-colors"
+                            title="Eliminar"
+                          >
+                            <FaTrash className="text-[10px]" />
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Sub-categories (material types) */}
+                      {showSubs && (
+                        <div className="ml-4 mt-0.5 mb-1 border-l-2 border-amber-200 pl-2 space-y-0.5">
+                          <button
+                            onClick={() => setSubCategoryFilter(null)}
+                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                              subCategoryFilter === null
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="flex-1 text-left">Todos</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                              {contacts.filter(c => c.categoryId === category.id).length}
+                            </span>
+                          </button>
+                          {subCategories.map(sub => {
+                            const subCount = contacts.filter(c => c.categoryId === category.id && c.contactType === sub).length;
+                            return (
+                              <button
+                                key={sub}
+                                onClick={() => setSubCategoryFilter(sub)}
+                                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  subCategoryFilter === sub
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'text-slate-500 hover:bg-slate-100'
+                                }`}
+                              >
+                                <span className="text-[10px]">🧱</span>
+                                <span className="flex-1 text-left truncate">{sub}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{subCount}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -225,6 +281,7 @@ const KnowledgeBase = () => {
                     categoryId={selectedCategory?.id || null}
                     searchQuery={searchQuery}
                     showFavoritesOnly={showFavoritesOnly}
+                    subCategoryFilter={subCategoryFilter}
                   />
                 )}
                 {activeTab === 'procedures' && (
