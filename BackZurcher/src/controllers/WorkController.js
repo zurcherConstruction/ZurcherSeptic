@@ -203,27 +203,38 @@ const getWorks = async (req, res) => {
     const requestedLimit = req.query.limit;
     
     // 🎯 FILTROS: Extraer parámetros de query
-    const { staffId, search } = req.query;
+    const { staffId, search, status, county, city, systemType, isPBTS, applicantName, applicantEmail } = req.query;
 
     // ✅ SOLUCIÓN UNIVERSAL: Permitir "all" para obtener todos los registros
     let limit, offset;
     if (requestedLimit === 'all') {
-      limit = null; // Sin límite
+      limit = null;
       offset = 0;
     } else {
       const numericLimit = parseInt(requestedLimit) || 50;
-      limit = Math.min(numericLimit, 2000); // Máximo 2000 para casos normales
+      limit = Math.min(numericLimit, 2000);
       offset = (page - 1) * limit;
     }
 
-    // ✅ Construir WHERE dinámico con soporte de búsqueda
+    // ✅ Construir WHERE dinámico
     const whereClause = {};
     if (staffId) whereClause.staffId = staffId;
+    if (status && status !== 'all') whereClause.status = status;
     if (search && search.trim()) {
       whereClause[Op.or] = [
         { propertyAddress: { [Op.iLike]: `%${search.trim()}%` } },
       ];
     }
+
+    // Filtros sobre el Permit (requieren JOIN)
+    const permitWhere = {};
+    if (county && county !== 'all') permitWhere.county = { [Op.iLike]: `%${county.trim()}%` };
+    if (city && city.trim()) permitWhere.city = { [Op.iLike]: `%${city.trim()}%` };
+    if (systemType && systemType !== 'all') permitWhere.systemType = { [Op.iLike]: `%${systemType.trim()}%` };
+    if (isPBTS !== undefined && isPBTS !== '' && isPBTS !== 'all') permitWhere.isPBTS = isPBTS === 'true';
+    if (applicantName && applicantName.trim()) permitWhere.applicantName = { [Op.iLike]: `%${applicantName.trim()}%` };
+    if (applicantEmail && applicantEmail.trim()) permitWhere.applicantEmail = { [Op.iLike]: `%${applicantEmail.trim()}%` };
+    const hasPermitFilters = Object.keys(permitWhere).length > 0;
 
     // OPTIMIZACIÓN: Cargar solo lo esencial en la consulta principal
     // Evita locks excesivos al no cargar Expenses ni Receipts en el JOIN principal
@@ -234,23 +245,29 @@ const getWorks = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'initialPayment', 'paymentProofAmount', 'date', 'signatureMethod'],
+          attributes: ['idBudget', 'propertyAddress', 'applicantName', 'status', 'paymentInvoice', 'initialPayment', 'paymentProofAmount', 'date', 'signatureMethod'],
         },
         {
           model: Permit,
           attributes: [
-            'idPermit', 
-            'propertyAddress', 
-            'applicantName', 
-            'expirationDate', 
+            'idPermit',
+            'propertyAddress',
+            'applicantName',
             'applicantEmail',
-            // ✅ URLs de Cloudinary (livianas)
+            'applicantPhone',
+            'expirationDate',
+            'systemType',
+            'isPBTS',
+            'county',
+            'city',
+            'state',
+            'zipCode',
             'permitPdfUrl',
             'permitPdfPublicId',
             'optionalDocsUrl',
             'optionalDocsPublicId',
-            // ❌ EXCLUIDOS: pdfData, optionalDocs (BLOBs pesados)
           ],
+          ...(hasPermitFilters ? { where: permitWhere, required: true } : {}),
         },
         {
           model: FinalInvoice,

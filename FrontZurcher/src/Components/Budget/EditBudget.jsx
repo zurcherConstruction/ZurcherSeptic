@@ -305,6 +305,7 @@ const editableBudgets = useMemo(() => {
           applicantEmail: permitData.applicantEmail || currentBudget.applicantEmail || "", // 🆕 Email
           contactCompany: currentBudget.contactCompany || "", // 🆕 Empresa/contacto
           applicantPhone: permitData.applicantPhone || "",
+          county: permitData.county || "",
           lot: permitData.lot || "",
           block: permitData.block || "",
           date: currentBudget.date ? currentBudget.date.split('T')[0] : "",
@@ -1372,6 +1373,10 @@ const editableBudgets = useMemo(() => {
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-500">Property Address</label>
                     <p className="mt-1 text-base text-gray-900 font-semibold">{formData.propertyAddress || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">County</label>
+                    <p className="mt-1 text-base text-gray-900 font-semibold">{formData.county || <span className="text-gray-400 italic text-sm">Sin county</span>}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Applicant Name</label>

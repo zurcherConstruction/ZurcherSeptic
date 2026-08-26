@@ -12,38 +12,38 @@ const { Op } = require('sequelize');
  */
 const exportWorksToExcel = async (req, res) => {
   try {
-    const { status = 'all', applicantEmail, exportType = 'standard' } = req.query;
+    const { status = 'all', applicantEmail, exportType = 'standard', county, city, systemType, isPBTS, applicantName } = req.query;
     const isComplete = exportType === 'complete';
 
     console.log(`📊 [Export Works] Generando Excel (tipo: ${exportType})...`);
-    console.log(`   Filtro estado: ${status}`);
-    console.log(`   Filtro email: ${applicantEmail || 'ninguno'}`);
 
-    // Construir filtros
+    // Filtros sobre Work
     const whereConditions = {};
-
     if (status === 'maintenance') {
       whereConditions.status = 'maintenance';
     } else if (status === 'active') {
-      whereConditions.status = {
-        [Op.notIn]: ['maintenance', 'cancelled']
-      };
+      whereConditions.status = { [Op.notIn]: ['maintenance', 'cancelled'] };
+    } else if (status && status !== 'all') {
+      whereConditions.status = status;
     }
 
-    if (applicantEmail) {
-      whereConditions['$Permit.applicantEmail$'] = {
-        [Op.iLike]: `%${applicantEmail}%`
-      };
-    }
+    // Filtros sobre Permit
+    const permitWhere = {};
+    if (applicantEmail) permitWhere.applicantEmail = { [Op.iLike]: `%${applicantEmail}%` };
+    if (applicantName) permitWhere.applicantName = { [Op.iLike]: `%${applicantName}%` };
+    if (county && county !== 'all') permitWhere.county = { [Op.iLike]: `%${county}%` };
+    if (city) permitWhere.city = { [Op.iLike]: `%${city}%` };
+    if (systemType && systemType !== 'all') permitWhere.systemType = { [Op.iLike]: `%${systemType}%` };
+    if (isPBTS !== undefined && isPBTS !== '' && isPBTS !== 'all') permitWhere.isPBTS = isPBTS === 'true';
+    const hasPermitFilters = Object.keys(permitWhere).length > 0;
 
     // Includes base
+    const permitAttrs = ['applicantName', 'applicantEmail', 'permitNumber', 'systemType', 'isPBTS', 'county', 'city'];
     const includes = [
       {
         model: Permit,
-        attributes: isComplete
-          ? ['applicantEmail', 'permitNumber', 'systemType', 'isPBTS']
-          : ['applicantEmail'],
-        required: false
+        attributes: permitAttrs,
+        ...(hasPermitFilters ? { where: permitWhere, required: true } : { required: false }),
       },
       {
         model: Inspection,
@@ -86,6 +86,9 @@ const exportWorksToExcel = async (req, res) => {
     if (isComplete) {
       worksheet.columns = [
         { header: 'Property Address',       key: 'address',              width: 40 },
+        { header: 'Applicant Name',          key: 'applicantName',        width: 25 },
+        { header: 'County',                  key: 'county',               width: 18 },
+        { header: 'City',                    key: 'city',                 width: 18 },
         { header: 'Permit Number',           key: 'permitNumber',         width: 18 },
         { header: 'Applicant Email',         key: 'applicantEmail',       width: 30 },
         { header: 'System Type',             key: 'systemType',           width: 18 },
@@ -101,12 +104,17 @@ const exportWorksToExcel = async (req, res) => {
       ];
     } else {
       worksheet.columns = [
-        { header: 'Property Address', key: 'address',          width: 40 },
-        { header: 'Applicant Email',  key: 'applicantEmail',   width: 30 },
-        { header: 'Status',           key: 'status',           width: 20 },
-        { header: 'Start Date',       key: 'startDate',        width: 15 },
-        { header: 'Installation Date',key: 'installationDate', width: 15 },
-        { header: 'Final Invoice Date',key: 'finalInvoiceDate',width: 15 }
+        { header: 'Property Address',  key: 'address',          width: 40 },
+        { header: 'Applicant Name',    key: 'applicantName',    width: 25 },
+        { header: 'County',            key: 'county',           width: 18 },
+        { header: 'City',              key: 'city',             width: 18 },
+        { header: 'System Type',       key: 'systemType',       width: 15 },
+        { header: 'PBTS',              key: 'isPBTS',           width: 8  },
+        { header: 'Applicant Email',   key: 'applicantEmail',   width: 30 },
+        { header: 'Status',            key: 'status',           width: 20 },
+        { header: 'Start Date',        key: 'startDate',        width: 15 },
+        { header: 'Installation Date', key: 'installationDate', width: 15 },
+        { header: 'Final Invoice Date',key: 'finalInvoiceDate', width: 15 }
       ];
     }
 
@@ -130,6 +138,9 @@ const exportWorksToExcel = async (req, res) => {
       if (isComplete) {
         row = worksheet.addRow({
           address:           work.propertyAddress || 'N/A',
+          applicantName:     work.Permit?.applicantName || 'N/A',
+          county:            work.Permit?.county || '',
+          city:              work.Permit?.city || '',
           permitNumber:      work.Permit?.permitNumber || 'N/A',
           applicantEmail:    work.Permit?.applicantEmail || 'N/A',
           systemType:        work.Permit?.systemType || 'N/A',
@@ -154,6 +165,11 @@ const exportWorksToExcel = async (req, res) => {
       } else {
         row = worksheet.addRow({
           address:          work.propertyAddress || 'N/A',
+          applicantName:    work.Permit?.applicantName || 'N/A',
+          county:           work.Permit?.county || '',
+          city:             work.Permit?.city || '',
+          systemType:       work.Permit?.systemType || '',
+          isPBTS:           work.Permit?.isPBTS ? 'Yes' : 'No',
           applicantEmail:   work.Permit?.applicantEmail || 'N/A',
           status:           work.status || 'N/A',
           startDate:        work.installationStartDate ? formatDate(work.installationStartDate) : 'N/A',
