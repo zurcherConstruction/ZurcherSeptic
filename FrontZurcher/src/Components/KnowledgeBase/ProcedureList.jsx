@@ -1,244 +1,335 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { 
-  FaClock, FaStar, FaRegStar, FaPlus, FaEdit, FaTrash, 
-  FaListOl, FaDollarSign, FaExclamationTriangle 
+import {
+  FaClock, FaStar, FaRegStar, FaPlus, FaEdit, FaTrash,
+  FaListOl, FaDollarSign, FaExclamationTriangle, FaEye,
+  FaChevronDown, FaChevronUp, FaLightbulb, FaMapMarkerAlt,
+  FaCheckCircle, FaTimesCircle,
 } from 'react-icons/fa';
 import { fetchProcedures, deleteProcedure, toggleProcedureFavorite } from '../../Redux/Actions/knowledgeBaseActions';
 import ProcedureModal from './ProcedureModal';
+import ProcedureViewModal from './ProcedureViewModal';
+import CountyProcedureModal from './CountyProcedureModal';
+import CountyProcedureViewModal from './CountyProcedureViewModal';
+
+const isCountyProcedure = (procedure) =>
+  procedure?.steps?.[0]?.__type === 'countyProcedure';
+
+const DIFFICULTY = {
+  easy:   { label: 'Fácil',   cls: 'bg-emerald-100 text-emerald-700' },
+  medium: { label: 'Media',   cls: 'bg-amber-100 text-amber-700'     },
+  hard:   { label: 'Difícil', cls: 'bg-rose-100 text-rose-700'       },
+};
 
 const ProcedureList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
-  const dispatch = useDispatch();
-  const procedures = useSelector((state) => state.knowledgeBase.procedures);
-  const loading = useSelector((state) => state.knowledgeBase.loading);
-  const [selectedProcedure, setSelectedProcedure] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const dispatch    = useDispatch();
+  const procedures  = useSelector(state => state.knowledgeBase.procedures);
+  const categories  = useSelector(state => state.knowledgeBase.categories);
+  const loading     = useSelector(state => state.knowledgeBase.loading);
+
+  const currentCategory = categories.find(c => c.id === categoryId);
+  const isCountyCategory = currentCategory?.name?.toLowerCase() === 'condados';
+
+  const [selectedProcedure,  setSelectedProcedure]  = useState(null);
+  const [showModal,          setShowModal]          = useState(false);
+  const [showCountyModal,    setShowCountyModal]    = useState(false);
+  const [showViewModal,      setShowViewModal]      = useState(false);
+  const [showCountyViewModal,setShowCountyViewModal]= useState(false);
+  const [isEditing,  setIsEditing]  = useState(false);
   const [expandedId, setExpandedId] = useState(null);
 
-  const loadProceduresData = useCallback(() => {
-    const params = {};
-    if (categoryId) params.categoryId = categoryId;
-    if (searchQuery) params.search = searchQuery;
-    if (showFavoritesOnly) params.favorite = 'true';
-    
-    dispatch(fetchProcedures(params));
+  const load = useCallback(() => {
+    const p = {};
+    if (categoryId)       p.categoryId = categoryId;
+    if (searchQuery)      p.search     = searchQuery;
+    if (showFavoritesOnly) p.favorite  = 'true';
+    dispatch(fetchProcedures(p));
   }, [categoryId, searchQuery, showFavoritesOnly]);
 
-  useEffect(() => {
-    loadProceduresData();
-  }, [loadProceduresData]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleToggleFavorite = (procedureId) => {
-    dispatch(toggleProcedureFavorite(procedureId));
+  const handleToggleFavorite = id => dispatch(toggleProcedureFavorite(id));
+
+  const handleDelete = async id => {
+    if (!confirm('¿Eliminar este procedimiento?')) return;
+    await dispatch(deleteProcedure(id));
+    load();
   };
 
-  const handleDelete = async (procedureId) => {
-    if (!confirm('¿Estás seguro de eliminar este procedimiento?')) return;
-    await dispatch(deleteProcedure(procedureId));
-    loadProceduresData();
+  const handleOpen = (p = null) => {
+    setSelectedProcedure(p);
+    setIsEditing(!!p);
+    if (p ? isCountyProcedure(p) : isCountyCategory) {
+      setShowCountyModal(true);
+    } else {
+      setShowModal(true);
+    }
   };
 
-  const handleOpenModal = (procedure = null) => {
-    setSelectedProcedure(procedure);
-    setIsEditing(!!procedure);
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
+  const handleClose = () => {
     setShowModal(false);
+    setShowCountyModal(false);
     setSelectedProcedure(null);
     setIsEditing(false);
-    loadProceduresData();
+    load();
   };
 
-  const toggleExpand = (procedureId) => {
-    setExpandedId(expandedId === procedureId ? null : procedureId);
+  const handleView = (p) => {
+    setSelectedProcedure(p);
+    if (isCountyProcedure(p)) {
+      setShowCountyViewModal(true);
+    } else {
+      setShowViewModal(true);
+    }
   };
 
-  const getDifficultyBadge = (difficulty) => {
-    const badges = {
-      easy: { color: 'bg-green-100 text-green-600', text: 'Fácil' },
-      medium: { color: 'bg-yellow-100 text-yellow-600', text: 'Media' },
-      hard: { color: 'bg-red-100 text-red-600', text: 'Difícil' }
-    };
-    return badges[difficulty] || badges.medium;
+  const handleEditFromView = () => {
+    setShowViewModal(false);
+    setShowCountyViewModal(false);
+    setIsEditing(true);
+    if (isCountyProcedure(selectedProcedure)) {
+      setShowCountyModal(true);
+    } else {
+      setShowModal(true);
+    }
   };
 
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <h3 className="text-base sm:text-lg font-semibold text-gray-800">
-          Procedimientos {procedures.length > 0 && `(${procedures.length})`}
-        </h3>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div>
+          <h3 className="text-base font-semibold text-slate-800">Procedimientos</h3>
+          {procedures.length > 0 && (
+            <p className="text-xs text-slate-500 mt-0.5">{procedures.length} registros</p>
+          )}
+        </div>
         <button
-          onClick={() => handleOpenModal()}
-          className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center sm:justify-start space-x-2 transition-colors text-sm sm:text-base"
+          onClick={() => handleOpen()}
+          className={`flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-xl transition-colors shadow-sm ${
+            isCountyCategory
+              ? 'bg-teal-600 hover:bg-teal-700'
+              : 'bg-violet-600 hover:bg-violet-700'
+          }`}
         >
-          <FaPlus />
-          <span>Nuevo Procedimiento</span>
+          <FaPlus className="text-xs" />
+          {isCountyCategory ? 'Nuevo Condado' : 'Nuevo Procedimiento'}
         </button>
       </div>
 
       {/* Loading */}
       {loading && procedures.length === 0 && (
-        <div className="flex items-center justify-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="flex items-center justify-center h-40">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-violet-600 border-t-transparent" />
         </div>
       )}
 
-      {/* Empty State */}
-      {!loading && procedures.length === 0 ? (
-        <div className="text-center py-8 sm:py-12 text-gray-500">
-          <FaListOl className="mx-auto text-3xl sm:text-4xl mb-2 opacity-50" />
-          <p className="text-sm sm:text-base">No hay procedimientos disponibles</p>
+      {/* Empty */}
+      {!loading && procedures.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+          <FaListOl className="text-5xl mb-3 opacity-30" />
+          <p className="font-medium text-slate-500">No hay procedimientos aún</p>
+          <p className="text-sm mt-1">Agrega el primero con "Nuevo Procedimiento"</p>
         </div>
-      ) : procedures.length > 0 ? (
+      )}
+
+      {/* Cards */}
+      {procedures.length > 0 && (
         <div className="space-y-3">
-          {procedures.map((procedure) => {
-            const difficultyBadge = getDifficultyBadge(procedure.difficulty);
+          {procedures.map(procedure => {
+            const diff       = DIFFICULTY[procedure.difficulty] || DIFFICULTY.medium;
             const isExpanded = expandedId === procedure.id;
+            const isCounty   = isCountyProcedure(procedure);
+            const countyData = isCounty ? procedure.steps[0] : null;
 
             return (
               <div
                 key={procedure.id}
-                className="border border-gray-200 rounded-lg bg-white hover:shadow-md transition-shadow"
+                className="group bg-white border border-slate-200 rounded-xl hover:border-slate-300 hover:shadow-md transition-all overflow-hidden"
+                style={isCounty
+                  ? { borderLeftColor: '#0D9488', borderLeftWidth: 3 }
+                  : procedure.category?.color
+                    ? { borderLeftColor: procedure.category.color, borderLeftWidth: 3 }
+                    : {}
+                }
               >
-                {/* Header */}
-                <div className="p-3 sm:p-4">
-                  <div className="flex items-start justify-between mb-2">
+                {/* Card header — clickable to view */}
+                <div
+                  className="p-4 cursor-pointer"
+                  onClick={() => handleView(procedure)}
+                >
+                  <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        {procedure.category?.icon && (
-                          <span className="text-lg sm:text-xl flex-shrink-0">{procedure.category.icon}</span>
+                      {/* Title row */}
+                      <div className="flex items-center flex-wrap gap-2 mb-1.5">
+                        {procedure.isFavorite && <FaStar className="text-amber-400 text-xs flex-shrink-0" />}
+                        {isCounty
+                          ? <FaMapMarkerAlt className="text-teal-500 flex-shrink-0 text-sm" />
+                          : procedure.category?.icon && <span className="text-base flex-shrink-0">{procedure.category.icon}</span>
+                        }
+                        <h4 className="font-semibold text-slate-800 text-sm sm:text-base leading-snug">{procedure.title}</h4>
+                        {isCounty ? (
+                          <>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">Condado</span>
+                            {countyData.isOSTDS && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">OSTDS/DEP</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${diff.cls}`}>{diff.label}</span>
                         )}
-                        <h4 className="font-semibold text-gray-800 text-sm sm:text-base md:text-lg">
-                          {procedure.title}
-                        </h4>
-                        <span className={`text-[10px] sm:text-xs px-2 py-1 rounded ${difficultyBadge.color}`}>
-                          {difficultyBadge.text}
-                        </span>
                       </div>
-                      {procedure.description && (
-                        <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">{procedure.description}</p>
+
+                      {/* County quick-summary */}
+                      {isCounty ? (
+                        <div className="flex flex-wrap gap-3 text-xs text-slate-500 mt-1">
+                          <span className="flex items-center gap-1">
+                            {countyData.initialInspection?.required
+                              ? <FaCheckCircle className="text-teal-500" />
+                              : <FaTimesCircle className="text-slate-300" />
+                            }
+                            Insp. inicial
+                          </span>
+                          <span className="flex items-center gap-1">
+                            {countyData.finalInspection?.required
+                              ? <FaCheckCircle className="text-teal-500" />
+                              : <FaTimesCircle className="text-slate-300" />
+                            }
+                            Insp. final
+                          </span>
+                          {countyData.systemFees?.atu && (
+                            <span className="flex items-center gap-1">
+                              <FaDollarSign className="text-slate-300" /> ATU: {countyData.systemFees.atu}
+                            </span>
+                          )}
+                          {countyData.systemFees?.pbts && (
+                            <span className="flex items-center gap-1">
+                              <FaDollarSign className="text-slate-300" /> PBTS: {countyData.systemFees.pbts}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          {/* Description */}
+                          {procedure.description && (
+                            <p className="text-xs text-slate-500 line-clamp-2 mb-2">{procedure.description}</p>
+                          )}
+
+                          {/* Meta chips */}
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                            {procedure.estimatedTime && (
+                              <span className="flex items-center gap-1">
+                                <FaClock className="text-slate-300" /> {procedure.estimatedTime}
+                              </span>
+                            )}
+                            {procedure.cost && (
+                              <span className="flex items-center gap-1">
+                                <FaDollarSign className="text-slate-300" /> {procedure.cost}
+                              </span>
+                            )}
+                            {procedure.steps?.length > 0 && (
+                              <span className="flex items-center gap-1">
+                                <FaListOl className="text-slate-300" /> {procedure.steps.length} pasos
+                              </span>
+                            )}
+                            {procedure.category?.name && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                                style={{ backgroundColor: (procedure.category.color || '#8B5CF6') + '20', color: procedure.category.color || '#8B5CF6' }}>
+                                {procedure.category.name}
+                              </span>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
-                    <div className="flex items-center space-x-1 sm:space-x-2 ml-2">
-                      <button
-                        onClick={() => handleToggleFavorite(procedure.id)}
-                        className="text-yellow-500 hover:text-yellow-600 transition-colors p-1"
-                        title={procedure.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}
-                      >
-                        {procedure.isFavorite ? <FaStar className="text-sm sm:text-base" /> : <FaRegStar className="text-sm sm:text-base" />}
+
+                    {/* Action buttons */}
+                    <div
+                      className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <button onClick={() => handleToggleFavorite(procedure.id)}
+                        className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-500 transition-colors"
+                        title={procedure.isFavorite ? 'Quitar favorito' : 'Favorito'}>
+                        {procedure.isFavorite ? <FaStar className="text-amber-400 text-xs" /> : <FaRegStar className="text-xs" />}
                       </button>
-                      <button
-                        onClick={() => handleOpenModal(procedure)}
-                        className="text-blue-600 hover:text-blue-700 transition-colors p-1"
-                        title="Editar"
-                      >
-                        <FaEdit className="text-sm sm:text-base" />
+                      <button onClick={() => handleView(procedure)}
+                        className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors" title="Ver">
+                        <FaEye className="text-xs" />
                       </button>
-                      <button
-                        onClick={() => handleDelete(procedure.id)}
-                        className="text-red-600 hover:text-red-700 transition-colors p-1"
-                        title="Eliminar"
-                      >
-                        <FaTrash className="text-sm sm:text-base" />
+                      <button onClick={() => handleOpen(procedure)}
+                        className={`p-1.5 rounded-lg transition-colors ${isCounty
+                          ? 'hover:bg-teal-50 text-slate-400 hover:text-teal-600'
+                          : 'hover:bg-violet-50 text-slate-400 hover:text-violet-600'
+                        }`} title="Editar">
+                        <FaEdit className="text-xs" />
+                      </button>
+                      <button onClick={() => handleDelete(procedure.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar">
+                        <FaTrash className="text-xs" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Metadata */}
-                  <div className="flex flex-wrap gap-2 sm:gap-3 mb-3 text-xs sm:text-sm text-gray-600">
-                    {procedure.estimatedTime && (
-                      <div className="flex items-center space-x-1">
-                        <FaClock className="text-gray-400" />
-                        <span>{procedure.estimatedTime}</span>
-                      </div>
-                    )}
-                    {procedure.cost && (
-                      <div className="flex items-center space-x-1">
-                        <FaDollarSign className="text-gray-400" />
-                        <span>{procedure.cost}</span>
-                      </div>
-                    )}
-                    {procedure.steps && (
-                      <div className="flex items-center space-x-1">
-                        <FaListOl className="text-gray-400" />
-                        <span>{procedure.steps.length} pasos</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Requirements */}
-                  {procedure.requirements && (
-                    <div className="mb-3 p-2 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-                      <div className="flex items-start space-x-2">
-                        <FaExclamationTriangle className="text-yellow-600 mt-0.5 flex-shrink-0" />
-                        <div className="text-sm">
-                          <span className="font-semibold text-yellow-800">Requisitos: </span>
-                          <span className="text-yellow-700">{procedure.requirements}</span>
-                        </div>
-                      </div>
+                  {/* Requirements (normal procedures only) */}
+                  {!isCounty && procedure.requirements && (
+                    <div className="mt-3 flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg" onClick={e => e.stopPropagation()}>
+                      <FaExclamationTriangle className="text-amber-500 mt-0.5 flex-shrink-0 text-xs" />
+                      <p className="text-xs text-amber-700 line-clamp-2">
+                        <span className="font-semibold">Requisitos: </span>{procedure.requirements}
+                      </p>
                     </div>
                   )}
 
-                  {/* Tags */}
-                  {procedure.tags && procedure.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {procedure.tags.map((tag, index) => (
-                        <span
-                          key={index}
-                          className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full"
-                        >
-                          {tag}
-                        </span>
+                  {/* County notes preview */}
+                  {isCounty && procedure.description && (
+                    <p className="mt-2 text-xs text-slate-400 line-clamp-1 italic">{procedure.description}</p>
+                  )}
+
+                  {/* Tags (normal procedures only) */}
+                  {!isCounty && procedure.tags?.filter(t => t !== 'county-procedure').length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1" onClick={e => e.stopPropagation()}>
+                      {procedure.tags.filter(t => t !== 'county-procedure').map((tag, i) => (
+                        <span key={i} className="text-[10px] bg-violet-50 text-violet-600 px-2 py-0.5 rounded-full">{tag}</span>
                       ))}
                     </div>
                   )}
-
-                  {/* Toggle Steps Button */}
-                  <button
-                    onClick={() => toggleExpand(procedure.id)}
-                    className="w-full text-sm text-blue-600 hover:text-blue-700 font-medium py-2 border-t border-gray-200 mt-2"
-                  >
-                    {isExpanded ? '▲ Ocultar pasos' : '▼ Ver pasos detallados'}
-                  </button>
                 </div>
 
-                {/* Steps (Expandable) */}
-                {isExpanded && procedure.steps && (
-                  <div className="border-t border-gray-200 bg-gray-50 p-4">
-                    <h5 className="font-semibold text-gray-700 mb-3">Pasos del Procedimiento:</h5>
-                    <div className="space-y-3">
-                      {procedure.steps.map((step, index) => (
-                        <div key={index} className="bg-white p-3 rounded-lg border border-gray-200">
-                          <div className="flex items-start space-x-3">
-                            <div className="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">
-                              {step.order}
-                            </div>
-                            <div className="flex-1">
-                              <h6 className="font-semibold text-gray-800 mb-1">{step.title}</h6>
-                              {step.description && (
-                                <p className="text-sm text-gray-600 mb-2">{step.description}</p>
-                              )}
-                              {step.tips && (
-                                <div className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                                  💡 <span className="font-medium">Tip:</span> {step.tips}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                {/* Expand toggle — normal procedures only */}
+                {!isCounty && procedure.steps?.length > 0 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setExpandedId(isExpanded ? null : procedure.id); }}
+                    className="w-full flex items-center justify-center gap-2 py-2 text-xs font-medium text-slate-500 hover:text-violet-600 hover:bg-slate-50 border-t border-slate-100 transition-colors"
+                  >
+                    {isExpanded ? <><FaChevronUp className="text-[10px]" /> Ocultar pasos</> : <><FaChevronDown className="text-[10px]" /> Ver {procedure.steps.length} pasos</>}
+                  </button>
+                )}
 
-                    {/* Notes */}
+                {/* Steps expanded — normal procedures only */}
+                {!isCounty && isExpanded && procedure.steps && (
+                  <div className="border-t border-slate-100 bg-slate-50 p-4 space-y-3">
+                    {procedure.steps.map((step, i) => (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex-shrink-0 w-7 h-7 bg-violet-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm">
+                          {step.order ?? i + 1}
+                        </div>
+                        <div className="flex-1 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                          <p className="text-sm font-semibold text-slate-800">{step.title}</p>
+                          {step.description && (
+                            <p className="text-xs text-slate-600 mt-1 whitespace-pre-wrap">{step.description}</p>
+                          )}
+                          {step.tips && (
+                            <div className="flex items-start gap-1.5 mt-2 bg-blue-50 rounded-lg p-2 text-xs text-blue-700">
+                              <FaLightbulb className="mt-0.5 flex-shrink-0" /> {step.tips}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                     {procedure.notes && (
-                      <div className="mt-4 p-3 bg-gray-100 rounded-lg border border-gray-200">
-                        <span className="font-semibold text-gray-700">Notas adicionales: </span>
-                        <span className="text-gray-600">{procedure.notes}</span>
+                      <div className="p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-600">
+                        <span className="font-semibold text-slate-700">Notas: </span>{procedure.notes}
                       </div>
                     )}
                   </div>
@@ -247,15 +338,29 @@ const ProcedureList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
             );
           })}
         </div>
-      ) : null}
+      )}
 
-      {/* Modal */}
       {showModal && (
-        <ProcedureModal
+        <ProcedureModal procedure={selectedProcedure} isEditing={isEditing} onClose={handleClose} defaultCategoryId={categoryId} />
+      )}
+
+      {showCountyModal && (
+        <CountyProcedureModal procedure={selectedProcedure} onClose={handleClose} defaultCategoryId={categoryId} />
+      )}
+
+      {showViewModal && selectedProcedure && (
+        <ProcedureViewModal
           procedure={selectedProcedure}
-          isEditing={isEditing}
-          onClose={handleCloseModal}
-          defaultCategoryId={categoryId}
+          onClose={() => { setShowViewModal(false); setSelectedProcedure(null); }}
+          onEdit={handleEditFromView}
+        />
+      )}
+
+      {showCountyViewModal && selectedProcedure && (
+        <CountyProcedureViewModal
+          procedure={selectedProcedure}
+          onClose={() => { setShowCountyViewModal(false); setSelectedProcedure(null); }}
+          onEdit={handleEditFromView}
         />
       )}
     </div>
@@ -263,5 +368,4 @@ const ProcedureList = memo(({ categoryId, searchQuery, showFavoritesOnly }) => {
 });
 
 ProcedureList.displayName = 'ProcedureList';
-
 export default ProcedureList;

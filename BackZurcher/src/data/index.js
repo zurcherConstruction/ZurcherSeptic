@@ -101,7 +101,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, ReminderRead, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, FleetAssetDocument, NotificationRouting, CustomInvoice, StaffActivityLog } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, ReminderRead, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument, KnowledgeCounty, NewsletterSubscriber, NewsletterTemplate, Newsletter, NewsletterRecipient, SignatureDocument, FleetAsset, FleetMaintenance, FleetMileageLog, FleetAssetDocument, NotificationRouting, CustomInvoice, StaffActivityLog } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -923,6 +923,8 @@ KnowledgeProcedure.belongsTo(Staff, { foreignKey: 'updatedBy', as: 'updater' });
 Staff.hasMany(KnowledgeDocument, { foreignKey: 'createdBy', as: 'knowledgeDocumentsCreated' });
 KnowledgeDocument.belongsTo(Staff, { foreignKey: 'createdBy', as: 'creator' });
 KnowledgeDocument.belongsTo(Staff, { foreignKey: 'updatedBy', as: 'updater' });
+
+// KnowledgeCounty es standalone (no tiene FK a Category ni a Staff por ahora)
 
 // ==================== NEWSLETTER ASSOCIATIONS ====================
 // Newsletter Template - Staff

@@ -1,213 +1,262 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { FaBook, FaSearch, FaStar, FaPlus, FaRegStar } from 'react-icons/fa';
+import {
+  FaBook, FaSearch, FaStar, FaPlus, FaRegStar, FaEdit, FaTrash,
+  FaPhone, FaClipboardList, FaFileAlt, FaMapMarkerAlt,
+} from 'react-icons/fa';
 import { fetchCategories } from '../../Redux/Actions/knowledgeBaseActions';
+import { fetchCategoriesSuccess } from '../../Redux/Reducer/knowledgeBaseReducer';
 import ContactList from './ContactList';
 import ProcedureList from './ProcedureList';
 import DocumentList from './DocumentList';
+import CountyList from './CountyList';
+import CategoryModal from './CategoryModal';
+import api from '../../utils/axios';
+
+const TABS = [
+  { key: 'contacts',   label: 'Contactos',      icon: <FaPhone />,        accent: 'blue'   },
+  { key: 'procedures', label: 'Procedimientos',  icon: <FaClipboardList />, accent: 'violet' },
+  { key: 'documents',  label: 'Documentos',      icon: <FaFileAlt />,       accent: 'amber'  },
+  { key: 'counties',   label: 'Condados',        icon: <FaMapMarkerAlt />,  accent: 'teal'   },
+];
+
+const TAB_ACTIVE = {
+  blue:   'border-blue-500 text-blue-600',
+  violet: 'border-violet-500 text-violet-600',
+  amber:  'border-amber-500 text-amber-600',
+  teal:   'border-teal-500 text-teal-600',
+};
 
 const KnowledgeBase = () => {
   const dispatch = useDispatch();
-  const categories = useSelector((state) => state.knowledgeBase.categories); // Selector específico
+  const categories = useSelector((state) => state.knowledgeBase.categories);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'contacts';
   const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
   const [searchQuery, setSearchQueryState] = useState(searchParams.get('q') || '');
-  const setSearchQuery = (v) => { setSearchQueryState(v); setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true }); };
+  const setSearchQuery = (v) => {
+    setSearchQueryState(v);
+    setSearchParams(p => { if (v) p.set('q', v); else p.delete('q'); return p; }, { replace: true });
+  };
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
 
   useEffect(() => {
-    // Solo hacer fetch si no hay categorías en Redux
-    if (categories.length === 0) {
-      dispatch(fetchCategories());
-    }
-  }, [dispatch]); // Solo al montar, pero verifica Redux
+    if (categories.length === 0) dispatch(fetchCategories());
+  }, [dispatch]);
 
-  const getCategoryIcon = (icon) => {
-    return icon || '📚';
-  };
+  const getCategoryIcon = (icon) => icon || '📚';
 
-  const getTabCount = (category) => {
-    if (!category) return 0;
-    switch (activeTab) {
-      case 'contacts':
-        return category.contactsCount || 0;
-      case 'procedures':
-        return category.proceduresCount || 0;
-      case 'documents':
-        return category.documentsCount || 0;
-      default:
-        return 0;
+  const handleDeleteCategory = async (cat, e) => {
+    e.stopPropagation();
+    if (!confirm(`¿Eliminar la categoría "${cat.name}"? Los contactos/procedimientos/documentos dentro no se eliminarán.`)) return;
+    try {
+      await api.delete(`/knowledge-base/categories/${cat.id}`);
+      const res = await api.get('/knowledge-base/categories');
+      dispatch(fetchCategoriesSuccess(res.data));
+      if (selectedCategory?.id === cat.id) setSelectedCategory(null);
+    } catch {
+      alert('Error al eliminar la categoría');
     }
   };
+
+  const currentTab = TABS.find(t => t.key === activeTab) || TABS[0];
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-6">
-      {/* Header */}
-      <div className="mb-4 sm:mb-6">
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            <FaBook className="text-2xl sm:text-3xl text-blue-600" />
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">Base de Conocimiento</h1>
-          </div>
-          <div className="flex space-x-2">
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+
+        {/* ── Header ── */}
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl shadow-lg px-5 sm:px-8 py-5 sm:py-6 text-white">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <FaBook className="text-xl sm:text-2xl text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold leading-tight">Base de Conocimiento</h1>
+                <p className="text-blue-100 text-xs sm:text-sm mt-0.5">
+                  Contactos, procedimientos y guías del equipo
+                </p>
+              </div>
+            </div>
             <button
               onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-              className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg flex items-center space-x-1 sm:space-x-2 transition-colors text-sm sm:text-base ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all self-start sm:self-auto ${
                 showFavoritesOnly
-                  ? 'bg-yellow-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  ? 'bg-yellow-400 text-yellow-900 shadow-md'
+                  : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30'
               }`}
             >
-              {showFavoritesOnly ? <FaStar className="text-sm sm:text-base" /> : <FaRegStar className="text-sm sm:text-base" />}
-              <span className="hidden sm:inline">Favoritos</span>
+              {showFavoritesOnly ? <FaStar /> : <FaRegStar />}
+              <span>Favoritos</span>
             </button>
           </div>
+
+          {/* Search */}
+          <div className="mt-4 relative">
+            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+            <input
+              type="text"
+              placeholder="Buscar contactos, procedimientos, documentos..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 shadow-sm"
+            />
+          </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative">
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm sm:text-base" />
-          <input
-            type="text"
-            placeholder="Buscar..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 sm:pl-10 pr-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-          />
-        </div>
-      </div>
+        {/* ── Body grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-        {/* Sidebar - Categories */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4">
-            <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-gray-800">Categorías</h2>
-            <div className="space-y-2">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg transition-colors text-sm sm:text-base ${
-                  selectedCategory === null
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                <span className="text-lg sm:text-xl mr-2">📚</span>
-                Todas las categorías
-              </button>
-              {categories.map((category) => (
+          {/* Sidebar */}
+          <aside className="lg:col-span-1">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">Categorías</h2>
                 <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category)}
-                  className={`w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-lg transition-colors text-sm sm:text-base ${
-                    selectedCategory?.id === category.id
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
-                  style={{
-                    borderLeft: selectedCategory?.id === category.id
-                      ? `4px solid ${category.color || '#3B82F6'}`
-                      : 'none'
-                  }}
+                  onClick={() => { setEditingCategory(null); setShowCategoryModal(true); }}
+                  className="w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center transition-colors shadow-sm"
+                  title="Nueva categoría"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-lg sm:text-xl">{getCategoryIcon(category.icon)}</span>
-                      <span className="font-medium truncate">{category.name}</span>
+                  <FaPlus className="text-[10px]" />
+                </button>
+              </div>
+
+              <div className="p-2 space-y-0.5">
+                {/* Todas */}
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    selectedCategory === null
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-base">📚</span>
+                  <span className="flex-1 text-left">Todas</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${selectedCategory === null ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                    {categories.reduce((s, c) => s + (c.contactsCount || 0) + (c.proceduresCount || 0) + (c.documentsCount || 0), 0)}
+                  </span>
+                </button>
+
+                {categories.map(category => {
+                  const count = (category.contactsCount || 0) + (category.proceduresCount || 0) + (category.documentsCount || 0);
+                  const isActive = selectedCategory?.id === category.id;
+                  return (
+                    <div key={category.id} className={`group relative flex items-center rounded-xl transition-colors ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                      <button
+                        onClick={() => setSelectedCategory(category)}
+                        className="flex-1 flex items-center gap-2.5 px-3 py-2.5 text-sm min-w-0"
+                        style={isActive ? { borderLeft: `3px solid ${category.color || '#3B82F6'}` } : { borderLeft: '3px solid transparent' }}
+                      >
+                        <span className="text-base flex-shrink-0">{getCategoryIcon(category.icon)}</span>
+                        <span className={`flex-1 text-left font-medium truncate ${isActive ? 'text-blue-700' : 'text-slate-600'}`}>
+                          {category.name}
+                        </span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {count}
+                        </span>
+                      </button>
+                      <div className="flex-shrink-0 flex items-center pr-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={e => { e.stopPropagation(); setEditingCategory(category); setShowCategoryModal(true); }}
+                          className="p-1.5 rounded-lg hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors"
+                          title="Editar"
+                        >
+                          <FaEdit className="text-[10px]" />
+                        </button>
+                        <button
+                          onClick={e => handleDeleteCategory(category, e)}
+                          className="p-1.5 rounded-lg hover:bg-red-100 text-slate-400 hover:text-red-500 transition-colors"
+                          title="Eliminar"
+                        >
+                          <FaTrash className="text-[10px]" />
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-xs sm:text-sm opacity-75 ml-1">
-                      {(category.contactsCount || 0) + (category.proceduresCount || 0) + (category.documentsCount || 0)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>
+          </aside>
 
-        {/* Main Content */}
-        <div className="lg:col-span-3">
-          <div className="bg-white rounded-lg shadow-md">
-            {/* Tabs */}
-            <div className="border-b border-gray-200 overflow-x-auto">
-              <nav className="flex space-x-1 px-2 sm:px-4 min-w-max" aria-label="Tabs">
-                <button
-                  onClick={() => setActiveTab('contacts')}
-                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === 'contacts'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="hidden sm:inline">📞 </span>Contactos
-                  {selectedCategory && (
-                    <span className="ml-1 sm:ml-2 bg-blue-100 text-blue-600 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
-                      {selectedCategory.contactsCount || 0}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('procedures')}
-                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === 'procedures'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="hidden sm:inline">📋 </span>Procedimientos
-                  {selectedCategory && (
-                    <span className="ml-1 sm:ml-2 bg-blue-100 text-blue-600 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
-                      {selectedCategory.proceduresCount || 0}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('documents')}
-                  className={`px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === 'documents'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="hidden sm:inline">📄 </span>Documentos
-                  {selectedCategory && (
-                    <span className="ml-1 sm:ml-2 bg-blue-100 text-blue-600 text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
-                      {selectedCategory.documentsCount || 0}
-                    </span>
-                  )}
-                </button>
-              </nav>
-            </div>
+          {/* Main */}
+          <main className="lg:col-span-3">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
 
-            {/* Content */}
-            <div className="p-3 sm:p-6">
-              {activeTab === 'contacts' && (
-                <ContactList
-                  categoryId={selectedCategory?.id || null}
-                  searchQuery={searchQuery}
-                  showFavoritesOnly={showFavoritesOnly}
-                />
-              )}
-              {activeTab === 'procedures' && (
-                <ProcedureList
-                  categoryId={selectedCategory?.id || null}
-                  searchQuery={searchQuery}
-                  showFavoritesOnly={showFavoritesOnly}
-                />
-              )}
-              {activeTab === 'documents' && (
-                <DocumentList
-                  categoryId={selectedCategory?.id || null}
-                  searchQuery={searchQuery}
-                  showFavoritesOnly={showFavoritesOnly}
-                />
-              )}
+              {/* Tabs */}
+              <div className="border-b border-slate-200 overflow-x-auto">
+                <nav className="flex min-w-max px-2" aria-label="Tabs">
+                  {TABS.map(tab => {
+                    const isActive = activeTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex items-center gap-2 px-4 sm:px-5 py-3.5 text-xs sm:text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+                          isActive
+                            ? TAB_ACTIVE[tab.accent]
+                            : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className={isActive ? '' : 'opacity-60'}>{tab.icon}</span>
+                        {tab.label}
+                        {selectedCategory && activeTab === tab.key && (
+                          <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
+                            {tab.key === 'contacts' ? selectedCategory.contactsCount || 0
+                              : tab.key === 'procedures' ? selectedCategory.proceduresCount || 0
+                              : tab.key === 'documents' ? selectedCategory.documentsCount || 0
+                              : ''}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              <div className="p-4 sm:p-6">
+                {activeTab === 'contacts' && (
+                  <ContactList
+                    categoryId={selectedCategory?.id || null}
+                    searchQuery={searchQuery}
+                    showFavoritesOnly={showFavoritesOnly}
+                  />
+                )}
+                {activeTab === 'procedures' && (
+                  <ProcedureList
+                    categoryId={selectedCategory?.id || null}
+                    searchQuery={searchQuery}
+                    showFavoritesOnly={showFavoritesOnly}
+                  />
+                )}
+                {activeTab === 'documents' && (
+                  <DocumentList
+                    categoryId={selectedCategory?.id || null}
+                    searchQuery={searchQuery}
+                    showFavoritesOnly={showFavoritesOnly}
+                  />
+                )}
+                {activeTab === 'counties' && (
+                  <CountyList searchQuery={searchQuery} />
+                )}
+              </div>
             </div>
-          </div>
+          </main>
         </div>
       </div>
+
+      {showCategoryModal && (
+        <CategoryModal
+          category={editingCategory}
+          onClose={() => { setShowCategoryModal(false); setEditingCategory(null); }}
+          onSaved={() => { setShowCategoryModal(false); setEditingCategory(null); }}
+        />
+      )}
     </div>
   );
 };

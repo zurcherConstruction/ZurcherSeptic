@@ -668,10 +668,23 @@ const SalesLeadController = {
       // Actualizar lastActivityDate
       updates.lastActivityDate = new Date();
 
-      // Sanitizar fecha — string vacío o inválido debe ser null, no 'Invalid date'
+      // Sanitizar fecha — string vacío o inválido debe ser null
       if (updates.applicationDate !== undefined) {
         const d = updates.applicationDate;
         updates.applicationDate = (d && d !== 'Invalid date') ? d : null;
+      }
+
+      // Sanitizar campos ENUM — string vacío debe ser null (Postgres no acepta '' en ENUM)
+      const ENUM_FIELDS = ['applicationStatus', 'status', 'leadCategory'];
+      for (const field of ENUM_FIELDS) {
+        if (updates[field] !== undefined && updates[field] === '') {
+          updates[field] = null;
+        }
+      }
+
+      // Sanitizar companyName — si viene vacío, null
+      if (updates.companyName !== undefined && updates.companyName === '') {
+        updates.companyName = null;
       }
 
       await lead.update(updates);

@@ -192,6 +192,7 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
 
     const dataToSend = {
       ...formData,
+      expiresAt: formData.expiresAt || null,
       fileUrl: JSON.stringify(uploadedFiles),
       fileSize: uploadedFiles.reduce((acc, file) => acc + (file.size || 0), 0)
     };
@@ -491,17 +492,32 @@ const DocumentModal = ({ document, isEditing, onClose, defaultCategoryId }) => {
                 Fecha de Vencimiento
                 <span className="ml-1 text-xs text-gray-400 font-normal">(opcional)</span>
               </label>
-              <input
-                type="date"
-                name="expiresAt"
-                value={formData.expiresAt}
-                onChange={handleChange}
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  name="expiresAt"
+                  value={formData.expiresAt}
+                  onChange={handleChange}
+                  className="w-full sm:w-64 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {formData.expiresAt && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, expiresAt: '' }))}
+                    className="text-xs text-red-500 hover:text-red-700 px-2 py-1 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                  >
+                    Quitar fecha
+                  </button>
+                )}
+              </div>
               {formData.expiresAt && (
                 <p className="mt-1 text-xs text-gray-500">
                   Se enviará recordatorio 30 días antes del vencimiento.
+                </p>
+              )}
+              {!formData.expiresAt && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Sin fecha de vencimiento — el documento no expira.
                 </p>
               )}
             </div>
