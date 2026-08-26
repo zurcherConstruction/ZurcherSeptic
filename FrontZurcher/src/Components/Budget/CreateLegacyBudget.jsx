@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../../utils/axios';
+import CountyInput from '../Common/CountyInput';
 
 const CreateLegacyBudget = () => {
   const navigate = useNavigate();
@@ -14,9 +15,11 @@ const CreateLegacyBudget = () => {
     applicantEmail: '',
     applicantPhone: '',
     propertyAddress: '',
+    county: '',
     lot: '',
     block: '',
     systemType: '',
+    isPBTS: false,
     
     // Datos del Budget
     status: 'approved', // ✅ Legacy budgets ya tienen firma + pago completo del sistema anterior
@@ -190,9 +193,11 @@ const CreateLegacyBudget = () => {
       formDataToSend.append('applicantEmail', formData.applicantEmail || '');
       formDataToSend.append('applicantPhone', formData.applicantPhone || '');
       formDataToSend.append('propertyAddress', formData.propertyAddress);
+      formDataToSend.append('county', formData.county || '');
       formDataToSend.append('lot', formData.lot || '');
       formDataToSend.append('block', formData.block || '');
       formDataToSend.append('systemType', formData.systemType);
+      formDataToSend.append('isPBTS', formData.isPBTS ? 'true' : 'false');
       formDataToSend.append('status', formData.status);
       formDataToSend.append('totalPrice', formData.totalPrice.toString());
       formDataToSend.append('initialPayment', formData.initialPayment.toString());
@@ -262,9 +267,11 @@ const CreateLegacyBudget = () => {
           applicantEmail: '',
           applicantPhone: '',
           propertyAddress: '',
+          county: '',
           lot: '',
           block: '',
           systemType: '',
+          isPBTS: false,
           status: 'APPROVED',
           totalPrice: '',
           initialPayment: '',
@@ -352,9 +359,11 @@ const CreateLegacyBudget = () => {
       formDataToSend.append('applicantEmail', formData.applicantEmail || '');
       formDataToSend.append('applicantPhone', formData.applicantPhone || '');
       formDataToSend.append('propertyAddress', formData.propertyAddress);
+      formDataToSend.append('county', formData.county || '');
       formDataToSend.append('lot', formData.lot || '');
       formDataToSend.append('block', formData.block || '');
       formDataToSend.append('systemType', formData.systemType);
+      formDataToSend.append('isPBTS', formData.isPBTS ? 'true' : 'false');
       formDataToSend.append('status', formData.status);
       formDataToSend.append('totalPrice', formData.totalPrice.toString());
       formDataToSend.append('initialPayment', formData.initialPayment.toString());
@@ -388,9 +397,11 @@ const CreateLegacyBudget = () => {
           applicantEmail: '',
           applicantPhone: '',
           propertyAddress: '',
+          county: '',
           lot: '',
           block: '',
           systemType: '',
+          isPBTS: false,
           status: 'approved',
           totalPrice: '',
           initialPayment: '',
@@ -570,16 +581,49 @@ const CreateLegacyBudget = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Tipo de Sistema</label>
-              <input
-                type="text"
-                name="systemType"
-                value={formData.systemType}
+              <label className="block text-sm font-medium mb-2">County</label>
+              <CountyInput
+                value={formData.county}
                 onChange={handleInputChange}
                 className="w-full p-2 border rounded-lg"
-                placeholder="Ej: Sistema Séptico, Solar, Pozo, etc."
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Tipo de Sistema *</label>
+              <select
+                name="systemType"
+                value={formData.systemType}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData(prev => ({
+                    ...prev,
+                    systemType: val,
+                    isPBTS: val === 'ATU' ? prev.isPBTS : false
+                  }));
+                }}
+                className="w-full p-2 border rounded-lg"
+                required
+              >
+                <option value="">Seleccionar...</option>
+                <option value="REGULAR">REGULAR</option>
+                <option value="ATU">ATU</option>
+              </select>
+            </div>
+            {formData.systemType === 'ATU' && (
+              <div className="flex items-center gap-3 pt-6">
+                <input
+                  type="checkbox"
+                  id="isPBTS"
+                  name="isPBTS"
+                  checked={formData.isPBTS}
+                  onChange={handleInputChange}
+                  className="h-5 w-5 text-purple-600 border-gray-300 rounded"
+                />
+                <label htmlFor="isPBTS" className="text-sm font-medium text-purple-700 cursor-pointer">
+                  PBTS (requiere muestreo de well points)
+                </label>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium mb-2">Lote</label>
               <input

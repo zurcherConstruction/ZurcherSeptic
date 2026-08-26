@@ -74,9 +74,10 @@ const updateLegacyMaintenanceWork = async (req, res) => {
       // System info (NUEVO)
       systemType,
       isPBTS,
-      
+
       // Opcional
-      notes
+      notes,
+      county
     } = req.body;
 
     console.log('🔵 [UPDATE LEGACY WORK] Datos recibidos:', {
@@ -169,9 +170,12 @@ const updateLegacyMaintenanceWork = async (req, res) => {
     // 🚫 NO CAMBIAR PERMIT - La relación es por propertyAddress (inmutable)
     // El permitId se ignora porque Work-Permit están vinculados por dirección
 
-    // Actualizar notas del Work
-    if (notes) {
-      await work.update({ notes });
+    // Actualizar notas y county del Work
+    const workUpdates = {};
+    if (notes !== undefined) workUpdates.notes = notes;
+    if (county !== undefined) workUpdates.county = county;
+    if (Object.keys(workUpdates).length > 0) {
+      await work.update(workUpdates);
     }
 
     // Reload con todas las relaciones

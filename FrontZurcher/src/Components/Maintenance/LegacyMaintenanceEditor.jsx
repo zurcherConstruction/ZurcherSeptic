@@ -12,6 +12,7 @@ import {
   CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 import api from '../../utils/axios';
+import CountyInput from '../Common/CountyInput';
 
 const LegacyMaintenanceEditor = () => {
   const [legacyWorks, setLegacyWorks] = useState([]);
@@ -26,6 +27,7 @@ const LegacyMaintenanceEditor = () => {
     clientPhone: '',
     systemType: '',
     isPBTS: false,
+    county: '',
     permitId: '',
     notes: ''
   });
@@ -60,12 +62,12 @@ const LegacyMaintenanceEditor = () => {
   const handleEdit = (work) => {
     setEditingWork(work);
     setEditFormData({
-      clientName: work.Permit?.applicantName || '', // ✅ Leer del Permit
-      clientEmail: work.Permit?.applicantEmail || '', // ✅ Leer del Permit
-      clientPhone: work.Permit?.applicantPhone || '', // ✅ Leer del Permit
-      systemType: work.Permit?.systemType || 'ATU', // ✅ Por defecto ATU
-      isPBTS: work.Permit?.isPBTS || false, // ✅ Nuevo
-      // permitId eliminado - no es necesario
+      clientName: work.Permit?.applicantName || '',
+      clientEmail: work.Permit?.applicantEmail || '',
+      clientPhone: work.Permit?.applicantPhone || '',
+      systemType: work.Permit?.systemType || 'ATU',
+      isPBTS: work.Permit?.isPBTS || false,
+      county: work.county || work.Permit?.county || '',
       notes: work.notes || ''
     });
     setSaveError('');
@@ -80,8 +82,9 @@ const LegacyMaintenanceEditor = () => {
       clientName: '',
       clientEmail: '',
       clientPhone: '',
-      systemType: 'ATU', // ✅ Por defecto ATU
+      systemType: 'ATU',
       isPBTS: false,
+      county: '',
       permitId: '',
       notes: ''
     });
@@ -118,6 +121,7 @@ const LegacyMaintenanceEditor = () => {
         clientPhone: editFormData.clientPhone,
         systemType: editFormData.systemType,
         isPBTS: editFormData.isPBTS,
+        county: editFormData.county,
         notes: editFormData.notes
       });
 
@@ -436,6 +440,18 @@ const LegacyMaintenanceEditor = () => {
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="239-555-1234"
+                      />
+                    </div>
+
+                    {/* County */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        County
+                      </label>
+                      <CountyInput
+                        value={editFormData.county}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
 
