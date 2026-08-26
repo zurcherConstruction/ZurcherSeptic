@@ -51,14 +51,14 @@ const KnowledgeBase = () => {
     setSubCategoryFilter(null);
   };
 
-  // Compute sub-categories (unique contactType values) for the selected category
-  const subCategories = selectedCategory && activeTab === 'contacts'
-    ? [...new Set(
-        contacts
-          .filter(c => c.categoryId === selectedCategory.id && c.contactType)
-          .map(c => c.contactType)
-      )].sort()
+  // Sub-categories for sidebar: unique contactType values (material) + unique tags (service areas)
+  const subMaterials = selectedCategory && activeTab === 'contacts' && contacts.length > 0
+    ? [...new Set(contacts.map(c => c.contactType).filter(Boolean))].sort()
     : [];
+  const subAreas = selectedCategory && activeTab === 'contacts' && contacts.length > 0
+    ? [...new Set(contacts.flatMap(c => c.tags || []))].sort()
+    : [];
+  const hasSubItems = subMaterials.length > 0 || subAreas.length > 0;
 
   useEffect(() => {
     if (categories.length === 0) dispatch(fetchCategories());
@@ -162,7 +162,7 @@ const KnowledgeBase = () => {
                 {categories.map(category => {
                   const count = (category.contactsCount || 0) + (category.proceduresCount || 0) + (category.documentsCount || 0);
                   const isActive = selectedCategory?.id === category.id;
-                  const showSubs = isActive && subCategories.length > 0 && activeTab === 'contacts';
+                  const showSubs = isActive && hasSubItems && activeTab === 'contacts';
                   return (
                     <div key={category.id}>
                       <div className={`group relative flex items-center rounded-xl transition-colors ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
@@ -197,40 +197,63 @@ const KnowledgeBase = () => {
                         </div>
                       </div>
 
-                      {/* Sub-categories (material types) */}
+                      {/* Sub-categories */}
                       {showSubs && (
-                        <div className="ml-4 mt-0.5 mb-1 border-l-2 border-amber-200 pl-2 space-y-0.5">
+                        <div className="ml-4 mt-0.5 mb-1 border-l-2 border-slate-200 pl-2 space-y-0.5">
+                          {/* Todos */}
                           <button
                             onClick={() => setSubCategoryFilter(null)}
                             className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                               subCategoryFilter === null
-                                ? 'bg-amber-100 text-amber-800'
+                                ? 'bg-blue-100 text-blue-800'
                                 : 'text-slate-500 hover:bg-slate-100'
                             }`}
                           >
                             <span className="flex-1 text-left">Todos</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                              {contacts.filter(c => c.categoryId === category.id).length}
-                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{contacts.length}</span>
                           </button>
-                          {subCategories.map(sub => {
-                            const subCount = contacts.filter(c => c.categoryId === category.id && c.contactType === sub).length;
-                            return (
-                              <button
-                                key={sub}
-                                onClick={() => setSubCategoryFilter(sub)}
-                                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                  subCategoryFilter === sub
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'text-slate-500 hover:bg-slate-100'
-                                }`}
-                              >
-                                <span className="text-[10px]">🧱</span>
-                                <span className="flex-1 text-left truncate">{sub}</span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{subCount}</span>
-                              </button>
-                            );
-                          })}
+
+                          {/* Material types */}
+                          {subMaterials.length > 0 && (
+                            <>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 pt-1">Material</p>
+                              {subMaterials.map(sub => {
+                                const n = contacts.filter(c => c.contactType === sub).length;
+                                return (
+                                  <button key={sub} onClick={() => setSubCategoryFilter(sub)}
+                                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                      subCategoryFilter === sub ? 'bg-amber-100 text-amber-800' : 'text-slate-500 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <span>🧱</span>
+                                    <span className="flex-1 text-left truncate capitalize">{sub}</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{n}</span>
+                                  </button>
+                                );
+                              })}
+                            </>
+                          )}
+
+                          {/* Service areas */}
+                          {subAreas.length > 0 && (
+                            <>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 pt-1">Área</p>
+                              {subAreas.map(sub => {
+                                const n = contacts.filter(c => c.tags?.includes(sub)).length;
+                                return (
+                                  <button key={sub} onClick={() => setSubCategoryFilter(sub)}
+                                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                      subCategoryFilter === sub ? 'bg-teal-100 text-teal-800' : 'text-slate-500 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    <span>📍</span>
+                                    <span className="flex-1 text-left truncate capitalize">{sub}</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{n}</span>
+                                  </button>
+                                );
+                              })}
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
