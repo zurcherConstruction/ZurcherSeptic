@@ -128,6 +128,8 @@ async function importExistingWork(req, res) {
       
       // === DATOS TÉCNICOS ===
       systemType,            // Tipo de sistema septico
+      isPBTS,               // Si es PBTS
+      county,               // County de Florida
       excavationRequired,    // Si requiere excavación
       drainfieldDepth,       // Profundidad del drainfield
       gpdCapacity,          // Capacidad en galones por día
@@ -260,10 +262,12 @@ async function importExistingWork(req, res) {
         applicantName,
         applicantEmail: applicantEmail || '',
         applicantPhone: applicantPhone || '',
-        systemType: systemType || 'Solar',
+        systemType: systemType || 'REGULAR',
+        isPBTS: isPBTS === 'true' || isPBTS === true || false,
+        county: county || null,
         lot: lot || '',
         block: block || '',
-        
+
         // ✅ Guardar URLs de Cloudinary en columnas correctas
         permitPdfUrl: documentosGuardados.permit?.url || null,
         permitPdfPublicId: documentosGuardados.permit?.publicId || null,
@@ -391,8 +395,10 @@ async function importExistingWork(req, res) {
     if (workStatus && workStatus !== '') {
       nuevoTrabajo = await Work.create({
         idBudget: nuevoPresupuesto.idBudget,
+        idPermit: nuevoPermit.idPermit,
         propertyAddress,
-        status: workStatus === 'completed' ? 'paymentReceived' : workStatus, // Fix enum
+        county: county || null,
+        status: workStatus === 'completed' ? 'paymentReceived' : workStatus,
         isLegacy: true,
         workDescription: `Trabajo importado - ${applicantName}`,
         startDate: req.body.workStartDate || null,

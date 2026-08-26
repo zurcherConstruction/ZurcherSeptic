@@ -82,6 +82,11 @@ module.exports = (sequelize) => {
       allowNull: true, // Permite nulo si la obra no está o nunca ha estado en mantenimiento
     },
     
+    county: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+
     // --- IDENTIFICADOR DE TRABAJO IMPORTADO ---
     isLegacy: {
       type: DataTypes.BOOLEAN,

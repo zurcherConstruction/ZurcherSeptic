@@ -438,7 +438,7 @@ const Works = () => {
                         const permit = work.Permit;
                         const budget = work.budget;
                         const clientName = permit?.applicantName || budget?.applicantName || "";
-                        const county = permit?.county || "";
+                        const county = permit?.county || work.county || "";
                         const city = permit?.city || "";
                         const systemType = permit?.systemType || "";
                         const isPBTS = permit?.isPBTS;
