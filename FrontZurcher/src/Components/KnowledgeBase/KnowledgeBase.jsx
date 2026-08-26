@@ -47,8 +47,29 @@ const KnowledgeBase = () => {
   const [editingCategory, setEditingCategory] = useState(null);
 
   const handleSelectCategory = (cat) => {
+    // Toggle: click same category again → deselect
+    if (cat?.id === selectedCategory?.id) {
+      setSelectedCategory(null);
+      setSubCategoryFilter(null);
+      return;
+    }
+
     setSelectedCategory(cat);
     setSubCategoryFilter(null);
+
+    // Auto-switch to the tab that has content for this category
+    if (cat) {
+      const counts = {
+        contacts:   cat.contactsCount   || 0,
+        procedures: cat.proceduresCount || 0,
+        documents:  cat.documentsCount  || 0,
+      };
+      const currentHasContent = (counts[activeTab] || 0) > 0;
+      if (!currentHasContent) {
+        const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        if (best[1] > 0) setActiveTab(best[0]);
+      }
+    }
   };
 
   // Sub-categories for sidebar: unique contactType values (material) + unique tags (service areas)
