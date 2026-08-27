@@ -70,7 +70,7 @@ module.exports = (sequelize) => {
     
     status: {
       type: DataTypes.ENUM(
-        'quoted', 'sent', 'approved', 'in_progress', 
+        'pending', 'quoted', 'sent', 'approved', 'in_progress',
         'completed', 'invoiced', 'paid', 'cancelled'
       ),
       allowNull: false,

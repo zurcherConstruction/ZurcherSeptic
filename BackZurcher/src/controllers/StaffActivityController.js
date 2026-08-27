@@ -4,13 +4,36 @@ const { StaffActivityLog, Staff } = require('../data');
 const SESSION_GAP_MS = 30 * 60 * 1000; // 30 minutos sin actividad = nueva sesión
 const SESSION_BUFFER_MS = 5 * 60 * 1000; // 5 min buffer por lectura al final de cada sesión
 const EXPECTED_DAILY_MINUTES = 8 * 60; // Jornada esperada: 8hs, lunes a viernes
+const BUSINESS_TZ = 'America/New_York'; // Florida / Orlando timezone
 
 const WEB_ROLES = ['owner', 'admin', 'recept', 'finance', 'finance-viewer', 'sales_rep', 'follow-up', 'capataz'];
 
+// Retorna la fecha como "YYYY-MM-DD" en la timezone del negocio (New York / Orlando)
+function toNYDateKey(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: BUSINESS_TZ }).format(d);
+}
+
+// Retorna un Date que representa la medianoche en New York del día actual
+function getNYStartOfDay(referenceDate = new Date()) {
+  const d = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  const dateKey = toNYDateKey(d); // "2026-08-28"
+  // Truco: obtener la hora NY como string, crear Date "naive" y calcular offset
+  const nyNow = new Date(d.toLocaleString('en-US', { timeZone: BUSINESS_TZ }));
+  const offsetMs = d.getTime() - nyNow.getTime();
+  const nyMidnightNaive = new Date(dateKey + 'T00:00:00');
+  return new Date(nyMidnightNaive.getTime() + offsetMs);
+}
+
 function isWeekendDate(dateOrKey) {
-  const d = typeof dateOrKey === 'string' ? new Date(dateOrKey + 'T12:00:00') : dateOrKey;
-  const day = d.getDay();
-  return day === 0 || day === 6;
+  if (typeof dateOrKey === 'string') {
+    // Use noon in NY to avoid DST edge cases
+    const d = new Date(dateOrKey + 'T12:00:00');
+    const dayOfWeek = new Intl.DateTimeFormat('en-US', { timeZone: BUSINESS_TZ, weekday: 'short' }).format(d);
+    return dayOfWeek === 'Sat' || dayOfWeek === 'Sun';
+  }
+  const dayOfWeek = new Intl.DateTimeFormat('en-US', { timeZone: BUSINESS_TZ, weekday: 'short' }).format(dateOrKey);
+  return dayOfWeek === 'Sat' || dayOfWeek === 'Sun';
 }
 
 // Clasifica cómo se distribuyeron las horas en el día según la cantidad de sesiones detectadas
@@ -58,16 +81,16 @@ function countSessions(logs) {
 function buildDailyBreakdown(logs, numDays) {
   const byDay = {};
   logs.forEach((log) => {
-    const day = new Date(log.createdAt).toISOString().split('T')[0];
+    const day = toNYDateKey(log.createdAt); // fecha en Orlando, no UTC
     if (!byDay[day]) byDay[day] = [];
     byDay[day].push(log);
   });
 
   const days = [];
+  const todayNY = getNYStartOfDay();
   for (let i = numDays - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().split('T')[0];
+    const d = new Date(todayNY.getTime() - i * 24 * 60 * 60 * 1000);
+    const key = toNYDateKey(d); // fecha en Orlando
     const dayLogs = byDay[key] || [];
     const weekend = isWeekendDate(key);
     const sessionsCount = countSessions(dayLogs);
@@ -113,8 +136,8 @@ function buildSessions(logs) {
 const getActivitySummary = async (req, res) => {
   try {
     const now = new Date();
-    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
-    const weekStart = new Date(now); weekStart.setDate(now.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
+    const todayStart = getNYStartOfDay(now); // medianoche en Orlando, no en UTC
+    const weekStart = getNYStartOfDay(new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000));
 
     // Presencia real (Socket.IO): staffId -> Set de socket.id de quienes tienen la app/web abierta ahora mismo
     const connectedUsers = req.app.get('connectedUsers') || {};
@@ -201,10 +224,10 @@ const getStaffDetail = async (req, res) => {
 
     if (!staff) return res.status(404).json({ success: false, message: 'Staff no encontrado' });
 
-    // Agrupar por día
+    // Agrupar por día (usando timezone de Orlando)
     const byDay = {};
     logs.forEach((log) => {
-      const day = new Date(log.createdAt).toISOString().split('T')[0];
+      const day = toNYDateKey(log.createdAt);
       if (!byDay[day]) byDay[day] = [];
       byDay[day].push(log);
     });
@@ -257,7 +280,7 @@ const getActivityReport = async (req, res) => {
 
       const byDay = {};
       logs.forEach((log) => {
-        const day = new Date(log.createdAt).toISOString().split('T')[0];
+        const day = toNYDateKey(log.createdAt); // timezone Orlando
         if (!byDay[day]) byDay[day] = [];
         byDay[day].push(log);
       });

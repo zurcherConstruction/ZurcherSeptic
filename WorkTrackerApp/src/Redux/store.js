@@ -7,6 +7,7 @@ import staffReducer from './features/staffSlice'; // Importar el reducer del sta
 import maintenanceReducer from './features/maintenanceSlice'; // Importar el reducer del maintenanceSlice
 import simpleWorkReducer from './features/simpleWorkSlice'; // 🆕 Reducer de trabajos varios
 import claimReducer from './features/claimSlice'; // 🆕 Reducer de reclamos
+import quoteRequestReducer from './features/quoteRequestSlice'; // 🆕 Reducer de solicitudes de cotización
 // Combinar los reducers
 const rootReducer = combineReducers({
   auth: authReducer, // Reducer de autenticación
@@ -16,6 +17,7 @@ const rootReducer = combineReducers({
   maintenance: maintenanceReducer,
   simpleWork: simpleWorkReducer, // 🆕 Reducer de trabajos varios
   claim: claimReducer, // 🆕 Reducer de reclamos
+  quoteRequest: quoteRequestReducer, // 🆕 Reducer de solicitudes de cotización de campo
 });
 
 // Configurar el store

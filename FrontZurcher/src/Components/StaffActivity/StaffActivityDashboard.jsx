@@ -767,7 +767,7 @@ const WeekBars = ({ days = [] }) => {
   if (!days.length) return <span className="text-gray-300 text-xs">—</span>;
   const BAR_AREA_HEIGHT = 32;
   const max = Math.max(EXPECTED_DAILY_MINUTES * 1.15, ...days.map((d) => d.minutes || 0));
-  const todayKey = new Date().toISOString().split('T')[0];
+  const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date());
   const targetLineHeight = Math.round((EXPECTED_DAILY_MINUTES / max) * BAR_AREA_HEIGHT);
 
   return (

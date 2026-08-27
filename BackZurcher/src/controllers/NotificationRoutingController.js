@@ -27,6 +27,9 @@ const EVENT_TYPES = [
   { key: 'unpaid_fixed_expenses',            label: 'Gastos Fijos sin pagar este mes',                category: 'Financiero' },
   { key: 'deferred_initial_payment',         label: 'Pago inicial diferido — cobrar antes de iniciar', category: 'Financiero' },
   { key: 'supplierInvoiceCreated',           label: 'Invoice de proveedor cargado – revisar y aprobar', category: 'Financiero' },
+
+  // ── Solicitudes de Cotización ────────────────────────────────────────────
+  { key: 'quote_request',                    label: 'Nueva solicitud de cotización (campo) – generar presupuesto', category: 'Cotizaciones' },
 ];
 
 const NotificationRoutingController = {

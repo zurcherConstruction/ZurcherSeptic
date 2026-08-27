@@ -13,7 +13,7 @@ export const login = (email, password) => async (dispatch) => {
     const { token, staff } = response.data.data;
 
     // ✅ VALIDAR QUE EL ROL SEA PERMITIDO EN LA APP MÓVIL
-    const allowedRoles = ['worker', 'maintenance', 'capataz'];
+    const allowedRoles = ['worker', 'maintenance', 'capataz', 'contractor'];
     if (!allowedRoles.includes(staff.role)) {
       dispatch(loginFailure('Acceso no permitido'));
       Alert.alert(
@@ -29,12 +29,12 @@ export const login = (email, password) => async (dispatch) => {
     await AsyncStorage.setItem('staff', JSON.stringify(staff));
 
     dispatch(loginSuccess({ token, staff }));
-    
-    // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
-    const staffId = staff.idStaff || staff.id;
-    // Despachar la acción para obtener los trabajos asignados al staff
-    dispatch(fetchWorks(staffId)); // Usar staffId consistente
-    
+
+    if (staff.role !== 'contractor') {
+      const staffId = staff.idStaff || staff.id;
+      dispatch(fetchWorks(staffId));
+    }
+
     // ✅ RETORNAR ÉXITO
     return { success: true, staff };
   } catch (error) {
@@ -82,7 +82,7 @@ export const restoreSession = () => async (dispatch) => {
         }
         
         // ✅ VALIDAR QUE EL ROL SEA PERMITIDO
-        const allowedRoles = ['worker', 'maintenance', 'capataz'];
+        const allowedRoles = ['worker', 'maintenance', 'capataz', 'contractor'];
         if (!allowedRoles.includes(staff.role)) {
           if (__DEV__) {
             console.log('⚠️ Rol no permitido en app móvil:', staff.role);
@@ -105,9 +105,10 @@ export const restoreSession = () => async (dispatch) => {
         
         // Cargar trabajos después de restaurar la sesión (esto validará el token)
         try {
-          // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
-          const staffId = staff.idStaff || staff.id;
-          await dispatch(fetchWorks(staffId));
+          if (staff.role !== 'contractor') {
+            const staffId = staff.idStaff || staff.id;
+            await dispatch(fetchWorks(staffId));
+          }
         } catch (error) {
           if (__DEV__) {
             console.log('⚠️ Error cargando trabajos, token puede estar expirado');

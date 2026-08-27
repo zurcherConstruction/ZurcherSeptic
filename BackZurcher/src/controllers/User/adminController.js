@@ -40,8 +40,8 @@ const lowercasedEmail = email.toLowerCase();
         const normalizedRole = role ? role.toLowerCase().trim() : null;
 
         // Validar rol permitido
-        const allowedRoles = ['recept', 'admin', 'owner', 'worker', 'finance', 'finance-viewer', 'maintenance', 'sales_rep', 'follow-up', 'capataz'];
-        
+        const allowedRoles = ['recept', 'admin', 'owner', 'worker', 'finance', 'finance-viewer', 'maintenance', 'sales_rep', 'follow-up', 'capataz', 'contractor'];
+
         if (!normalizedRole || !allowedRoles.includes(normalizedRole)) {
             throw new CustomError('Rol no válido o no proporcionado para staff', 400);
         }
@@ -144,7 +144,7 @@ const updateStaff = async (req, res, next) => { // Añadido next
             staffToUpdate.email = email;
         }
 
-        const allowedRoles = ['admin', 'recept', 'worker', 'owner', 'finance', 'finance-viewer', 'maintenance', 'sales_rep', 'follow-up', 'capataz'];
+        const allowedRoles = ['admin', 'recept', 'worker', 'owner', 'finance', 'finance-viewer', 'maintenance', 'sales_rep', 'follow-up', 'capataz', 'contractor'];
         if (role) {
             // Normalizar el rol para la actualización también
             const normalizedUpdateRole = role.toLowerCase().trim();

@@ -20,6 +20,7 @@ import GeneralExpenseScreen from '../screens/GeneralExpenseScreen';
 import MyExpensesScreen from '../screens/MyExpensesScreen';
 import AssignedSimpleWorksScreen from '../screens/AssignedSimpleWorksScreen';
 import AssignedClaimsScreen from '../screens/AssignedClaimsScreen';
+import QuoteRequestScreen from '../screens/QuoteRequestScreen';
 import { logout } from '../Redux/features/authSlice';
 
 const Stack = createNativeStackNavigator();
@@ -62,11 +63,11 @@ const AppDrawerNavigator = () => {
 
   // ✅ VALIDACIÓN DE SEGURIDAD: Si el rol no es permitido, cerrar sesión
   useEffect(() => {
-    const allowedRoles = ['worker', 'maintenance', 'capataz'];
+    const allowedRoles = ['worker', 'maintenance', 'capataz', 'contractor'];
     if (staff && !allowedRoles.includes(staff.role)) {
       Alert.alert(
         'Acceso No Permitido',
-        'Esta aplicación es solo para trabajadores y personal de mantenimiento. Use la versión web para su rol.',
+        'Esta aplicación es solo para trabajadores, contratistas y personal de mantenimiento. Use la versión web para su rol.',
         [
           {
             text: 'Entendido',
@@ -77,9 +78,13 @@ const AppDrawerNavigator = () => {
     }
   }, [staff, dispatch]);
 
+  if (!staff) return null; // esperar hasta que Redux tenga el staff completo
+
+  const initialRoute = staff.role === 'contractor' ? 'QuoteRequest' : 'WorkZoneMap';
+
   return (
     <Drawer.Navigator
-      initialRouteName="WorkZoneMap" // ✅ Pantalla inicial: Mapa de Zonas
+      initialRouteName={initialRoute}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={({ navigation }) => ({
         headerShown: true,
@@ -188,20 +193,31 @@ const AppDrawerNavigator = () => {
             }} 
           />
           
-          <Drawer.Screen 
+          <Drawer.Screen
             name="MyClaims"
             component={AssignedClaimsScreen}
-            options={{ 
+            options={{
               headerShown: false,
               title: 'Mis Reclamos',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="alert-circle-outline" color={color} size={size} />
               ),
-            }} 
+            }}
+          />
+
+          <Drawer.Screen
+            name="QuoteRequest"
+            component={QuoteRequestScreen}
+            options={{
+              title: 'Solicitar Cotización',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="document-text-outline" color={color} size={size} />
+              ),
+            }}
           />
         </>
       )}
-      
+
       {/* --- Maintenance --- */}
       {staff?.role === 'maintenance' && (
         <>
@@ -295,16 +311,27 @@ const AppDrawerNavigator = () => {
             }} 
           />
           
-          <Drawer.Screen 
+          <Drawer.Screen
             name="MyClaims"
             component={AssignedClaimsScreen}
-            options={{ 
+            options={{
               headerShown: false,
               title: 'Mis Reclamos',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="alert-circle-outline" color={color} size={size} />
               ),
-            }} 
+            }}
+          />
+
+          <Drawer.Screen
+            name="QuoteRequest"
+            component={QuoteRequestScreen}
+            options={{
+              title: 'Solicitar Cotización',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="document-text-outline" color={color} size={size} />
+              ),
+            }}
           />
         </>
       )}
@@ -399,6 +426,44 @@ const AppDrawerNavigator = () => {
               title: 'Mapa de Zonas',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="map-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
+            name="QuoteRequest"
+            component={QuoteRequestScreen}
+            options={{
+              title: 'Solicitar Cotización',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="document-text-outline" color={color} size={size} />
+              ),
+            }}
+          />
+        </>
+      )}
+
+      {/* --- Contractor (proveedores externos: Solicitar Cotización + Trabajos Asignados) --- */}
+      {staff?.role === 'contractor' && (
+        <>
+          <Drawer.Screen
+            name="QuoteRequest"
+            component={QuoteRequestScreen}
+            options={{
+              title: 'Solicitar Cotización',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="document-text-outline" color={color} size={size} />
+              ),
+            }}
+          />
+          <Drawer.Screen
+            name="MySimpleWorks"
+            component={AssignedSimpleWorksScreen}
+            options={{
+              headerShown: false,
+              title: 'Mis Trabajos Asignados',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="construct-outline" color={color} size={size} />
               ),
             }}
           />
