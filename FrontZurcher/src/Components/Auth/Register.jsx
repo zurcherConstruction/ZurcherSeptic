@@ -215,6 +215,7 @@ const Register = () => {
                   <option value="sales_rep">Sales Representative</option>
                   <option value="follow-up">Follow-up</option>
                   <option value="capataz">Capataz</option>
+                  <option value="contractor">Contractor (Proveedor Externo)</option>
                 </select>
               </div>
               {/* Campo de comisión - solo visible para sales_rep */}

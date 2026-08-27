@@ -64,6 +64,7 @@ const aiRoutes = require('./aiRoutes'); // 🆕 IA - consultas en lenguaje natur
 const notificationRoutingRoutes = require('./notificationRoutingRoutes'); // 🆕 Routing de alertas automáticas
 const salesIndicatorsRoutes = require('./salesIndicatorsRoutes'); // 🆕 Indicadores mensuales de ventas
 const customInvoiceRoutes = require('./customInvoiceRoutes'); // 🆕 Facturas personalizadas
+const quoteRequestRoutes = require('./quoteRequestRoutes'); // 🆕 Solicitudes de cotización de campo
 const { publicView, clientApprove } = require('../controllers/CustomInvoiceController');
 const FinalInvoiceController = require('../controllers/FinalInvoiceController');
 // Health check endpoint (público, sin autenticación)
@@ -147,5 +148,6 @@ router.use('/ai', aiRoutes); // 🆕 Ruta para consultas de IA en lenguaje natur
 router.use('/notification-routing', notificationRoutingRoutes); // 🆕 Routing de alertas automáticas por responsable
 router.use('/sales-indicators', salesIndicatorsRoutes); // 🆕 Indicadores mensuales de ventas/instalados/backlog
 router.use('/custom-invoices', customInvoiceRoutes); // 🆕 Facturas personalizadas (INV, QUO, PRO, CRN, REC)
+router.use('/quote-requests', quoteRequestRoutes); // 🆕 Solicitudes de cotización de campo (WorkTrackerApp)
 
 module.exports = router;
