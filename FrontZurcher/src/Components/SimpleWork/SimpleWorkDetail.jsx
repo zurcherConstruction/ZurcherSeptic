@@ -143,12 +143,21 @@ const SimpleWorkDetail = () => {
     const types = {
       culvert: 'Culvert',
       drainfield: 'Drainfield',
+      repair: 'Reparación',
+      abandonment: 'Abandono',
+      modification: 'Modificación',
+      pumping: 'Desagote',
+      replacement: 'Reemplazo',
+      plumbing: 'Plomería',
+      inspection: 'Inspección',
+      installation: 'Instalación',
+      maintenance: 'Mantenimiento',
+      other: 'Otro',
+      // Legacy
       concrete_work: 'Trabajo de Concreto',
       excavation: 'Excavación',
-      plumbing: 'Plomería',
       electrical: 'Eléctrico',
       landscaping: 'Paisajismo',
-      other: 'Otro'
     };
     return types[type] || type;
   };

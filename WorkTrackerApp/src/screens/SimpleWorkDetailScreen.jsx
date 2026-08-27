@@ -7,11 +7,12 @@ import {
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 import { Video } from 'expo-av';
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { updateSimpleWorkStatus, uploadSimpleWorkImage } from "../Redux/Actions/simpleWorkActions";
 import moment from "moment-timezone";
 
 const STATUS_LABELS = {
+  pending: "Pendiente",
   quoted: "Cotizado",
   sent: "Enviado",
   approved: "Aprobado",
@@ -25,15 +26,25 @@ const STATUS_LABELS = {
 const WORK_TYPE_LABELS = {
   culvert: "Culvert",
   drainfield: "Drainfield",
+  repair: "Reparación",
+  abandonment: "Abandono",
+  modification: "Modificación",
+  pumping: "Desagote",
+  replacement: "Reemplazo",
+  plumbing: "Plomería",
+  inspection: "Inspección",
+  installation: "Instalación",
+  maintenance: "Mantenimiento",
+  other: "Otro",
+  // Legacy
   concrete_work: "Concreto",
   excavation: "Excavación",
-  plumbing: "Plomería",
   electrical: "Eléctrico",
   landscaping: "Paisajismo",
-  other: "Otro",
 };
 
 const STATUS_COLORS = {
+  pending: { bg: "bg-yellow-100", text: "text-yellow-700" },
   quoted: { bg: "bg-gray-200", text: "text-gray-700" },
   sent: { bg: "bg-blue-200", text: "text-blue-700" },
   approved: { bg: "bg-green-200", text: "text-green-700" },
@@ -45,14 +56,23 @@ const STATUS_COLORS = {
 };
 
 const TYPE_COLORS = {
-  culvert: { bg: "bg-cyan-100", text: "text-cyan-700" },
-  drainfield: { bg: "bg-lime-100", text: "text-lime-700" },
+  culvert:      { bg: "bg-blue-100",   text: "text-blue-700" },
+  drainfield:   { bg: "bg-teal-100",   text: "text-teal-700" },
+  repair:       { bg: "bg-orange-100", text: "text-orange-700" },
+  abandonment:  { bg: "bg-gray-200",   text: "text-gray-700" },
+  modification: { bg: "bg-indigo-100", text: "text-indigo-700" },
+  pumping:      { bg: "bg-cyan-100",   text: "text-cyan-700" },
+  replacement:  { bg: "bg-amber-100",  text: "text-amber-700" },
+  plumbing:     { bg: "bg-blue-100",   text: "text-blue-700" },
+  inspection:   { bg: "bg-yellow-100", text: "text-yellow-700" },
+  installation: { bg: "bg-lime-100",   text: "text-lime-700" },
+  maintenance:  { bg: "bg-purple-100", text: "text-purple-700" },
+  other:        { bg: "bg-gray-100",   text: "text-gray-700" },
+  // Legacy
   concrete_work: { bg: "bg-stone-200", text: "text-stone-700" },
-  excavation: { bg: "bg-orange-100", text: "text-orange-700" },
-  plumbing: { bg: "bg-blue-100", text: "text-blue-700" },
-  electrical: { bg: "bg-yellow-100", text: "text-yellow-700" },
-  landscaping: { bg: "bg-green-100", text: "text-green-700" },
-  other: { bg: "bg-gray-100", text: "text-gray-700" },
+  excavation:    { bg: "bg-orange-100",text: "text-orange-700" },
+  electrical:    { bg: "bg-yellow-100",text: "text-yellow-700" },
+  landscaping:   { bg: "bg-green-100", text: "text-green-700" },
 };
 
 const openInMaps = (address) => {
@@ -68,17 +88,37 @@ const openInMaps = (address) => {
 };
 
 const SimpleWorkDetailScreen = ({ route, navigation }) => {
-  const { simpleWork } = route.params;
+  const paramWork = route.params?.simpleWork;
   const dispatch = useDispatch();
 
-  const [resolution, setResolution] = useState(simpleWork.resolution || "");
+  // Subscribe to Redux store so the screen reflects status changes in real-time
+  const liveWork = useSelector((state) =>
+    state.simpleWork?.simpleWorks?.find((sw) => sw.id === paramWork?.id)
+  );
+  // Prefer live Redux data; fall back to route param (covers the initial load)
+  const simpleWork = liveWork || paramWork;
+
+  // All hooks must be called unconditionally (before any conditional return)
+  const [resolution, setResolution] = useState(simpleWork?.resolution || "");
   const [localImages, setLocalImages] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState("");
+
+  if (!simpleWork) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+        <Ionicons name="alert-circle-outline" size={48} color="#dc2626" />
+        <Text style={{ color: '#dc2626', marginTop: 8, fontSize: 16 }}>Trabajo no encontrado</Text>
+      </View>
+    );
+  }
 
   const existingCompletionImages = simpleWork.completionImages || [];
   const existingWorkImages = simpleWork.workImages || [];
-  const statusStyle = STATUS_COLORS[simpleWork.status] || STATUS_COLORS.quoted;
+  // Map invoiced/paid → show as "approved" to employee (payment is admin detail)
+  const displayStatus = ['paid', 'invoiced'].includes(simpleWork.status) ? 'approved' : simpleWork.status;
+  const statusStyle = STATUS_COLORS[displayStatus] || STATUS_COLORS.quoted;
   const typeStyle = TYPE_COLORS[simpleWork.workType] || TYPE_COLORS.other;
 
   // -------- Image Picking --------
@@ -120,79 +160,64 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
     setLocalImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // -------- Upload all local images --------
+  // -------- Upload all local images — throws on any failure --------
   const uploadImages = async () => {
-    if (localImages.length === 0) return true;
+    if (localImages.length === 0) return;
     setUploading(true);
-    let allSuccess = true;
-    for (const img of localImages) {
-      try {
-        await dispatch(uploadSimpleWorkImage(simpleWork.id, img.uri, 'completion'));
-      } catch (err) {
-        console.error("Error uploading image:", err);
-        allSuccess = false;
+    try {
+      for (const img of localImages) {
+        await dispatch(uploadSimpleWorkImage(simpleWork.id, img, 'completion'));
       }
+      setLocalImages([]);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
-    if (allSuccess) setLocalImages([]);
-    return allSuccess;
   };
 
   // -------- Submit as "Completado" --------
   const handleMarkCompleted = async () => {
     if (!resolution.trim() && localImages.length === 0) {
-      Alert.alert(
-        "Comentario requerido",
-        "Por favor agregue un comentario o fotos/videos del trabajo antes de marcar como completado."
-      );
+      setValidationError("Agregue un comentario o foto antes de marcar como completado.");
       return;
     }
+    setValidationError("");
+    setSaving(true);
+    let photoWarning = false;
+    try {
+      if (localImages.length > 0) {
+        try {
+          await uploadImages();
+        } catch {
+          photoWarning = true;
+        }
+      }
 
-    Alert.alert(
-      "Confirmar",
-      "¿Marcar este trabajo como COMPLETADO?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sí, Completado",
-          onPress: async () => {
-            setSaving(true);
-            try {
-              await uploadImages();
-              await dispatch(
-                updateSimpleWorkStatus(simpleWork.id, {
-                  status: "completed",
-                  resolution: resolution.trim(),
-                  completedDate: new Date().toISOString(),
-                })
-              );
-              Alert.alert("Listo", "Trabajo marcado como completado.", [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
-            } catch (err) {
-              const errorMsg = err.response?.status === 401 
-                ? "Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente." 
-                : "No se pudo actualizar el trabajo.";
-              Alert.alert("Error", errorMsg);
-            } finally {
-              setSaving(false);
-            }
-          },
-        },
-      ]
-    );
+      await dispatch(
+        updateSimpleWorkStatus(simpleWork.id, {
+          status: "completed",
+          resolution: resolution.trim(),
+          completedDate: new Date().toISOString(),
+        })
+      );
+
+      navigation.goBack();
+    } catch (err) {
+      const errorMsg = err.response?.status === 401
+        ? "Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente."
+        : err?.message || "No se pudo actualizar el trabajo. Intente nuevamente.";
+      setValidationError(errorMsg);
+    } finally {
+      setSaving(false);
+    }
   };
 
   // -------- Submit as "En Progreso" (report) --------
   const handleReportProgress = async () => {
     if (!resolution.trim() && localImages.length === 0) {
-      Alert.alert(
-        "Comentario requerido",
-        "Por favor agregue un comentario o fotos/videos antes de enviar un reporte."
-      );
+      setValidationError("Agregue un comentario o foto antes de enviar el reporte.");
       return;
     }
-
+    setValidationError("");
     setSaving(true);
     try {
       await uploadImages();
@@ -202,23 +227,41 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
           notes: `${simpleWork.notes || ''}\n[${moment().format("MM-DD-YYYY HH:mm")}] ${resolution.trim()}`.trim(),
         })
       );
-      Alert.alert("Enviado", "Reporte enviado. El trabajo continúa en progreso.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      navigation.goBack();
     } catch (err) {
-      const errorMsg = err.response?.status === 401 
-        ? "Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente." 
-        : "No se pudo enviar el reporte.";
-      Alert.alert("Error", errorMsg);
+      const errorMsg = err.response?.status === 401
+        ? "Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente."
+        : err?.message || "No se pudo enviar el reporte. Intente nuevamente.";
+      setValidationError(errorMsg);
     } finally {
       setSaving(false);
     }
   };
 
-  // Client name from clientData JSON
-  const clientName = simpleWork.clientData
-    ? `${simpleWork.clientData.firstName || ''} ${simpleWork.clientData.lastName || ''}`.trim() || 'Cliente'
-    : 'Cliente';
+  // -------- Upload only (no status change) --------
+  const handleUploadOnly = async () => {
+    setSaving(true);
+    try {
+      await uploadImages();
+      setValidationError("");
+    } catch (err) {
+      setValidationError(err?.message || "No se pudieron subir las fotos.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // clientData puede ser objeto o string JSON; puede venir del QuoteRequest o form manual
+  let cd = {};
+  try {
+    const raw = simpleWork.clientData;
+    cd = typeof raw === 'string' ? JSON.parse(raw) : (raw && typeof raw === 'object' ? raw : {});
+  } catch {}
+  const clientName = cd.clientName || `${cd.firstName || ''} ${cd.lastName || ''}`.trim() || 'Cliente';
+  const clientPhone = cd.clientPhone || cd.phone || null;
+
+  const canAct = !['completed', 'cancelled'].includes(simpleWork.status);
+  const isInProgress = simpleWork.status === 'in_progress';
 
   return (
     <KeyboardAvoidingView
@@ -254,16 +297,26 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
 
           {/* Client */}
-          <View className="flex-row items-center mb-3">
+          <View className="flex-row items-center mb-2">
             <Ionicons name="person-outline" size={16} color="#6b7280" style={{ marginRight: 6 }} />
             <Text className="text-sm font-medium text-gray-700">{clientName}</Text>
           </View>
+          {clientPhone ? (
+            <TouchableOpacity
+              onPress={() => Linking.openURL(`tel:${clientPhone}`)}
+              className="flex-row items-center mb-3 bg-green-50 px-3 py-2 rounded-lg"
+            >
+              <Ionicons name="call-outline" size={16} color="#16a34a" style={{ marginRight: 6 }} />
+              <Text className="text-sm font-semibold text-green-700">{clientPhone}</Text>
+              <Text className="text-xs text-green-500 ml-2">Llamar</Text>
+            </TouchableOpacity>
+          ) : null}
 
           {/* Status */}
           <View className="flex-row items-center mb-3">
             <View className={`px-3 py-1 rounded-md ${statusStyle.bg}`}>
               <Text className={`text-xs font-bold uppercase ${statusStyle.text}`}>
-                {STATUS_LABELS[simpleWork.status] || simpleWork.status}
+                {STATUS_LABELS[displayStatus] || displayStatus}
               </Text>
             </View>
           </View>
@@ -428,7 +481,7 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
           <TextInput
             placeholder="Describa el trabajo realizado o el estado actual..."
             value={resolution}
-            onChangeText={setResolution}
+            onChangeText={(t) => { setResolution(t); if (validationError) setValidationError(""); }}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
@@ -438,6 +491,12 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
 
         {/* ---- Action Buttons ---- */}
         <View className="mx-3 mt-4">
+          {validationError ? (
+            <View className="bg-red-50 border border-red-300 rounded-lg px-4 py-3 mb-3 flex-row items-center">
+              <Ionicons name="alert-circle" size={18} color="#dc2626" style={{ marginRight: 8 }} />
+              <Text className="text-red-700 text-sm flex-1">{validationError}</Text>
+            </View>
+          ) : null}
           {(uploading || saving) ? (
             <View className="items-center py-4">
               <ActivityIndicator size="large" color="#1e3a8a" />
@@ -447,21 +506,47 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
             </View>
           ) : (
             <>
-              <TouchableOpacity
-                onPress={handleMarkCompleted}
-                className="bg-green-600 py-4 rounded-xl mb-3 flex-row items-center justify-center"
-              >
-                <Ionicons name="checkmark-circle" size={24} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-white text-lg font-bold">Completado</Text>
-              </TouchableOpacity>
+              {canAct ? (
+                <>
+                  <TouchableOpacity
+                    onPress={handleMarkCompleted}
+                    className="bg-green-600 py-4 rounded-xl mb-3 flex-row items-center justify-center"
+                  >
+                    <Ionicons name="checkmark-circle" size={24} color="white" style={{ marginRight: 8 }} />
+                    <Text className="text-white text-lg font-bold">Marcar como Completado</Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleReportProgress}
-                className="bg-amber-500 py-4 rounded-xl mb-3 flex-row items-center justify-center"
-              >
-                <Ionicons name="construct" size={24} color="white" style={{ marginRight: 8 }} />
-                <Text className="text-white text-lg font-bold">Reportar progreso</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleReportProgress}
+                    className="bg-amber-500 py-4 rounded-xl mb-3 flex-row items-center justify-center"
+                  >
+                    <Ionicons name="construct" size={24} color="white" style={{ marginRight: 8 }} />
+                    <Text className="text-white text-lg font-bold">
+                      {isInProgress ? "Enviar reporte de avance" : "Iniciar trabajo"}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View className="items-center py-3 bg-gray-100 rounded-xl mb-3">
+                  <Ionicons name="checkmark-done-circle" size={32} color="#6b7280" />
+                  <Text className="text-gray-500 text-sm mt-2">
+                    {simpleWork.status === 'completed' ? 'Trabajo completado' : 'Trabajo cancelado'}
+                  </Text>
+                </View>
+              )}
+
+              {/* Always allow uploading photos even after completion */}
+              {localImages.length > 0 && (
+                <TouchableOpacity
+                  onPress={handleUploadOnly}
+                  className="bg-blue-600 py-4 rounded-xl mb-3 flex-row items-center justify-center"
+                >
+                  <Ionicons name="cloud-upload" size={24} color="white" style={{ marginRight: 8 }} />
+                  <Text className="text-white text-lg font-bold">
+                    Subir {localImages.length} foto{localImages.length !== 1 ? 's' : ''}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
         </View>

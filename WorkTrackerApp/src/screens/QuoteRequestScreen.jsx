@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   StyleSheet, Alert, ActivityIndicator, Image, Platform,
+  KeyboardAvoidingView, SafeAreaView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +31,10 @@ const URGENCIES = [
 const QuoteRequestScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { submitting } = useSelector((state) => state.quoteRequest);
+  const phoneRef = useRef(null);
+  const emailRef = useRef(null);
+  const addressRef = useRef(null);
+  const descriptionRef = useRef(null);
 
   const [form, setForm] = useState({
     clientName: '',
@@ -130,7 +135,18 @@ const QuoteRequestScreen = ({ navigation }) => {
   const isLoading = submitting || uploadingPhotos;
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+    <SafeAreaView style={styles.safeArea}>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}>
         <Ionicons name="clipboard-outline" size={28} color="#1e3a8a" />
         <Text style={styles.headerTitle}>Nueva Solicitud de Cotización</Text>
@@ -149,35 +165,51 @@ const QuoteRequestScreen = ({ navigation }) => {
           placeholder="Nombre completo del cliente"
           value={form.clientName}
           onChangeText={v => update('clientName', v)}
+          returnKeyType="next"
+          onSubmitEditing={() => phoneRef.current?.focus()}
+          blurOnSubmit={false}
+          autoCapitalize="words"
         />
 
         <Text style={styles.label}>Teléfono</Text>
         <TextInput
+          ref={phoneRef}
           style={styles.input}
           placeholder="(305) 000-0000"
           keyboardType="phone-pad"
           value={form.clientPhone}
           onChangeText={v => update('clientPhone', v)}
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <Text style={styles.label}>Email</Text>
         <TextInput
+          ref={emailRef}
           style={styles.input}
           placeholder="correo@ejemplo.com"
           keyboardType="email-address"
           autoCapitalize="none"
           value={form.clientEmail}
           onChangeText={v => update('clientEmail', v)}
+          returnKeyType="next"
+          onSubmitEditing={() => addressRef.current?.focus()}
+          blurOnSubmit={false}
         />
 
         <Text style={styles.label}>Dirección / Ubicación</Text>
         <TextInput
+          ref={addressRef}
           style={[styles.input, styles.textArea]}
           placeholder="Dirección o descripción de la ubicación"
           multiline
           numberOfLines={2}
           value={form.clientAddress}
           onChangeText={v => update('clientAddress', v)}
+          returnKeyType="next"
+          blurOnSubmit={true}
+          textAlignVertical="top"
         />
       </View>
 
@@ -224,12 +256,16 @@ const QuoteRequestScreen = ({ navigation }) => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Descripción del Problema</Text>
         <TextInput
+          ref={descriptionRef}
           style={[styles.input, styles.descriptionArea]}
           placeholder="Describí el problema o servicio que necesita el cliente..."
           multiline
           numberOfLines={4}
           value={form.description}
           onChangeText={v => update('description', v)}
+          textAlignVertical="top"
+          returnKeyType="done"
+          blurOnSubmit={true}
         />
       </View>
 
@@ -279,15 +315,27 @@ const QuoteRequestScreen = ({ navigation }) => {
         )}
       </TouchableOpacity>
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: Platform.OS === 'ios' ? 32 : 24 }} />
     </ScrollView>
+    </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  flex: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     flexDirection: 'row',
