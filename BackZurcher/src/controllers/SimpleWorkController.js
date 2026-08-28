@@ -506,7 +506,7 @@ const SimpleWorkController = {
         'assignedDate', 'startDate', 'completedDate', 'notes', 'attachments',
         'discountPercentage', 'initialPaymentPercentage', 'paymentMethod',
         'totalPaid', 'termsAndConditions', 'linkedWorkId',
-        'descriptionTitle', 'notesTitle', 'termsTitle'
+        'descriptionTitle', 'notesTitle', 'termsTitle', 'resolution'
       ];
 
       allowedFields.forEach(field => {

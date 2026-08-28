@@ -285,12 +285,14 @@ const StaffAttendance = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {monthlyData.staffSummaries.map((summary, index) => (
-                  <tr key={summary.staff.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <tr key={summary.isExternal ? `ext-${summary.customName}` : summary.staff?.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {summary.staff.name}
+                      {summary.staff?.name || summary.customName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {summary.staff.role}
+                      {summary.isExternal ? (
+                        <span className="px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 text-xs font-medium">Externo</span>
+                      ) : summary.staff?.role}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
                       {summary.workingDays}
@@ -364,10 +366,10 @@ const StaffAttendance = () => {
                         }`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          openMarkingModal(date, attendance.staff);
+                          openMarkingModal(date, attendance.staff || null);
                         }}
                       >
-                        {attendance.staff.name}
+                        {attendance.staff?.name || attendance.customName || 'Externo'}
                       </div>
                     ))}
                     {attendances.length > 3 && (

@@ -29,21 +29,24 @@ class StaffAttendanceController {
         include: [{
           model: Staff,
           as: 'Staff',
-          attributes: ['id', 'name', 'role']  // Cambiar lastName por role
+          attributes: ['id', 'name', 'role'],
+          required: false  // LEFT JOIN: incluye registros de trabajadores externos (staffId null)
         }, {
           model: Staff,
           as: 'CreatedByStaff',
-          attributes: ['id', 'name']  // Quitar lastName
+          attributes: ['id', 'name'],
+          required: false
         }],
-        order: [['workDate', 'ASC'], [{ model: Staff, as: 'Staff' }, 'name', 'ASC']]
+        order: [['workDate', 'ASC']]
       });
 
-      // Obtener stats del mes
+      // Obtener stats del mes (solo staff del sistema, no externos)
       const monthlyStats = await StaffAttendance.findAll({
         where: {
           workDate: {
             [Op.between]: [startDate, endDate]
-          }
+          },
+          staffId: { [Op.not]: null }
         },
         attributes: [
           'staffId',
@@ -71,25 +74,28 @@ class StaffAttendanceController {
         
         dayData[date].push({
           id: att.id,
-          staff: {
+          staff: att.Staff ? {
             id: att.Staff.id,
             name: att.Staff.name,
-            role: att.Staff.role  // Cambiar lastName por role
-          },
+            role: att.Staff.role,
+          } : null,
+          customName: att.customName || null,
           isPresent: att.isPresent,
           notes: att.notes,
           createdBy: att.CreatedByStaff ? {
             id: att.CreatedByStaff.id,
-            name: att.CreatedByStaff.name  // Quitar lastName
+            name: att.CreatedByStaff.name,
           } : null,
           createdAt: att.createdAt
         });
-        
-        staffSet.add(JSON.stringify({
-          id: att.Staff.id,
-          name: att.Staff.name,
-          role: att.Staff.role
-        }));
+
+        if (att.Staff) {
+          staffSet.add(JSON.stringify({
+            id: att.Staff.id,
+            name: att.Staff.name,
+            role: att.Staff.role,
+          }));
+        }
       });
 
       // 🆕 Obtener instalaciones del mes para agregar al resumen
@@ -229,6 +235,35 @@ class StaffAttendanceController {
         }
       }
 
+      // Stats de trabajadores externos (sin staffId, solo customName)
+      const externalStats = await StaffAttendance.findAll({
+        where: {
+          workDate: { [Op.between]: [startDate, endDate] },
+          staffId: null,
+          customName: { [Op.not]: null },
+        },
+        attributes: [
+          'customName',
+          [fn('COUNT', col('StaffAttendance.id')), 'totalDays'],
+          [fn('SUM', literal('CASE WHEN "isPresent" = true THEN 1 ELSE 0 END')), 'workingDays'],
+          [fn('SUM', literal('CASE WHEN "isPresent" = false THEN 1 ELSE 0 END')), 'absentDays'],
+        ],
+        group: ['customName'],
+      });
+
+      externalStats.forEach(stat => {
+        staffSummaries.push({
+          staff: null,
+          customName: stat.customName,
+          isExternal: true,
+          totalDays: parseInt(stat.get('totalDays')),
+          workingDays: parseInt(stat.get('workingDays')),
+          absentDays: parseInt(stat.get('absentDays')),
+          installations: 0,
+          maintenances: 0,
+        });
+      });
+
       const uniqueStaff = Array.from(staffSet).map(s => JSON.parse(s));
 
       res.json({
@@ -258,13 +293,13 @@ class StaffAttendanceController {
   // Marcar/editar asistencia para un día específico
   async markAttendance(req, res) {
     try {
-      const { staffId, workDate, isPresent, notes } = req.body;
+      const { staffId, customName, workDate, isPresent, notes } = req.body;
       const createdBy = req.user?.id || req.body.createdBy;
 
-      if (!staffId || !workDate || typeof isPresent !== 'boolean') {
+      if ((!staffId && !customName) || !workDate || typeof isPresent !== 'boolean') {
         return res.status(400).json({
           success: false,
-          message: 'staffId, workDate e isPresent son requeridos'
+          message: 'staffId o customName, workDate e isPresent son requeridos'
         });
       }
 
@@ -275,28 +310,22 @@ class StaffAttendanceController {
         });
       }
 
-      // Verificar si ya existe un registro para este staff en esta fecha
-      const existingRecord = await StaffAttendance.findOne({
-        where: {
-          staffId,
-          workDate
-        }
-      });
+      // Buscar registro existente: por staffId o por customName (externos)
+      const whereClause = staffId
+        ? { staffId, workDate }
+        : { customName: customName.trim(), workDate, staffId: null };
+
+      const existingRecord = await StaffAttendance.findOne({ where: whereClause });
 
       let attendance;
-      
+
       if (existingRecord) {
-        // Actualizar registro existente
-        await existingRecord.update({
-          isPresent,
-          notes,
-          updatedAt: new Date()
-        });
+        await existingRecord.update({ isPresent, notes, updatedAt: new Date() });
         attendance = existingRecord;
       } else {
-        // Crear nuevo registro
         attendance = await StaffAttendance.create({
-          staffId,
+          staffId: staffId || null,
+          customName: customName ? customName.trim() : null,
           workDate,
           isPresent,
           notes,
@@ -304,22 +333,33 @@ class StaffAttendanceController {
         });
       }
 
-      // Devolver con datos del staff incluidos
+      // Devolver con datos del staff incluidos (LEFT JOIN para externos)
       const attendanceWithStaff = await StaffAttendance.findByPk(attendance.id, {
         include: [{
           model: Staff,
           as: 'Staff',
-          attributes: ['id', 'name', 'role']
+          attributes: ['id', 'name', 'role'],
+          required: false
         }, {
           model: Staff,
           as: 'CreatedByStaff',
-          attributes: ['id', 'name']
+          attributes: ['id', 'name'],
+          required: false
         }]
       });
 
       res.json({
         success: true,
-        data: attendanceWithStaff,
+        data: {
+          id: attendanceWithStaff.id,
+          staffId: attendanceWithStaff.staffId,
+          customName: attendanceWithStaff.customName,
+          workDate: attendanceWithStaff.workDate,
+          isPresent: attendanceWithStaff.isPresent,
+          notes: attendanceWithStaff.notes,
+          staff: attendanceWithStaff.Staff || null,
+          createdBy: attendanceWithStaff.CreatedByStaff || null,
+        },
         message: existingRecord ? 'Asistencia actualizada' : 'Asistencia registrada'
       });
 

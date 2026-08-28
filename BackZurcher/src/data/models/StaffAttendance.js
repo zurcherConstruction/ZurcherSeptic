@@ -9,13 +9,18 @@ module.exports = (sequelize) => {
     },
     staffId: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'Staffs',
         key: 'id'
       },
       onDelete: 'CASCADE',
       onUpdate: 'CASCADE'
+    },
+    customName: {
+      type: DataTypes.STRING(200),
+      allowNull: true,
+   
     },
     workDate: {
       type: DataTypes.DATEONLY, // Solo fecha YYYY-MM-DD, sin timezone issues

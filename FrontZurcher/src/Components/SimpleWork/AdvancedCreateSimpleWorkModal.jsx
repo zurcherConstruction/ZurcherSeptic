@@ -23,7 +23,7 @@ const AdvancedCreateSimpleWorkModal = ({
   
   // Redux state
   const { items: budgetItemsCatalog, loading: itemsLoading } = useSelector(state => state.budgetItems);
-  const { clientWorks } = useSelector(state => state.simpleWork);
+  const { clientWorks, simpleWorks } = useSelector(state => state.simpleWork);
   const { staff } = useSelector(state => state.auth);
 
   // Form state
@@ -168,6 +168,10 @@ const AdvancedCreateSimpleWorkModal = ({
   const [workSearchQuery, setWorkSearchQuery] = useState('');
   const [selectedLinkedWork, setSelectedLinkedWork] = useState(null);
 
+  // Client name autocomplete state
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const [nameFilter, setNameFilter] = useState('');
+
   // UI state
   const [errors, setErrors] = useState({});
 
@@ -187,6 +191,27 @@ const AdvancedCreateSimpleWorkModal = ({
       dispatch(fetchClientWorks()); // ⚡ Sin parámetros = cargar todos
     }
   }, [isOpen, showWorkSearch, dispatch]); // ⚡ Removido clientWorks de las dependencias para evitar loop
+
+  // Unique clients from existing SimpleWorks for name autocomplete
+  const existingClients = useMemo(() => {
+    const seen = new Set();
+    const clients = [];
+    (simpleWorks || []).forEach(sw => {
+      const cd = sw.clientData || {};
+      const name = `${cd.firstName || ''} ${cd.lastName || ''}`.trim() || cd.name || '';
+      if (name && !seen.has(name.toLowerCase())) {
+        seen.add(name.toLowerCase());
+        clients.push({ name, email: cd.email || '', phone: cd.phone || '' });
+      }
+    });
+    return clients.sort((a, b) => a.name.localeCompare(b.name));
+  }, [simpleWorks]);
+
+  const filteredNameSuggestions = useMemo(() => {
+    if (!nameFilter || nameFilter.length < 2) return [];
+    const q = nameFilter.toLowerCase();
+    return existingClients.filter(c => c.name.toLowerCase().includes(q)).slice(0, 6);
+  }, [nameFilter, existingClients]);
 
   // ⚡ Filtrado local de Works (como ProgressTracker - instantáneo)
   const filteredClientWorks = useMemo(() => {
@@ -215,10 +240,14 @@ const AdvancedCreateSimpleWorkModal = ({
   useEffect(() => {
     if (editingWork) {
       const clientData = editingWork.clientData || {};
+      // Name can be stored as firstName+lastName, or as a combined "name"/"clientName" field
+      const fullName = clientData.name || clientData.clientName || '';
+      const derivedFirst = fullName.split(' ')[0] || '';
+      const derivedLast = fullName.split(' ').slice(1).join(' ') || '';
       setFormData({
         workType: editingWork.workType || '',
-        firstName: clientData.firstName || '',
-        lastName: clientData.lastName || '',
+        firstName: clientData.firstName || derivedFirst,
+        lastName: clientData.lastName || derivedLast,
         email: clientData.email || '',
         phone: clientData.phone || '',
         address: clientData.address || editingWork.propertyAddress || '',
@@ -570,10 +599,16 @@ const AdvancedCreateSimpleWorkModal = ({
               <option value="">-- Seleccione tipo de trabajo --</option>
               <option value="culvert">Culvert</option>
               <option value="drainfield">Drainfield</option>
-              <option value="inspection">Inspection</option>
-              <option value="repair">Repair</option>
-              <option value="maintenance">Maintenance</option>
-              <option value="other">Other</option>
+              <option value="repair">Reparación</option>
+              <option value="abandonment">Abandono</option>
+              <option value="modification">Modificación</option>
+              <option value="pumping">Desagote</option>
+              <option value="replacement">Reemplazo</option>
+              <option value="plumbing">Plomería</option>
+              <option value="inspection">Inspección</option>
+              <option value="installation">Instalación</option>
+              <option value="maintenance">Mantenimiento</option>
+              <option value="other">Otro</option>
             </select>
             {errors.workType && (
               <p className="text-red-500 text-xs mt-1">{errors.workType}</p>
@@ -676,26 +711,57 @@ const AdvancedCreateSimpleWorkModal = ({
             <h3 className="font-medium text-gray-700 mb-4">👤 CUSTOMER CLIENT</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Name *
                 </label>
                 <input
                   type="text"
                   placeholder="Cliente Name"
+                  autoComplete="off"
                   value={`${formData.firstName} ${formData.lastName}`.trim()}
                   onChange={(e) => {
-                    const names = e.target.value.split(' ');
-                    const firstName = names[0] || '';
-                    const lastName = names.slice(1).join(' ') || '';
-                    handleInputChange('firstName', firstName);
-                    handleInputChange('lastName', lastName);
+                    const val = e.target.value;
+                    setNameFilter(val);
+                    setShowNameSuggestions(true);
+                    const names = val.split(' ');
+                    handleInputChange('firstName', names[0] || '');
+                    handleInputChange('lastName', names.slice(1).join(' ') || '');
                   }}
+                  onFocus={() => {
+                    const current = `${formData.firstName} ${formData.lastName}`.trim();
+                    setNameFilter(current);
+                    setShowNameSuggestions(true);
+                  }}
+                  onBlur={() => setTimeout(() => setShowNameSuggestions(false), 150)}
                   className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     errors.firstName ? 'border-red-500' : 'border-gray-300'
                   }`}
                   required
                 />
+                {showNameSuggestions && filteredNameSuggestions.length > 0 && (
+                  <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-48 overflow-auto">
+                    {filteredNameSuggestions.map((client, i) => (
+                      <li
+                        key={i}
+                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-gray-100 last:border-0"
+                        onMouseDown={() => {
+                          const names = client.name.split(' ');
+                          handleInputChange('firstName', names[0] || '');
+                          handleInputChange('lastName', names.slice(1).join(' ') || '');
+                          if (client.email) handleInputChange('email', client.email);
+                          if (client.phone) handleInputChange('phone', client.phone);
+                          setShowNameSuggestions(false);
+                        }}
+                      >
+                        <span className="font-medium text-gray-800">{client.name}</span>
+                        {client.email && (
+                          <span className="text-gray-400 ml-2 text-xs">{client.email}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {errors.firstName && (
                   <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
                 )}

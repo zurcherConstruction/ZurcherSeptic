@@ -839,8 +839,9 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                     onClick={() => {
                       onClose();
                       navigate(
-                        detail.linkedEntityType === 'work'            ? `/work/${detail.linkedEntityId}`
-                        : detail.linkedEntityType === 'workCalendar'  ? '/workCalendar'
+                        detail.linkedEntityType === 'work'              ? `/work/${detail.linkedEntityId}`
+                        : detail.linkedEntityType === 'simpleWork'      ? `/simple-works/${detail.linkedEntityId}`
+                        : detail.linkedEntityType === 'workCalendar'    ? '/workCalendar'
                         : detail.linkedEntityType === 'supplierInvoice' ? '/supplier-invoices'
                         : '/budgets'
                       );
@@ -849,6 +850,8 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                   >
                     {detail.linkedEntityType === 'work'
                       ? <FaHardHat className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 flex-shrink-0" />
+                      : detail.linkedEntityType === 'simpleWork'
+                        ? <FaClipboardList className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 flex-shrink-0" />
                       : detail.linkedEntityType === 'workCalendar'
                         ? <FaCalendarAlt className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 flex-shrink-0" />
                       : <FaFileAlt className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 flex-shrink-0" />}

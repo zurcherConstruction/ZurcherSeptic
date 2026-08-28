@@ -21,6 +21,7 @@ import MyExpensesScreen from '../screens/MyExpensesScreen';
 import AssignedSimpleWorksScreen from '../screens/AssignedSimpleWorksScreen';
 import AssignedClaimsScreen from '../screens/AssignedClaimsScreen';
 import QuoteRequestScreen from '../screens/QuoteRequestScreen';
+import StaffAttendanceScreen from '../screens/StaffAttendanceScreen';
 import { logout } from '../Redux/features/authSlice';
 
 const Stack = createNativeStackNavigator();
@@ -63,11 +64,11 @@ const AppDrawerNavigator = () => {
 
   // ✅ VALIDACIÓN DE SEGURIDAD: Si el rol no es permitido, cerrar sesión
   useEffect(() => {
-    const allowedRoles = ['worker', 'maintenance', 'capataz', 'contractor'];
+    const allowedRoles = ['worker', 'maintenance', 'capataz', 'contractor', 'owner'];
     if (staff && !allowedRoles.includes(staff.role)) {
       Alert.alert(
         'Acceso No Permitido',
-        'Esta aplicación es solo para trabajadores, contratistas y personal de mantenimiento. Use la versión web para su rol.',
+        'Esta aplicación es solo para trabajadores, contratistas, personal de mantenimiento y dueños. Use la versión web para su rol.',
         [
           {
             text: 'Entendido',
@@ -80,7 +81,12 @@ const AppDrawerNavigator = () => {
 
   if (!staff) return null; // esperar hasta que Redux tenga el staff completo
 
-  const initialRoute = staff.role === 'contractor' ? 'QuoteRequest' : 'WorkZoneMap';
+  const initialRoute =
+    staff.role === 'contractor'
+      ? 'QuoteRequest'
+      : staff.role === 'owner'
+      ? 'StaffAttendance'
+      : 'WorkZoneMap';
 
   return (
     <Drawer.Navigator
@@ -340,6 +346,17 @@ const AppDrawerNavigator = () => {
       {staff?.role === 'capataz' && (
         <>
           <Drawer.Screen
+            name="StaffAttendance"
+            component={StaffAttendanceScreen}
+            options={{
+              title: 'Asistencia del Personal',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="people-outline" color={color} size={size} />
+              ),
+            }}
+          />
+
+          <Drawer.Screen
             name="MyAssignedWorks"
             options={{
               title: 'Todos los Trabajos',
@@ -437,6 +454,22 @@ const AppDrawerNavigator = () => {
               title: 'Solicitar Cotización',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="document-text-outline" color={color} size={size} />
+              ),
+            }}
+          />
+        </>
+      )}
+
+      {/* --- Owner (acceso móvil limitado: control de asistencia de campo) --- */}
+      {staff?.role === 'owner' && (
+        <>
+          <Drawer.Screen
+            name="StaffAttendance"
+            component={StaffAttendanceScreen}
+            options={{
+              title: 'Asistencia del Personal',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="people-outline" color={color} size={size} />
               ),
             }}
           />

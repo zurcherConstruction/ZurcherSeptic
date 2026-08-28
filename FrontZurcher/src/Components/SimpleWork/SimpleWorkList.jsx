@@ -61,16 +61,23 @@ const STATUS_CONFIG = {
 };
 
 const TYPE_CONFIG = {
-  culvert:       { label: 'Culvert',          color: 'text-blue-700 bg-blue-50' },
-  drainfield:    { label: 'Drainfield',       color: 'text-teal-700 bg-teal-50' },
-  concrete_work: { label: 'Concreto',         color: 'text-gray-700 bg-gray-100' },
-  excavation:    { label: 'Excavación',       color: 'text-amber-700 bg-amber-50' },
-  plumbing:      { label: 'Plomería',         color: 'text-cyan-700 bg-cyan-50' },
-  electrical:    { label: 'Eléctrico',        color: 'text-yellow-700 bg-yellow-50' },
-  landscaping:   { label: 'Paisajismo',       color: 'text-green-700 bg-green-50' },
-  repair:        { label: 'Reparación',       color: 'text-orange-700 bg-orange-50' },
-  maintenance:   { label: 'Mantenimiento',    color: 'text-purple-700 bg-purple-50' },
-  other:         { label: 'Otro',             color: 'text-gray-600 bg-gray-50' },
+  culvert:      { label: 'Culvert',        color: 'text-blue-700 bg-blue-50' },
+  drainfield:   { label: 'Drainfield',     color: 'text-teal-700 bg-teal-50' },
+  repair:       { label: 'Reparación',     color: 'text-orange-700 bg-orange-50' },
+  abandonment:  { label: 'Abandono',       color: 'text-gray-700 bg-gray-200' },
+  modification: { label: 'Modificación',   color: 'text-indigo-700 bg-indigo-50' },
+  pumping:      { label: 'Desagote',       color: 'text-cyan-700 bg-cyan-50' },
+  replacement:  { label: 'Reemplazo',      color: 'text-amber-700 bg-amber-50' },
+  plumbing:     { label: 'Plomería',       color: 'text-blue-600 bg-blue-50' },
+  inspection:   { label: 'Inspección',     color: 'text-yellow-700 bg-yellow-50' },
+  installation: { label: 'Instalación',    color: 'text-lime-700 bg-lime-50' },
+  maintenance:  { label: 'Mantenimiento',  color: 'text-purple-700 bg-purple-50' },
+  other:        { label: 'Otro',           color: 'text-gray-600 bg-gray-50' },
+  // Legacy values — kept so old records still display a label
+  concrete_work: { label: 'Concreto',      color: 'text-stone-700 bg-stone-100' },
+  excavation:    { label: 'Excavación',    color: 'text-orange-600 bg-orange-50' },
+  electrical:    { label: 'Eléctrico',     color: 'text-yellow-600 bg-yellow-50' },
+  landscaping:   { label: 'Paisajismo',    color: 'text-green-700 bg-green-50' },
 };
 
 const PAYMENT_STATUS = (work) => {

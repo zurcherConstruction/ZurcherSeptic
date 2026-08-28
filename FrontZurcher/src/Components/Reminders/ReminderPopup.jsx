@@ -172,21 +172,33 @@ export default function ReminderPopup() {
                       <button
                         onClick={() => {
                           handleDismiss();
-                          navigate(r.linkedEntityType === 'work' ? `/work/${r.linkedEntityId}` : '/budgets');
+                          if (r.linkedEntityType === 'work') navigate(`/work/${r.linkedEntityId}`);
+                          else if (r.linkedEntityType === 'simpleWork') navigate(`/simple-works/${r.linkedEntityId}`);
+                          else navigate('/budgets');
                         }}
-                        title={`Ir al ${r.linkedEntityType === 'work' ? 'trabajo' : 'presupuesto'}`}
+                        title={
+                          r.linkedEntityType === 'work' ? 'Ir al trabajo'
+                          : r.linkedEntityType === 'simpleWork' ? 'Ir al trabajo simple'
+                          : 'Ir al presupuesto'
+                        }
                         className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${
                           r.linkedEntityType === 'work'
                             ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                            : r.linkedEntityType === 'simpleWork'
+                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
                             : 'bg-sky-100 text-sky-700 hover:bg-sky-200'
                         }`}
                       >
                         {r.linkedEntityType === 'work'
                           ? <FaHardHat className="w-3 h-3" />
+                          : r.linkedEntityType === 'simpleWork'
+                          ? <FaClipboardList className="w-3 h-3" />
                           : <FaFileAlt className="w-3 h-3" />}
                         {r.linkedEntityLabel
                           ? r.linkedEntityLabel.length > 22 ? r.linkedEntityLabel.slice(0, 22) + '…' : r.linkedEntityLabel
-                          : (r.linkedEntityType === 'work' ? 'Ver trabajo' : 'Ver presupuesto')}
+                          : r.linkedEntityType === 'work' ? 'Ver trabajo'
+                          : r.linkedEntityType === 'simpleWork' ? 'Ver trabajo simple'
+                          : 'Ver presupuesto'}
                         <FaExternalLinkAlt className="w-2.5 h-2.5" />
                       </button>
                     )}

@@ -367,6 +367,13 @@ const CreateSimpleWorkModal = ({ isOpen, onClose, editingWork = null }) => {
                   <option value="culvert">Culvert</option>
                   <option value="drainfield">Drainfield</option>
                   <option value="repair">Reparación</option>
+                  <option value="abandonment">Abandono</option>
+                  <option value="modification">Modificación</option>
+                  <option value="pumping">Desagote</option>
+                  <option value="replacement">Reemplazo</option>
+                  <option value="plumbing">Plomería</option>
+                  <option value="inspection">Inspección</option>
+                  <option value="installation">Instalación</option>
                   <option value="maintenance">Mantenimiento</option>
                   <option value="other">Otro</option>
                 </select>

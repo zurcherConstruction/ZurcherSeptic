@@ -20,16 +20,24 @@ module.exports = (sequelize) => {
     
     workType: {
       type: DataTypes.ENUM(
-        'culvert', 
-        'drainfield', 
-        'concrete_work', 
-        'excavation', 
-        'plumbing', 
-        'electrical',
-        'landscaping',
+        // Core septic / field work types
+        'culvert',
+        'drainfield',
         'repair',
+        'abandonment',
+        'modification',
+        'pumping',
+        'replacement',
+        'plumbing',
+        'inspection',
+        'installation',
         'maintenance',
-        'other'
+        'other',
+        // Legacy values — kept for backward compatibility with existing records
+        'concrete_work',
+        'excavation',
+        'electrical',
+        'landscaping'
       ),
       allowNull: false
     },
@@ -252,14 +260,23 @@ module.exports = (sequelize) => {
           // Método para obtener texto de tipo de trabajo
           instance.getWorkTypeDisplay = function() {
             const typeMap = {
-              culvert: 'Alcantarilla',
-              drainfield: 'Campo de Drenaje',
+              culvert: 'Culvert',
+              drainfield: 'Drainfield',
+              repair: 'Reparación',
+              abandonment: 'Abandono',
+              modification: 'Modificación',
+              pumping: 'Desagote',
+              replacement: 'Reemplazo',
+              plumbing: 'Plomería',
+              inspection: 'Inspección',
+              installation: 'Instalación',
+              maintenance: 'Mantenimiento',
+              other: 'Otro',
+              // Legacy
               concrete_work: 'Trabajo en Concreto',
               excavation: 'Excavación',
-              plumbing: 'Plomería',
               electrical: 'Eléctrico',
               landscaping: 'Jardinería',
-              other: 'Otro'
             };
             return typeMap[this.workType] || this.workType;
           };

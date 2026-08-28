@@ -14,6 +14,7 @@ import SimpleWorkDetailScreen from './SimpleWorkDetailScreen';
 const Stack = createNativeStackNavigator();
 
 const STATUS_LABELS = {
+  pending: "Pendiente",
   quoted: "Cotizado",
   sent: "Enviado",
   approved: "Aprobado",
@@ -25,17 +26,27 @@ const STATUS_LABELS = {
 };
 
 const WORK_TYPE_LABELS = {
-  culvert: "Culvert",
-  drainfield: "Drainfield",
+  culvert:      "Culvert",
+  drainfield:   "Drainfield",
+  repair:       "Reparación",
+  abandonment:  "Abandono",
+  modification: "Modificación",
+  pumping:      "Desagote",
+  replacement:  "Reemplazo",
+  plumbing:     "Plomería",
+  inspection:   "Inspección",
+  installation: "Instalación",
+  maintenance:  "Mantenimiento",
+  other:        "Otro",
+  // Legacy
   concrete_work: "Concreto",
-  excavation: "Excavación",
-  plumbing: "Plomería",
-  electrical: "Eléctrico",
-  landscaping: "Paisajismo",
-  other: "Otro",
+  excavation:    "Excavación",
+  electrical:    "Eléctrico",
+  landscaping:   "Paisajismo",
 };
 
 const STATUS_COLORS = {
+  pending: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
   quoted: { bg: 'bg-gray-200', text: 'text-gray-700' },
   sent: { bg: 'bg-blue-200', text: 'text-blue-700' },
   approved: { bg: 'bg-green-200', text: 'text-green-700' },
@@ -47,14 +58,23 @@ const STATUS_COLORS = {
 };
 
 const PRIORITY_TYPE_COLORS = {
-  culvert: 'bg-cyan-100',
-  drainfield: 'bg-lime-100',
+  culvert:      'bg-blue-100',
+  drainfield:   'bg-teal-100',
+  repair:       'bg-orange-100',
+  abandonment:  'bg-gray-200',
+  modification: 'bg-indigo-100',
+  pumping:      'bg-cyan-100',
+  replacement:  'bg-amber-100',
+  plumbing:     'bg-blue-100',
+  inspection:   'bg-yellow-100',
+  installation: 'bg-lime-100',
+  maintenance:  'bg-purple-100',
+  other:        'bg-gray-100',
+  // Legacy
   concrete_work: 'bg-stone-200',
-  excavation: 'bg-orange-100',
-  plumbing: 'bg-blue-100',
-  electrical: 'bg-yellow-100',
-  landscaping: 'bg-green-100',
-  other: 'bg-gray-100',
+  excavation:    'bg-orange-100',
+  electrical:    'bg-yellow-100',
+  landscaping:   'bg-green-100',
 };
 
 const openInMaps = (address) => {
@@ -88,9 +108,8 @@ const SimpleWorksListScreen = ({ navigation }) => {
   const filteredSimpleWorks = useMemo(() => {
     if (!simpleWorks) return [];
 
-    // Filter out completed/cancelled/paid for main view
-    const activeStatuses = ['quoted', 'sent', 'approved', 'in_progress'];
-    let filtered = simpleWorks.filter(sw => activeStatuses.includes(sw.status));
+    // Show only active works — hide completed/paid/invoiced/cancelled
+    let filtered = simpleWorks.filter(sw => !['completed', 'paid', 'invoiced', 'cancelled'].includes(sw.status));
 
     if (searchQuery) {
       const lowerQuery = searchQuery.toLowerCase();
@@ -101,13 +120,12 @@ const SimpleWorksListScreen = ({ navigation }) => {
       );
     }
 
-    // Sort: in_progress first, then by date
+    const statusOrder = { in_progress: 0, approved: 1, pending: 2, quoted: 3, sent: 4, invoiced: 5, completed: 6, paid: 7 };
     filtered.sort((a, b) => {
-      if (a.status === 'in_progress' && b.status !== 'in_progress') return -1;
-      if (a.status !== 'in_progress' && b.status === 'in_progress') return 1;
-      const dateA = new Date(a.assignedDate || a.createdAt || 0);
-      const dateB = new Date(b.assignedDate || b.createdAt || 0);
-      return dateB - dateA;
+      const orderA = statusOrder[a.status] ?? 8;
+      const orderB = statusOrder[b.status] ?? 8;
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(b.assignedDate || b.createdAt || 0) - new Date(a.assignedDate || a.createdAt || 0);
     });
 
     return filtered;
@@ -162,7 +180,7 @@ const SimpleWorksListScreen = ({ navigation }) => {
       )}
       <View className="flex-row justify-between mt-2">
         <Text className="text-sm text-gray-600">
-          {filteredSimpleWorks.length} trabajo{filteredSimpleWorks.length !== 1 ? 's' : ''} activo{filteredSimpleWorks.length !== 1 ? 's' : ''}
+          {filteredSimpleWorks.length} trabajo{filteredSimpleWorks.length !== 1 ? 's' : ''} asignado{filteredSimpleWorks.length !== 1 ? 's' : ''}
         </Text>
       </View>
     </View>
@@ -185,12 +203,15 @@ const SimpleWorksListScreen = ({ navigation }) => {
   }
 
   const renderItem = ({ item }) => {
-    const statusStyle = STATUS_COLORS[item.status] || STATUS_COLORS.quoted;
+    // Map invoiced/paid → show as "approved" to employee (payment is admin detail)
+    const displayStatus = ['paid', 'invoiced'].includes(item.status) ? 'approved' : item.status;
+    const statusStyle = STATUS_COLORS[displayStatus] || STATUS_COLORS.quoted;
     const typeColor = PRIORITY_TYPE_COLORS[item.workType] || 'bg-gray-100';
 
     return (
       <TouchableOpacity
         onPress={() => {
+          if (!item?.id) return;
           navigation.navigate('SimpleWorkDetail', { simpleWork: item });
         }}
         className={`mb-3 p-4 rounded-xl shadow-sm mx-3 mt-1 bg-white border-l-4 ${
@@ -231,7 +252,7 @@ const SimpleWorksListScreen = ({ navigation }) => {
         <View className="flex-row items-center justify-between">
           <View className={`px-3 py-1 rounded-md ${statusStyle.bg}`}>
             <Text className={`text-xs font-bold uppercase ${statusStyle.text}`}>
-              {STATUS_LABELS[item.status] || item.status}
+              {STATUS_LABELS[displayStatus] || displayStatus}
             </Text>
           </View>
 
@@ -254,7 +275,7 @@ const SimpleWorksListScreen = ({ navigation }) => {
       {renderHeader()}
       <FlatList
         data={filteredSimpleWorks}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item?.id?.toString() || String(Math.random())}
         renderItem={renderItem}
         contentContainerStyle={{ paddingBottom: 20, paddingTop: 8 }}
         refreshControl={
