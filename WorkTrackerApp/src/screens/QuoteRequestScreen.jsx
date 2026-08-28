@@ -11,14 +11,18 @@ import { createQuoteRequest, uploadQuotePhotos } from '../Redux/Actions/quoteReq
 import { resetState } from '../Redux/features/quoteRequestSlice';
 
 const WORK_TYPES = [
-  { value: 'desagote',    label: 'Desagote' },
-  { value: 'reparacion',  label: 'Reparación' },
-  { value: 'instalacion', label: 'Instalación' },
-  { value: 'plomeria',    label: 'Plomería' },
-  { value: 'inspeccion',  label: 'Inspección' },
-  { value: 'culvert',     label: 'Culvert' },
-  { value: 'drainfield',  label: 'Drainfield' },
-  { value: 'otro',        label: 'Otro' },
+  { value: 'pumping',      label: 'Desagote' },
+  { value: 'repair',       label: 'Reparación' },
+  { value: 'abandonment',  label: 'Abandono' },
+  { value: 'modification', label: 'Modificación' },
+  { value: 'replacement',  label: 'Reemplazo' },
+  { value: 'installation', label: 'Instalación' },
+  { value: 'plumbing',     label: 'Plomería' },
+  { value: 'inspection',   label: 'Inspección' },
+  { value: 'maintenance',  label: 'Mantenimiento' },
+  { value: 'culvert',      label: 'Culvert' },
+  { value: 'drainfield',   label: 'Drainfield' },
+  { value: 'other',        label: 'Otro' },
 ];
 
 const URGENCIES = [
