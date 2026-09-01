@@ -97,7 +97,12 @@ const SimpleWorkItemsTab = ({ work }) => {
                 {itemsByCategory[category].map((item, idx) => (
                   <tr key={item.id || idx} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      <div>{item.description}</div>
+                      <div className="flex items-center gap-2">
+                        <span>{item.description}</span>
+                        {item.showPrice === false && (
+                          <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-400 rounded border border-gray-200" title="Precio oculto en PDF">sin $</span>
+                        )}
+                      </div>
                       {item.notes && (
                         <div className="text-xs text-gray-500 mt-1">{item.notes}</div>
                       )}

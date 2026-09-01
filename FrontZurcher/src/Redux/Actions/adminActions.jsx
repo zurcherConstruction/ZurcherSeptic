@@ -12,6 +12,7 @@ import {
   updateStaffFailure,
   deactivateStaffRequest,
   deactivateStaffSuccess,
+  activateStaffSuccess,
   deactivateStaffFailure,
   deleteStaffSuccess
 } from '../Reducer/adminReducer';
@@ -92,13 +93,14 @@ export const deactivateOrDeleteStaff = (id, action) => async (dispatch) => {
   dispatch(deactivateStaffRequest());
   try {
     if (action === "delete") {
-      // Usar DELETE para eliminar
       await api.delete(`/admin/staff/${id}`);
-      dispatch(deleteStaffSuccess(id)); // Despachar acción específica para eliminar
+      dispatch(deleteStaffSuccess(id));
     } else if (action === "deactivate") {
-      // Usar POST para desactivar
       await api.post(`/admin/staff/${id}/deactivate`, { action });
-      dispatch(deactivateStaffSuccess(id)); // Actualizar el estado global para desactivación
+      dispatch(deactivateStaffSuccess(id));
+    } else if (action === "activate") {
+      await api.post(`/admin/staff/${id}/deactivate`, { action });
+      dispatch(activateStaffSuccess(id));
     }
   } catch (error) {
     const errorMessage =

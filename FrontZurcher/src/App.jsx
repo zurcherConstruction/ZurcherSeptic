@@ -97,6 +97,7 @@ import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetai
 import WorkerGeneralExpense from "./Components/Workers/WorkerGeneralExpense";
 import SimpleWorkList from "./Components/SimpleWork/SimpleWorkList";
 import SimpleWorkDetail from "./Components/SimpleWork/SimpleWorkDetail";
+import SimpleWorkTracker from "./Components/SimpleWork/SimpleWorkTracker";
 import ClaimList from "./Components/Claims/ClaimList";
 import GalleryManager from "./Components/Admin/GalleryManager";
 import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboard";
@@ -118,6 +119,8 @@ import AIAssistant from './Components/AIAssistant'; // 🆕 Asistente de IA
 import CustomInvoiceList from './Components/CustomInvoices/CustomInvoiceList'; // 🆕 Custom Invoices
 import CustomInvoiceBuilder from './Components/CustomInvoices/CustomInvoiceBuilder'; // 🆕 Custom Invoice Builder
 import CustomInvoicePublicView from './Components/CustomInvoices/CustomInvoicePublicView'; // 🆕 Public invoice view
+import MaintenanceReschedulePage from './Components/Maintenance/MaintenanceReschedulePage'; // 🆕 Página pública reprogramar mantenimiento
+import { MaintenanceConfirmPage, MaintenanceRejectPage } from './Components/Maintenance/MaintenanceResponsePage'; // 🆕 Confirmación/rechazo de visita
 
 function App() {
   const dispatch = useDispatch();
@@ -160,7 +163,9 @@ function App() {
       location.pathname === route || 
       location.pathname.startsWith("/reset-password") ||
       location.pathname.startsWith("/client-portal/") ||
-      location.pathname.startsWith("/simple-work-approve/")
+      location.pathname.startsWith("/simple-work-approve/") ||
+      location.pathname.startsWith("/maintenance-confirm/") ||
+      location.pathname.startsWith("/maintenance-reject/")
     );
 
     // No redirigir automáticamente desde la landing principal
@@ -184,7 +189,8 @@ function App() {
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
   const isClientPortalRoute = location.pathname.startsWith("/client-portal/");
   const isInvoicePublicRoute = location.pathname.startsWith("/invoice/");
-  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute || isSimpleWorkApproveRoute || isInvoicePublicRoute;
+  const isMaintenanceResponseRoute = location.pathname.startsWith("/maintenance-confirm/") || location.pathname.startsWith("/maintenance-reject/") || location.pathname.startsWith("/maintenance-reschedule");
+  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute || isSimpleWorkApproveRoute || isInvoicePublicRoute || isMaintenanceResponseRoute;
 
   // Determinar si mostrar header y sidebar
   const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
@@ -230,6 +236,11 @@ function App() {
 
               {/* 🆕 Ruta pública para custom invoices (acceso por token) */}
               <Route path="/invoice/:token" element={<CustomInvoicePublicView />} />
+
+              {/* Rutas públicas de mantenimiento (respuesta cliente por email) */}
+              <Route path="/maintenance-reschedule" element={<MaintenanceReschedulePage />} />
+              <Route path="/maintenance-confirm/:token" element={<MaintenanceConfirmPage />} />
+              <Route path="/maintenance-reject/:token" element={<MaintenanceRejectPage />} />
 
               {/* Rutas privadas */}
               <Route
@@ -403,6 +414,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
                     <SimpleWorkList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/simple-works/tracker"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
+                    <SimpleWorkTracker />
                   </PrivateRoute>
                 }
               />

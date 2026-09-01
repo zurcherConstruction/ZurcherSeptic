@@ -326,6 +326,13 @@ const SimpleWorkList = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => navigate('/simple-works/tracker')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition shadow-sm"
+              title="Vista Kanban"
+            >
+              🗂️ Tracker View
+            </button>
+            <button
               onClick={() => dispatch(fetchSimpleWorks(FETCH_ALL))}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition shadow-sm"
               title="Actualizar"

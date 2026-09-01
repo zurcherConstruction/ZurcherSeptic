@@ -160,7 +160,13 @@ module.exports = (sequelize) => {
       defaultValue: 'TERMS & CONDITIONS',
       comment: 'Título personalizable para sección Términos en PDF'
     },
-    
+
+    customTerms: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Array estructurado de cláusulas T&C (desde TermsEditor). Si está presente, reemplaza termsAndConditions en el PDF'
+    },
+
     attachments: {
       type: DataTypes.JSON,
       allowNull: true
@@ -230,7 +236,36 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
       comment: 'Descripción de los trabajos realizados / resolución'
-    }
+    },
+
+    // ── Inspection tracking ───────────────────────────────────────────────
+    needsInitialInspection: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    initialInspectionRequestedDate: { type: DataTypes.DATEONLY, allowNull: true },
+    initialInspectionScheduledDate: { type: DataTypes.DATEONLY, allowNull: true },
+    initialInspectionResult: {
+      type: DataTypes.ENUM('pending', 'passed', 'failed'),
+      allowNull: true,
+    },
+    initialInspectionNotes: { type: DataTypes.TEXT, allowNull: true },
+    initialInspectionInspectorEmail: { type: DataTypes.STRING, allowNull: true },
+
+    needsFinalInspection: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    finalInspectionRequestedDate: { type: DataTypes.DATEONLY, allowNull: true },
+    finalInspectionScheduledDate: { type: DataTypes.DATEONLY, allowNull: true },
+    finalInspectionResult: {
+      type: DataTypes.ENUM('pending', 'passed', 'failed'),
+      allowNull: true,
+    },
+    finalInspectionNotes: { type: DataTypes.TEXT, allowNull: true },
+    finalInspectionInspectorEmail: { type: DataTypes.STRING, allowNull: true },
   }, {
     tableName: 'SimpleWork',
     timestamps: true,

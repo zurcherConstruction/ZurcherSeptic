@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obtener los works
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Importar el ícono
 import { FaFileExcel, FaTimes } from 'react-icons/fa'; // 🆕 Iconos para exportar
 import { getInspectionFollowUp, formatDateShort } from '../utils/inspectionTracking';
@@ -19,6 +19,7 @@ const etapas = [
 
 const ProgressTracker = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { works, loading, error } = useSelector((state) => state.work);
   const token = useSelector((state) => state.auth.token); // 🆕 Token para export
   const { currentStaff } = useSelector((state) => state.auth);
@@ -209,6 +210,13 @@ const ProgressTracker = () => {
           onChange={handleSearch}
           className="flex-1 border border-gray-300 p-2 md:p-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         />
+        <button
+          onClick={() => navigate('/simple-works/tracker')}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md font-medium transition-colors flex items-center gap-2"
+        >
+          <span className="text-lg">🔧</span>
+          <span className="hidden md:inline">Simple Works</span>
+        </button>
         {currentStaff?.role !== 'capataz' && (
           <button
             onClick={() => setShowExportModal(true)}

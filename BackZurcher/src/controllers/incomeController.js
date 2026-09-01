@@ -511,6 +511,12 @@ const updateIncome = async (req, res) => {
     if (shouldRecalculateBudget) {
       const { Work, Budget, FinalInvoice } = require('../data');
 
+      // Solo bajar de 'paid' a 'partially_paid' si el ingreso de pago final cambió.
+      // Un cambio en el pago inicial no debe pisar el status del invoice final.
+      const finalPaymentChanged =
+        prev.typeIncome === 'Factura Pago Final Budget' ||
+        next.typeIncome === 'Factura Pago Final Budget';
+
       const recalcBudgetForWork = async (targetWorkId) => {
         if (!targetWorkId) return;
 
@@ -595,9 +601,12 @@ const updateIncome = async (req, res) => {
             newInvoiceStatus = 'pending';
           } else if (currentPaid >= newFinalAmountDue) {
             newInvoiceStatus = 'paid';
-          } else {
+          } else if (finalPaymentChanged) {
+            // Solo bajar a partially_paid si el cambio involucró el pago final.
+            // Un cambio en pago inicial o workId no debe pisar un status 'paid' existente.
             newInvoiceStatus = 'partially_paid';
           }
+          // Si !finalPaymentChanged y status era 'paid', se preserva.
 
           await finalInvoice.update({
             initialPaymentMade: totalInitialPayment,

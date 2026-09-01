@@ -85,6 +85,13 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0
+    },
+
+    showPrice: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: 'Si false, oculta QTY/RATE/AMOUNT en el PDF para este item'
     }
   }, {
     tableName: 'SimpleWorkItems',

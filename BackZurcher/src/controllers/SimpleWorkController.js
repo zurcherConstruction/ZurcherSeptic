@@ -1,4 +1,4 @@
-const { SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Work, Staff, Income, Expense, sequelize } = require('../data');
+const { SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Work, Staff, Income, Expense, Receipt, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
@@ -203,6 +203,7 @@ const SimpleWorkController = {
         paymentMethod, // 💳 Payment method integration
         notes,
         termsAndConditions,
+        customTerms,
         descriptionTitle,
         notesTitle,
         termsTitle,
@@ -260,6 +261,7 @@ const SimpleWorkController = {
         paymentMethod: paymentMethod || null,
         notes,
         termsAndConditions: termsAndConditions || null,
+        customTerms: customTerms || null,
         descriptionTitle: descriptionTitle || 'DESCRIPTION',
         notesTitle: notesTitle || 'NOTES',
         termsTitle: termsTitle || 'TERMS & CONDITIONS',
@@ -283,7 +285,8 @@ const SimpleWorkController = {
           notes: item.notes || null,
           isFromTemplate: item.isFromTemplate || false,
           templateItemId: item.templateItemId || null,
-          displayOrder: index + 1
+          displayOrder: index + 1,
+          showPrice: item.showPrice !== false
         }));
 
         await SimpleWorkItem.bulkCreate(itemsData);
@@ -339,6 +342,11 @@ const SimpleWorkController = {
             model: Staff,
             as: 'creator',
             attributes: ['id', 'name']
+          },
+          {
+            model: SimpleWorkItem,
+            as: 'items',
+            required: false
           },
           {
             model: SimpleWorkPayment,
@@ -432,6 +440,39 @@ const SimpleWorkController = {
         console.log('⚠️ [EXPENSES] No hay gastos vinculados');
       }
 
+      // Adjuntar Receipts a linkedIncomes y linkedExpenses en query separada
+      // (evita el type mismatch uuid = varchar en el JOIN polimórfico de Receipts)
+      const incomeIds   = (simpleWork.linkedIncomes  || []).map(i => String(i.idIncome));
+      const expenseIds  = (simpleWork.linkedExpenses || []).map(e => String(e.idExpense));
+      const allRelatedIds = [...incomeIds, ...expenseIds];
+
+      if (allRelatedIds.length > 0) {
+        const relatedReceipts = await Receipt.findAll({
+          where: {
+            relatedId:    allRelatedIds,
+            relatedModel: ['Income', 'Expense']
+          },
+          attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes', 'relatedId', 'relatedModel', 'createdAt']
+        });
+
+        // Agrupar por (relatedModel, relatedId)
+        const receiptsByIncome  = {};
+        const receiptsByExpense = {};
+        relatedReceipts.forEach(r => {
+          if (r.relatedModel === 'Income') {
+            if (!receiptsByIncome[r.relatedId])  receiptsByIncome[r.relatedId]  = [];
+            receiptsByIncome[r.relatedId].push(r.toJSON());
+          } else {
+            if (!receiptsByExpense[r.relatedId]) receiptsByExpense[r.relatedId] = [];
+            receiptsByExpense[r.relatedId].push(r.toJSON());
+          }
+        });
+
+        // Inyectar en los arrays (operamos sobre los datos JSON del toJSON posterior)
+        (simpleWork.linkedIncomes  || []).forEach(i => { i.dataValues.Receipts = receiptsByIncome[String(i.idIncome)]   || []; });
+        (simpleWork.linkedExpenses || []).forEach(e => { e.dataValues.Receipts = receiptsByExpense[String(e.idExpense)] || []; });
+      }
+
       // Calcular totales REALES combinando dedicados + vinculados (como Works)
       // DEDUPLICAR: Si un SimpleWorkPayment coincide con un linkedIncome (mismo monto y fecha),
       // es un registro legacy duplicado - no sumarlo dos veces
@@ -505,8 +546,14 @@ const SimpleWorkController = {
         'estimatedAmount', 'finalAmount', 'status', 'assignedStaffId',
         'assignedDate', 'startDate', 'completedDate', 'notes', 'attachments',
         'discountPercentage', 'initialPaymentPercentage', 'paymentMethod',
-        'totalPaid', 'termsAndConditions', 'linkedWorkId',
-        'descriptionTitle', 'notesTitle', 'termsTitle', 'resolution'
+        'totalPaid', 'termsAndConditions', 'customTerms', 'linkedWorkId',
+        'descriptionTitle', 'notesTitle', 'termsTitle', 'resolution',
+        'needsInitialInspection', 'initialInspectionRequestedDate',
+        'initialInspectionScheduledDate', 'initialInspectionResult',
+        'initialInspectionNotes', 'initialInspectionInspectorEmail',
+        'needsFinalInspection', 'finalInspectionRequestedDate',
+        'finalInspectionScheduledDate', 'finalInspectionResult',
+        'finalInspectionNotes', 'finalInspectionInspectorEmail',
       ];
 
       allowedFields.forEach(field => {
@@ -558,7 +605,8 @@ const SimpleWorkController = {
             notes: item.notes || null,
             isFromTemplate: item.isFromTemplate || false,
             templateItemId: item.templateItemId || null,
-            displayOrder: index + 1
+            displayOrder: index + 1,
+            showPrice: item.showPrice !== false
           }));
 
           await SimpleWorkItem.bulkCreate(itemsData);
@@ -1202,9 +1250,12 @@ const SimpleWorkController = {
 
       // Subir archivo a Cloudinary en carpeta temporal
       const uploadResult = await uploadBufferToCloudinary(
-        req.file.buffer, 
-        req.file.originalname,
-        'simple-work-temp-attachments'
+        req.file.buffer,
+        {
+          folder: 'simple-work-temp-attachments',
+          resource_type: 'auto',
+          access_mode: 'public'
+        }
       );
 
       res.json({
@@ -1273,11 +1324,17 @@ const SimpleWorkController = {
         });
       }
 
-      // Subir archivo a Cloudinary
+      // Subir archivo a Cloudinary — PDFs como 'raw' para preservar el archivo original
+      const isPdf = req.file.mimetype === 'application/pdf';
+      const fileExt = req.file.originalname.split('.').pop().toLowerCase();
       const uploadResult = await uploadBufferToCloudinary(
-        req.file.buffer, 
-        req.file.originalname,
-        'simple-work-attachments'
+        req.file.buffer,
+        {
+          folder: 'simple-work-attachments',
+          resource_type: isPdf ? 'raw' : 'auto',
+          public_id: `sw_${id}_${Date.now()}.${fileExt}`,
+          access_mode: 'public'
+        }
       );
 
       // Agregar attachment al array existente
@@ -1288,15 +1345,14 @@ const SimpleWorkController = {
         originalName: req.file.originalname,
         url: uploadResult.secure_url,
         publicId: uploadResult.public_id,
+        resourceType: isPdf ? 'raw' : 'auto',
         uploadedAt: new Date(),
         size: req.file.size,
         type: req.file.mimetype
       };
 
-      currentAttachments.push(newAttachment);
-      simpleWork.attachments = currentAttachments;
-      
-      await simpleWork.save();
+      // Usar update() para que Sequelize detecte el cambio en el campo JSON
+      await simpleWork.update({ attachments: [...currentAttachments, newAttachment] });
 
       res.json({
         success: true,
@@ -1344,17 +1400,17 @@ const SimpleWorkController = {
       if (attachment.publicId) {
         try {
           const cloudinary = require('cloudinary').v2;
-          await cloudinary.uploader.destroy(attachment.publicId);
+          await cloudinary.uploader.destroy(attachment.publicId, {
+            resource_type: attachment.resourceType || 'auto'
+          });
         } catch (cloudinaryError) {
           console.warn('❌ Error eliminando de Cloudinary:', cloudinaryError);
         }
       }
 
-      // Remover del array
-      currentAttachments.splice(attachmentIndex, 1);
-      simpleWork.attachments = currentAttachments;
-      
-      await simpleWork.save();
+      // Remover del array y persistir con update() para que Sequelize detecte el cambio
+      const updatedAttachments = currentAttachments.filter((_, i) => i !== attachmentIndex);
+      await simpleWork.update({ attachments: updatedAttachments });
 
       res.json({
         success: true,

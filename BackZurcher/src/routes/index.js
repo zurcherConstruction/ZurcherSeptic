@@ -50,6 +50,7 @@ const docusignRoutes = require('./docusign.routes'); // 🆕 OAuth de DocuSign
 const exportRoutes = require('./exportRoutes'); // 🆕 Rutas para exportar datos a Excel
 const simpleWorkRoutes = require('./simpleWorkRoutes'); // 🆕 Rutas para trabajos varios
 const simpleWorkPublicRoutes = require('./simpleWorkPublicRoutes'); // 🆕 Rutas públicas para aprobación de SimpleWork
+const maintenanceNotifyPublicRoutes = require('./maintenanceNotifyPublicRoutes'); // 🆕 Rutas públicas para notificaciones de mantenimiento
 const claimRoutes = require('./claimRoutes'); // 🆕 Rutas para reclamos
 const salesRoutes = require('./salesRoutes'); // 🆕 Rutas para dashboard de ventas
 const reminderRoutes = require('./reminderRoutes'); // 🆕 Rutas para recordatorios
@@ -88,6 +89,7 @@ router.use('/budgets', budgetPublicRoutes); // Rutas públicas de presupuestos
 router.use('/client-portal', clientPortalRoutes); // 🆕 Portal del cliente (público)
 router.use('/ppi', ppiPublicRoutes); // 🆕 Rutas públicas de firma de PPI
 router.use('/simple-works', simpleWorkPublicRoutes); // 🆕 Aprobación pública de SimpleWork
+router.use('/maintenance-notify', maintenanceNotifyPublicRoutes); // 🆕 Confirmación/rechazo de visitas de mantenimiento (público)
 router.use('/newsletter', newsletterRoutes); // 🆕 Sistema de newsletter (incluye rutas públicas: subscribe, public-unsubscribe)
 router.get('/final-invoice/review/:token', FinalInvoiceController.trackAndRedirectGoogleReview); // 🆕 Tracking click Google Review
 // Public custom invoice endpoints (no auth required)

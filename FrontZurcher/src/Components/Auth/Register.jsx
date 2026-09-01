@@ -149,6 +149,15 @@ const Register = () => {
     }
   };
 
+  const handleActivate = (id) => {
+    const confirmActivate = window.confirm(
+      "¿Estás seguro de que deseas activar nuevamente a este miembro del staff?"
+    );
+    if (confirmActivate) {
+      dispatch(deactivateOrDeleteStaff(id, "activate"));
+    }
+  };
+
   return (
     <div className="bg-gradient-to-br from-blue-50 to-gray-100 min-h-screen py-8 px-2">
       <div className="max-w-4xl mx-auto">
@@ -441,12 +450,19 @@ const Register = () => {
                                 </div>
                                 <div className="mt-3 pt-3 border-t flex flex-wrap gap-2">
                                   {/* Botones de acción adicionales si se movieron aquí */}
-                                  {member.isActive && (
+                                  {member.isActive ? (
                                     <button
                                       onClick={() => handleDeactivate(member.id)}
                                       className="bg-orange-500 text-white text-xs px-2 py-1 rounded hover:bg-orange-600"
                                     >
                                       Desactivar
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleActivate(member.id)}
+                                      className="bg-green-600 text-white text-xs px-2 py-1 rounded hover:bg-green-700"
+                                    >
+                                      Activar
                                     </button>
                                   )}
                                   <button

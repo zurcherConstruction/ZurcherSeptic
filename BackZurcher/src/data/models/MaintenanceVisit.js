@@ -386,6 +386,41 @@ module.exports = (sequelize) => {
         key: 'id',
       },
     },
+
+    // === Notificación al cliente (D-7, D-4, D-1) ===
+    clientStatus: {
+      type: DataTypes.ENUM(
+        'pending_notification',  // aún no notificado
+        'notified',              // email enviado, sin respuesta
+        'confirmed',             // cliente confirmó
+        'rejected',              // cliente rechazó
+        'reschedule_requested',  // cliente quiere otra fecha
+        'waived'                 // 3 intentos sin respuesta → HD waiver
+      ),
+      allowNull: false,
+      defaultValue: 'pending_notification',
+    },
+    notificationCount: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    lastNotificationSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    clientToken: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+    },
+    clientProposedDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    clientRespondedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   }, {
     timestamps: true, // createdAt y updatedAt
   });

@@ -135,4 +135,26 @@ router.post('/:visitId/cancel-other',
     MaintenanceController.cancelMaintenanceOther
 );
 
+// 📧 Enviar notificación al cliente (manual, desde el Front)
+const notifyCtrl = require('../controllers/maintenanceNotifyController');
+router.post('/:visitId/send-notification',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'maintenance']),
+    notifyCtrl.manualSendNotification
+);
+
+// ✅ Marcar visita como eximida manualmente
+router.post('/:visitId/waive',
+    verifyToken,
+    allowRoles(['admin', 'owner']),
+    notifyCtrl.manualWaiveVisit
+);
+
+// 📄 Descargar PDF de prueba de notificaciones (HD Proof)
+router.get('/:visitId/hd-proof-pdf',
+    verifyToken,
+    allowRoles(['admin', 'owner']),
+    notifyCtrl.downloadHDProofPDF
+);
+
 module.exports = router;

@@ -9,6 +9,7 @@ import {
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { createSimpleWork, updateSimpleWork, fetchClientWorks, clearClientWorks } from '../../Redux/Actions/simpleWorkActions';
 import DynamicCategorySection from "../../Components/Budget/DynamicCategorySection";
+import TermsEditor from "../Budget/TermsEditor";
 
 // Helper para generar IDs temporales
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -40,6 +41,7 @@ const AdvancedCreateSimpleWorkModal = ({
     notesTitle: 'NOTES',
     termsAndConditions: '',
     termsTitle: 'TERMS & CONDITIONS',
+    customTerms: null,
     linkedWorkId: null,
   });
 
@@ -257,6 +259,7 @@ const AdvancedCreateSimpleWorkModal = ({
         notesTitle: editingWork.notesTitle || 'NOTES',
         termsAndConditions: editingWork.termsAndConditions || '',
         termsTitle: editingWork.termsTitle || 'TERMS & CONDITIONS',
+        customTerms: editingWork.customTerms || null,
         linkedWorkId: editingWork.linkedWorkId || null,
       });
 
@@ -273,6 +276,7 @@ const AdvancedCreateSimpleWorkModal = ({
           totalCost: parseFloat(item.totalCost),
           discount: parseFloat(item.discount || 0),
           finalCost: parseFloat(item.finalCost),
+          showPrice: item.showPrice !== false,
           isFromTemplate: item.isFromTemplate || false,
           templateItemId: item.templateItemId || null
         })));
@@ -296,6 +300,7 @@ const AdvancedCreateSimpleWorkModal = ({
         notesTitle: 'NOTES',
         termsAndConditions: '',
         termsTitle: 'TERMS & CONDITIONS',
+        customTerms: null,
         linkedWorkId: null,
       });
       setItems([]);
@@ -502,6 +507,7 @@ const AdvancedCreateSimpleWorkModal = ({
         quantity: item.quantity,
         unit: item.unit || 'ea',
         unitCost: item.unitCost,
+        showPrice: item.showPrice !== false,
         totalCost: item.totalCost,
         discount: item.discount || 0,
         finalCost: item.finalCost,
@@ -537,6 +543,7 @@ const AdvancedCreateSimpleWorkModal = ({
         notesTitle: formData.notesTitle.trim() || 'NOTES',
         termsAndConditions: formData.termsAndConditions.trim(),
         termsTitle: formData.termsTitle.trim() || 'TERMS & CONDITIONS',
+        customTerms: formData.customTerms || null,
         linkedWorkId: formData.linkedWorkId,
         items: itemsForSubmission,
         discountPercentage: discountPercentage,
@@ -822,6 +829,7 @@ const AdvancedCreateSimpleWorkModal = ({
                       <th className="text-center px-3 py-2 w-20">Cant.</th>
                       <th className="text-center px-3 py-2 w-28">Precio Unit.</th>
                       <th className="text-right px-3 py-2 w-28">Total</th>
+                      <th className="text-center px-3 py-2 w-16" title="Mostrar precio en PDF">PDF $</th>
                       <th className="text-center px-3 py-2 w-12 rounded-tr-lg"></th>
                     </tr>
                   </thead>
@@ -903,6 +911,20 @@ const AdvancedCreateSimpleWorkModal = ({
                         <td className="px-2 py-1 text-center">
                           <button
                             type="button"
+                            title={item.showPrice !== false ? 'Precio visible en PDF — clic para ocultar' : 'Precio oculto en PDF — clic para mostrar'}
+                            onClick={() => {
+                              const updated = [...items];
+                              updated[index] = { ...updated[index], showPrice: updated[index].showPrice === false };
+                              setItems(updated);
+                            }}
+                            className={`text-xs px-1.5 py-0.5 rounded font-semibold transition-colors ${item.showPrice !== false ? 'bg-green-100 text-green-700 hover:bg-red-100 hover:text-red-600' : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-700'}`}
+                          >
+                            {item.showPrice !== false ? '$' : '—'}
+                          </button>
+                        </td>
+                        <td className="px-2 py-1 text-center">
+                          <button
+                            type="button"
                             onClick={() => setItems(items.filter((_, i) => i !== index))}
                             className="text-red-400 hover:text-red-600 p-1"
                           >
@@ -933,7 +955,8 @@ const AdvancedCreateSimpleWorkModal = ({
                     finalCost: 0,
                     budgetItemId: null,
                     isFromTemplate: false,
-                    templateItemId: null
+                    templateItemId: null,
+                    showPrice: true
                   }]);
                 }}
                 className="w-full px-4 py-2.5 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:border-blue-500 hover:bg-blue-50 transition-colors font-medium"
@@ -1080,28 +1103,10 @@ const AdvancedCreateSimpleWorkModal = ({
           </div>
 
           {/* Terms and Conditions */}
-          <div className="border border-amber-200 rounded-lg p-4 bg-amber-50">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm text-amber-600">Título PDF:</span>
-              <input
-                type="text"
-                value={formData.termsTitle}
-                onChange={(e) => handleInputChange('termsTitle', e.target.value)}
-                className="px-2 py-1 border border-amber-300 rounded text-sm font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 flex-1"
-                placeholder="TERMS & CONDITIONS"
-              />
-            </div>
-            <textarea
-              placeholder="Ej: Payment is due upon completion. Materials are guaranteed for 1 year... (dejar vacío para no imprimir)"
-              value={formData.termsAndConditions}
-              onChange={(e) => handleInputChange('termsAndConditions', e.target.value)}
-              rows={5}
-              className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
-            />
-            <p className="text-xs text-amber-600 mt-1">
-              Este texto se imprimirá al final del presupuesto, debajo de los totales
-            </p>
-          </div>
+          <TermsEditor
+            customTerms={formData.customTerms}
+            onChange={(val) => handleInputChange('customTerms', val)}
+          />
 
           {/* Attachments Section */}
           <div>
