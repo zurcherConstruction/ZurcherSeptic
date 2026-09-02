@@ -131,54 +131,35 @@ const getGeneralBalance = async (req, res) => {
   const { type, startDate, endDate, workId, typeIncome, typeExpense, staffId, includeSupplierExpenses } = req.query;
 
   try {
-    // Condiciones WHERE para Income
-    const incomeWhere = {};
+    // Construir rango de fechas — si no se proveen usar año en curso para evitar full scan
+    let start, end;
     if (startDate && endDate) {
-      // 🔧 FIX: Ajustar fechas para incluir TODO el día de inicio y fin
-      // Crear fecha de inicio a las 00:00:00 del día
-      const start = new Date(startDate);
+      start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
-      
-      // Crear fecha de fin a las 23:59:59 del día
-      const end = new Date(endDate);
+      end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-      
-      incomeWhere.date = {
-        [Op.between]: [start, end]
-      };
+    } else {
+      const now = new Date();
+      start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);   // 01-Jan año actual
+      end   = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999); // 31-Dec año actual
     }
+    const dateRange = { [Op.between]: [start, end] };
+
+    // Condiciones WHERE para Income
+    const incomeWhere = { date: dateRange };
     if (workId) incomeWhere.workId = workId;
     if (typeIncome) incomeWhere.typeIncome = typeIncome;
     if (staffId) incomeWhere.staffId = staffId;
 
-    // Condiciones WHERE para Expense (usando misma lógica que FinancialDashboardController)
+    // Condiciones WHERE para Expense
     const expenseWhere = {
-      paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'paid_via_credit_card', 'partial', 'unpaid'] }, // 🔧 INCLUIR todos los gastos reales
-      [Op.and]: [
-        Sequelize.where(
-          Sequelize.cast(Sequelize.col('typeExpense'), 'TEXT'),
-          { [Op.notILike]: '%comisión%' }
-        )
-      ]
+      paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'paid_via_credit_card', 'partial', 'unpaid'] },
+      typeExpense: { [Op.notIn]: ['Comisión Vendedor'] },
+      date: dateRange,
     };
-    
-    // 🆕 Si includeSupplierExpenses es 'true', mostrar también gastos de supplier invoices
-    // Si no, excluirlos (comportamiento original para balance)
+
     if (includeSupplierExpenses !== 'true') {
-      expenseWhere.supplierInvoiceItemId = null; // Excluir gastos auto-generados por pagos de proveedores
-    }
-    
-    if (startDate && endDate) {
-      // 🔧 FIX: Usar las mismas fechas ajustadas
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      
-      expenseWhere.date = {
-        [Op.between]: [start, end]
-      };
+      expenseWhere.supplierInvoiceItemId = null;
     }
     if (workId) expenseWhere.workId = workId;
     if (typeExpense) expenseWhere.typeExpense = typeExpense;
@@ -252,13 +233,27 @@ const getGeneralBalance = async (req, res) => {
         : Promise.resolve([])
     ]);
 
-    // Asociar receipts a incomes manualmente + comprobantes de Budget y FinalInvoice
-    const incomesWithReceipts = allIncomes.map(income => {
-      const receipts = incomeReceipts.filter(receipt =>
-        receipt.relatedId === income.idIncome.toString()
-      );
+    // Construir Maps para asociación O(1) en lugar de O(n) filter por cada elemento
+    const incomeReceiptMap = new Map();
+    for (const r of incomeReceipts) {
+      if (!incomeReceiptMap.has(r.relatedId)) incomeReceiptMap.set(r.relatedId, []);
+      incomeReceiptMap.get(r.relatedId).push(r);
+    }
+    const finalInvReceiptMap = new Map();
+    for (const r of finalInvoiceReceipts) {
+      if (!finalInvReceiptMap.has(r.relatedId)) finalInvReceiptMap.set(r.relatedId, []);
+      finalInvReceiptMap.get(r.relatedId).push(r);
+    }
+    const expenseReceiptMap = new Map();
+    for (const r of expenseReceipts) {
+      if (!expenseReceiptMap.has(r.relatedId)) expenseReceiptMap.set(r.relatedId, []);
+      expenseReceiptMap.get(r.relatedId).push(r);
+    }
 
-      // Si es un pago inicial de Budget, agregar el comprobante del Budget
+    // Asociar receipts a incomes
+    const incomesWithReceipts = allIncomes.map(income => {
+      const receipts = [...(incomeReceiptMap.get(income.idIncome.toString()) || [])];
+
       if (income.typeIncome === 'Factura Pago Inicial Budget' && income.work?.budget?.paymentInvoice) {
         receipts.push({
           idReceipt: `budget-${income.work.budget.idBudget}`,
@@ -270,37 +265,20 @@ const getGeneralBalance = async (req, res) => {
         });
       }
 
-      // AGREGAR: Si es un pago final de Budget, agregar los comprobantes de FinalInvoice
       if (income.typeIncome === 'Factura Pago Final Budget' && income.work?.finalInvoice) {
-  const finalInvoiceId = income.work.finalInvoice.id;
-        const finalInvoiceReceiptsForThisIncome = finalInvoiceReceipts.filter(receipt =>
-          receipt.relatedId === finalInvoiceId.toString()
-        );
-
-        finalInvoiceReceiptsForThisIncome.forEach(receipt => {
-          receipts.push({
-            ...receipt.toJSON(),
-            source: 'finalInvoice' // Identificador para saber que viene de FinalInvoice
-          });
-        });
+        const finalInvoiceId = income.work.finalInvoice.id;
+        const finalRecs = finalInvReceiptMap.get(finalInvoiceId.toString()) || [];
+        finalRecs.forEach(r => receipts.push({ ...r.toJSON(), source: 'finalInvoice' }));
       }
 
-      return {
-        ...income.toJSON(),
-        Receipts: receipts
-      };
+      return { ...income.toJSON(), Receipts: receipts };
     });
 
-    // Asociar receipts a expenses manualmente (usar expenses no duplicados)
-    const expensesWithReceipts = nonDuplicatedExpenses.map(expense => {
-      const receipts = expenseReceipts.filter(receipt =>
-        receipt.relatedId === expense.idExpense.toString()
-      );
-      return {
-        ...expense.toJSON(),
-        Receipts: receipts
-      };
-    });
+    // Asociar receipts a expenses
+    const expensesWithReceipts = nonDuplicatedExpenses.map(expense => ({
+      ...expense.toJSON(),
+      Receipts: expenseReceiptMap.get(expense.idExpense.toString()) || [],
+    }));
 
     // Calcular totales (usar expenses no duplicados)
     const totalIncome = allIncomes.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0);
