@@ -71,6 +71,13 @@ const adminSlice = createSlice({
         state.staffList[index].isActive = false;
       }
     },
+    activateStaffSuccess: (state, action) => {
+      state.loading = false;
+      const index = state.staffList.findIndex((staff) => staff.id === action.payload);
+      if (index !== -1) {
+        state.staffList[index].isActive = true;
+      }
+    },
     deactivateStaffFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;
@@ -94,6 +101,7 @@ export const {
   updateStaffFailure,
   deactivateStaffRequest,
   deactivateStaffSuccess,
+  activateStaffSuccess,
   deactivateStaffFailure,
   deleteStaffSuccess,
 } = adminSlice.actions;

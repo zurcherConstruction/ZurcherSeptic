@@ -225,24 +225,34 @@ function _addItemsTable(doc, simpleWorkData) {
   let currentItemY = doc.y;
   
   // Add items with their actual prices
-  items.forEach((item, index) => {
+  items.forEach((item) => {
     const itemQty = parseInt(item.quantity) || 1;
     const itemRate = parseFloat(item.unitCost) || 0;
     const itemAmount = itemQty * itemRate;
-    
+    const priceVisible = item.showPrice !== false;
+
     currentItemY = doc.y;
-    
+
     // Use category as the INCLUDED column (user-typed)
     const itemIncluded = (item.category || '').toUpperCase();
     const itemDesc = item.description || '';
-    
+
     doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
     doc.text(itemIncluded, xIncludedText, currentItemY, { width: wIncluded });
     doc.text(itemDesc, xDescText, currentItemY, { width: wDesc });
-    doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
-    doc.text(`$${itemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
-    doc.text(`$${itemAmount.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-    
+    if (priceVisible) {
+      doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+      doc.text(`$${itemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+      doc.text(`$${itemAmount.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
+    } else {
+      // Precio oculto: guiones en QTY y RATE, "INCLUDED" bajo AMOUNT
+      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_LIGHT);
+      doc.text('-', xQtyText, currentItemY, { width: wQty, align: 'right' });
+      doc.text('-', xRateText, currentItemY, { width: wRate, align: 'right' });
+      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_LIGHT)
+        .text('INCLUDED', xAmountText, currentItemY, { width: wAmount, align: 'right' });
+    }
+
     doc.moveDown(3.0);
   });
   
@@ -250,94 +260,118 @@ function _addItemsTable(doc, simpleWorkData) {
 }
 
 /**
- * Genera el resumen de pago con información de pago
+ * Genera el resumen de pago — mismo estilo que Budget
  */
 function _addPaymentSummary(doc, simpleWorkData) {
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
-  const { estimatedAmount, finalAmount, initialPaymentPercentage, initialPayment, status, items } = simpleWorkData;
-  
-  // Calculate total from items if available, otherwise use finalAmount/estimatedAmount
+  const { estimatedAmount, finalAmount, initialPaymentPercentage, initialPayment, items } = simpleWorkData;
+
+  // Total desde items o fallback a finalAmount/estimatedAmount
   let totalAmount = 0;
-  
   if (items && items.length > 0) {
     totalAmount = items.reduce((sum, item) => {
-      const quantity = parseFloat(item.quantity) || 1;
-      const unitPrice = parseFloat(item.unitCost) || 0;  // Changed from unitPrice to unitCost
-      return sum + (quantity * unitPrice);
+      return sum + (parseFloat(item.quantity) || 1) * (parseFloat(item.unitCost) || 0);
     }, 0);
-  } 
-  
-  // Use finalAmount or estimatedAmount as fallback or if no items total
+  }
   if (totalAmount === 0) {
     totalAmount = parseFloat(finalAmount || estimatedAmount || 0);
   }
-  
-  const paymentPercentage = parseFloat(initialPaymentPercentage || 100);
-  const paymentAmount = parseFloat(initialPayment || (totalAmount * paymentPercentage / 100));
-  const remainingAmount = totalAmount - paymentAmount;
-  
-  // Thank you message and payment info section (similar to Budget)
-  const thanksAndPaymentY = doc.y;
-  const paymentInfoWidth = contentWidth * 0.55;
 
+  const paymentPct    = parseFloat(initialPaymentPercentage || 100);
+  const paymentAmt    = parseFloat(initialPayment || (totalAmount * paymentPct / 100));
+  const isZeroPayment = paymentPct === 0;
+  const pctLabel      = paymentPct === 100 ? 'INITIAL PAYMENT (TOTAL)' : `INITIAL PAYMENT (${paymentPct}%)`;
+
+  // Columnas
+  const paymentInfoWidth = contentWidth * 0.55;
+  const totalsStartX     = NEW_PAGE_MARGIN + contentWidth * 0.55;
+  const totalsValueX     = NEW_PAGE_MARGIN + contentWidth * 0.78;
+  const totalsRightEdge  = doc.page.width - NEW_PAGE_MARGIN;
+  const cellPadding      = 5;
+
+  const sectionStartY = doc.y;
+
+  // ── COLUMNA IZQUIERDA: Thank you + Payment Info ────────────────────────────
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_LIGHT)
-    .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'left' });
+    .text('Thank you for your business!', NEW_PAGE_MARGIN, sectionStartY, { width: paymentInfoWidth });
   doc.moveDown(1.8);
 
-  // Payment information section (always show for SimpleWork)
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
-    .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    .text('PAYMENT INFORMATION', NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("BANK: CHASE".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text('BANK: CHASE',                              NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("ACCOUNT NUMBER: 686125371".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text('ACCOUNT NUMBER: 686125371',                NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("ROUTING NUMBER: 267084131".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text('ROUTING NUMBER: 267084131',                NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.5);
-  
-  doc.text("Zelle: zurcherconstruction.fl@gmail.com".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text('ZELLE: ZURCHERCONSTRUCTION.FL@GMAIL.COM',  NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text('CREDIT CARD + 3%',                         NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("ASK ABOUT PAYMENT METHODS.".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(1.5);
+  doc.text('ASK ABOUT PAYMENT METHODS.',               NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
 
-  // Track end of left column (payment info)
-  const leftColumnEndY = doc.y;
+  const leftEndY = doc.y;
 
-  // Totals section (right side)
-  doc.y = thanksAndPaymentY;
-  const totalsStartX = NEW_PAGE_MARGIN + contentWidth * 0.55;
-  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.78;
-  const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
-  const cellPadding = 5;
+  // ── COLUMNA DERECHA: Totals ────────────────────────────────────────────────
+  doc.y = sectionStartY;
+  let cy = doc.y;
 
-  // CALCULAR VALORES PARA INITIAL PAYMENT (siguiendo patrón de Budget)
-  const initialPaymentPct = paymentPercentage;
-  const initialPaymentAmt = paymentAmount;
-  const percentageText = parseFloat(initialPaymentPct) === 100 
-    ? "INITIAL PAYMENT (TOTAL)" 
-    : `INITIAL PAYMENT (${parseFloat(initialPaymentPct)}%)`;
+  // SUBTOTAL
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM)
+    .text('SUBTOTAL', totalsStartX, cy, { width: totalsValueX - totalsStartX - cellPadding });
+  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM)
+    .text(`$${totalAmount.toFixed(2)}`, totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  doc.moveDown(0.6);
 
-  // BALANCE DUE es PROMINENTE (como Budget draft)
-  let currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
-  doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
-  doc.text(`$${totalAmount.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  // TAX
+  cy = doc.y;
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM)
+    .text('TAX', totalsStartX, cy, { width: totalsValueX - totalsStartX - cellPadding });
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+    .text('$0.00', totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  doc.moveDown(0.6);
+
+  // TOTAL
+  cy = doc.y;
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM)
+    .text('TOTAL', totalsStartX, cy, { width: totalsValueX - totalsStartX - cellPadding });
+  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM)
+    .text(`$${totalAmount.toFixed(2)}`, totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.8);
 
-  // INITIAL PAYMENT - TEXTO PEQUEÑO Y MENOS PROMINENTE (como Budget draft)
-  currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-  
-  // Ensure Y is past whichever column was taller
-  const rightColumnEndY = doc.y;
-  doc.y = Math.max(leftColumnEndY, rightColumnEndY);
+  // Línea divisora (de totalsStartX al borde derecho — igual que Budget)
+  const lineY = doc.y;
+  doc.moveTo(totalsStartX, lineY).lineTo(totalsRightEdge, lineY)
+    .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.8).stroke();
+  doc.moveDown(1.2);
+
+  // BALANCE DUE — prominente
+  cy = doc.y;
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK)
+    .text('BALANCE DUE', totalsStartX, cy, { width: totalsValueX - totalsStartX - cellPadding });
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK)
+    .text(`$${totalAmount.toFixed(2)}`, totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  doc.moveDown(0.8);
+
+  // INITIAL PAYMENT — pequeño
+  if (!isZeroPayment) {
+    cy = doc.y;
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+      .text(pctLabel, totalsStartX, cy, { width: totalsValueX - totalsStartX - cellPadding });
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+      .text(`$${paymentAmt.toFixed(2)}`, totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    doc.moveDown(0.5);
+  } else {
+    cy = doc.y;
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+      .text('NO INITIAL PAYMENT REQUIRED', totalsStartX, cy, { width: totalsRightEdge - totalsStartX });
+    doc.moveDown(0.5);
+  }
+
+  const rightEndY = doc.y;
+  doc.y = Math.max(leftEndY, rightEndY);
   doc.moveDown(2);
 }
 
@@ -346,9 +380,7 @@ function _addPaymentSummary(doc, simpleWorkData) {
  */
 function _buildMainPage(doc, simpleWorkData, formattedDate) {
   _addPageHeader(doc, simpleWorkData, formattedDate);
-  _addDescription(doc, simpleWorkData);
   _addItemsTable(doc, simpleWorkData);
-  _addNotes(doc, simpleWorkData);
   _addPaymentSummary(doc, simpleWorkData);
   _addTermsAndConditions(doc, simpleWorkData);
   _addSignatureSection(doc, simpleWorkData);
@@ -395,39 +427,131 @@ function _addNotes(doc, simpleWorkData) {
 }
 
 /**
- * Agrega sección de Términos y Condiciones (con título personalizable)
+ * Agrega sección de Términos y Condiciones — mismo estilo que Budget PDF.
+ * customTerms (array estructurado) → página nueva con intro + cláusulas con bullets.
+ * termsAndConditions (texto plano) → inline, misma página.
  */
 function _addTermsAndConditions(doc, simpleWorkData) {
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
-  const { termsAndConditions, termsTitle } = simpleWorkData;
-  
-  if (!termsAndConditions || !termsAndConditions.trim()) return;
+  const { termsAndConditions, termsTitle, customTerms, propertyAddress } = simpleWorkData;
 
-  // Check if we need a new page
-  if (doc.y > doc.page.height - 150) {
-    doc.addPage();
-  }
+  const hasStructured = Array.isArray(customTerms) && customTerms.length > 0;
+  const hasPlainText = termsAndConditions && termsAndConditions.trim();
 
-  doc.moveDown(0.5);
-  
-  // Línea divisora
-  doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
-    .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
-  doc.moveDown(0.8);
+  if (!hasStructured && !hasPlainText) return;
 
-  // Título personalizable
   const title = (termsTitle && termsTitle.trim()) || 'TERMS & CONDITIONS';
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK)
-    .text(title.toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
-  doc.moveDown(0.5);
 
-  // Contenido
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
-    .text(termsAndConditions, NEW_PAGE_MARGIN, doc.y, {
-      width: contentWidth,
-      lineGap: 3
+  if (hasStructured) {
+    // ── Página dedicada (como Budget) ───────────────────────────────────────
+    doc.addPage();
+    doc.y = NEW_PAGE_MARGIN;
+
+    // Encabezado de sección
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor('#063260')
+      .text(title.toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+    doc.moveDown(0.4);
+    doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
+      .strokeColor(COLOR_BORDER_MEDIUM).lineWidth(1).stroke();
+    doc.moveDown(1);
+
+    // "Considering that:" (igual que Budget)
+    doc.font(FONT_FAMILY_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+      .text('Considering that:', NEW_PAGE_MARGIN, doc.y);
+    doc.moveDown(0.4);
+    const address = propertyAddress || '____________________________';
+    const consideringText =
+      `The Provider specializes in the installation of septic systems and offers these services in compliance with all applicable technical and legal regulations. The Client is interested in contracting the Provider for services at the property located at: ${address}. Both parties wish to formalize the terms and conditions under which the service will be provided.`;
+    doc.font(FONT_FAMILY_REGULAR).fontSize(8.5).fillColor(COLOR_TEXT_MEDIUM)
+      .text(consideringText, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
+    doc.moveDown(1);
+
+    // "The following is hereby agreed:"
+    doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK)
+      .text('The following is hereby agreed:', NEW_PAGE_MARGIN, doc.y);
+    doc.moveDown(0.6);
+
+    const checkPageBreak = (h) => {
+      if (doc.y + h > doc.page.height - NEW_PAGE_MARGIN - 80) {
+        doc.addPage();
+        doc.y = NEW_PAGE_MARGIN;
+      }
+    };
+
+    let autoNum = 1;
+    const sections = customTerms
+      .filter(s => s.enabled !== false)
+      .map(s => s.number ? { ...s, number: `${autoNum++}.` } : s);
+
+    sections.forEach((section) => {
+      let est = 25;
+      if (section.content) est += doc.heightOfString(section.content, { width: contentWidth });
+      if (section.bulletPoints) est += section.bulletPoints.length * 14;
+      if (section.bulletPoints2) est += section.bulletPoints2.length * 14;
+      checkPageBreak(est);
+
+      const titleText = section.number ? `${section.number} ${section.title}` : section.title;
+      doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK)
+        .text(titleText, NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+      doc.moveDown(0.3);
+
+      if (section.content) {
+        doc.font(FONT_FAMILY_REGULAR).fontSize(8.5).fillColor(COLOR_TEXT_MEDIUM)
+          .text(section.content, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
+        doc.moveDown(0.6);
+      }
+
+      if (section.subtitle) {
+        doc.font(FONT_FAMILY_BOLD).fontSize(8.5).fillColor(COLOR_TEXT_DARK)
+          .text(section.subtitle, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
+        doc.moveDown(0.3);
+      }
+
+      if (section.bulletPoints) {
+        doc.font(FONT_FAMILY_REGULAR).fontSize(8.5).fillColor(COLOR_TEXT_MEDIUM);
+        section.bulletPoints.forEach(point => {
+          checkPageBreak(doc.heightOfString(point, { width: contentWidth - 15 }) + 5);
+          const cy = doc.y;
+          doc.text('•', NEW_PAGE_MARGIN, cy, { width: 12 });
+          doc.text(point, NEW_PAGE_MARGIN + 15, cy, { width: contentWidth - 15, align: 'justify' });
+          doc.moveDown(0.4);
+        });
+        doc.moveDown(0.3);
+      }
+
+      if (section.subtitle2) {
+        doc.font(FONT_FAMILY_BOLD).fontSize(8.5).fillColor(COLOR_TEXT_DARK)
+          .text(section.subtitle2, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
+        doc.moveDown(0.3);
+      }
+
+      if (section.bulletPoints2) {
+        doc.font(FONT_FAMILY_REGULAR).fontSize(8.5).fillColor(COLOR_TEXT_MEDIUM);
+        section.bulletPoints2.forEach(point => {
+          checkPageBreak(doc.heightOfString(point, { width: contentWidth - 15 }) + 5);
+          const cy = doc.y;
+          doc.text('•', NEW_PAGE_MARGIN, cy, { width: 12 });
+          doc.text(point, NEW_PAGE_MARGIN + 15, cy, { width: contentWidth - 15, align: 'justify' });
+          doc.moveDown(0.4);
+        });
+      }
+
+      doc.moveDown(0.8);
     });
-  doc.moveDown(1);
+  } else {
+    // ── Texto plano: inline, misma página ──────────────────────────────────
+    if (doc.y > doc.page.height - 150) doc.addPage();
+    doc.moveDown(0.5);
+    doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
+      .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
+    doc.moveDown(0.8);
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK)
+      .text(title.toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+    doc.moveDown(0.5);
+    doc.font(FONT_FAMILY_REGULAR).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+      .text(termsAndConditions, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, lineGap: 3, align: 'justify' });
+    doc.moveDown(1);
+  }
 }
 
 /**

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
-import { 
+import {
   WrenchScrewdriverIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -12,7 +12,8 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ArrowDownTrayIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  EnvelopeIcon,
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
 import api from '../../utils/axios';
@@ -23,6 +24,8 @@ const OwnerMaintenanceView = () => {
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloadingPdfId, setDownloadingPdfId] = useState(null);
+  const [sendingNotifId, setSendingNotifId] = useState(null);
+  const [downloadingHDId, setDownloadingHDId] = useState(null);
   const [filters, setFilters] = useState({
     search: '',
     status: 'all', // ✅ Mostrar todas las visitas por defecto
@@ -379,6 +382,117 @@ const OwnerMaintenanceView = () => {
     return ['pending_scheduling', 'scheduled', 'assigned'].includes(visit.status);
   };
 
+  const canSendNotification = (visit) => {
+    return (
+      ['pending_scheduling', 'scheduled', 'assigned'].includes(visit.status) &&
+      !['confirmed', 'rejected', 'waived'].includes(visit.clientStatus) &&
+      (visit.notificationCount || 0) < 3
+    );
+  };
+
+  const canWaive = (visit) => {
+    return (
+      ['pending_scheduling', 'scheduled', 'assigned'].includes(visit.status) &&
+      visit.clientStatus === 'notified' &&
+      (visit.notificationCount || 0) >= 3
+    );
+  };
+
+  const handleDownloadHDProof = async (visit) => {
+    try {
+      setDownloadingHDId(visit.id);
+      toast.info('Generando HD Proof...');
+      const res = await api.get(`/maintenance/${visit.id}/hd-proof-pdf`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const addr = (visit.work?.propertyAddress || 'propiedad').replace(/[^a-zA-Z0-9]/g, '_');
+      link.download = `HD_Proof_Visita${visit.visitNumber}_${addr}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success('HD Proof descargado');
+    } catch (err) {
+      toast.error('Error al generar el HD Proof');
+    } finally {
+      setDownloadingHDId(null);
+    }
+  };
+
+  const handleWaive = async (visit) => {
+    const { isConfirmed } = await Swal.fire({
+      title: '🏛️ Eximir visita de mantenimiento',
+      html: `<p class="text-sm text-gray-600">El cliente no respondió a los 3 avisos enviados.<br><br>
+        <strong>Visita #${visit.visitNumber}</strong><br>
+        <strong>Dirección:</strong> ${visit.work?.propertyAddress || 'N/A'}<br><br>
+        Al eximirla se generará un aviso al owner y quedará registrada como <strong>eximida (HD)</strong>.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Eximir',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#7c3aed',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      await api.post(`/maintenance/${visit.id}/waive`);
+      toast.success(`Visita #${visit.visitNumber} marcada como eximida`);
+      loadCompletedVisits();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al eximir la visita');
+    }
+  };
+
+  const getClientStatusBadge = (visit) => {
+    const count = visit.notificationCount || 0;
+    const cs = visit.clientStatus;
+    if (!cs || cs === 'pending_notification') {
+      return count === 0
+        ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-500">Sin notificar</span>
+        : null;
+    }
+    const map = {
+      notified:             { bg: 'bg-yellow-100', text: 'text-yellow-700', label: `📧 Notificado (${count}/3)` },
+      confirmed:            { bg: 'bg-green-100',  text: 'text-green-700',  label: '✅ Confirmado' },
+      rejected:             { bg: 'bg-red-100',    text: 'text-red-700',    label: '❌ Rechazado' },
+      reschedule_requested: { bg: 'bg-orange-100', text: 'text-orange-700', label: '📅 Pide reprogramar' },
+      waived:               { bg: 'bg-purple-100', text: 'text-purple-700', label: '🏛️ Eximido (HD)' },
+    };
+    const b = map[cs];
+    if (!b) return null;
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${b.bg} ${b.text}`}>
+        {b.label}
+      </span>
+    );
+  };
+
+  const handleSendNotification = async (visit) => {
+    const count = visit.notificationCount || 0;
+    const { isConfirmed } = await Swal.fire({
+      title: `📧 Enviar aviso #${count + 1}`,
+      html: `<p class="text-sm text-gray-600">Se enviará el <strong>aviso ${count + 1} de 3</strong> al email del cliente para la visita <strong>#${visit.visitNumber}</strong>.<br><br>Dirección: ${visit.work?.propertyAddress || 'N/A'}</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Enviar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#1e3a8a',
+    });
+    if (!isConfirmed) return;
+
+    try {
+      setSendingNotifId(visit.id);
+      const res = await api.post(`/maintenance/${visit.id}/send-notification`);
+      toast.success(`Email enviado a ${res.data.sentTo} (intento ${res.data.attempt}/3)`);
+      loadCompletedVisits();
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Error al enviar la notificación';
+      toast.error(msg);
+    } finally {
+      setSendingNotifId(null);
+    }
+  };
+
   // Filtrar visitas localmente por búsqueda
   const filteredVisits = visits.filter(visit => {
     if (!filters.search) return true;
@@ -522,9 +636,15 @@ const OwnerMaintenanceView = () => {
               <div className="flex items-start justify-between">
                 {/* Info principal */}
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-3 mb-3 flex-wrap">
                     <span className="text-sm font-bold text-gray-500">Visita #{visit.visitNumber}</span>
                     {getStatusBadge(visit.status)}
+                    {getClientStatusBadge(visit)}
+                    {visit.clientProposedDate && visit.clientStatus === 'reschedule_requested' && (
+                      <span className="text-xs text-orange-600 font-medium">
+                        Propone: {formatDate(visit.clientProposedDate)}
+                      </span>
+                    )}
                     {visit.work?.Permit?.isPBTS && (
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-800">
                         PBTS/ATU
@@ -642,13 +762,46 @@ const OwnerMaintenanceView = () => {
                       Gestionar Problema
                     </button>
                   )}
-                  
+
+                  {canSendNotification(visit) && (
+                    <button
+                      onClick={() => handleSendNotification(visit)}
+                      disabled={sendingNotifId === visit.id}
+                      className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium text-white ${
+                        sendingNotifId === visit.id
+                          ? 'bg-indigo-400 cursor-not-allowed'
+                          : 'bg-indigo-600 hover:bg-indigo-700'
+                      }`}
+                    >
+                      {sendingNotifId === visit.id ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                          Enviando...
+                        </>
+                      ) : (
+                        <>
+                          <EnvelopeIcon className="h-4 w-4" />
+                          Notificar ({(visit.notificationCount || 0)}/3)
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {canWaive(visit) && (
+                    <button
+                      onClick={() => handleWaive(visit)}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                    >
+                      🏛️ Eximir (HD)
+                    </button>
+                  )}
+
                   <button
                     onClick={() => handleDownloadPDF(visit)}
                     disabled={downloadingPdfId === visit.id}
                     className={`px-4 py-2 ${
-                      downloadingPdfId === visit.id 
-                        ? 'bg-gray-400 cursor-not-allowed' 
+                      downloadingPdfId === visit.id
+                        ? 'bg-gray-400 cursor-not-allowed'
                         : 'bg-gray-600 hover:bg-gray-700'
                     } text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium`}
                   >
@@ -664,6 +817,30 @@ const OwnerMaintenanceView = () => {
                       </>
                     )}
                   </button>
+
+                  {visit.clientStatus === 'waived' && (
+                    <button
+                      onClick={() => handleDownloadHDProof(visit)}
+                      disabled={downloadingHDId === visit.id}
+                      className={`px-4 py-2 ${
+                        downloadingHDId === visit.id
+                          ? 'bg-purple-300 cursor-not-allowed'
+                          : 'bg-purple-700 hover:bg-purple-800'
+                      } text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium`}
+                    >
+                      {downloadingHDId === visit.id ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                          Generando...
+                        </>
+                      ) : (
+                        <>
+                          <ArrowDownTrayIcon className="h-4 w-4" />
+                          HD Proof PDF
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

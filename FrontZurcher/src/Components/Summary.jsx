@@ -97,145 +97,23 @@ const Summary = () => {
   const fetchMovements = async () => {
     setLoading(true);
     try {
-      console.log('🔍 Aplicando filtros:', filters);
-      
-      // 🆕 Pasar includeSupplierExpenses=true para mostrar TODOS los expenses incluyendo los de supplier invoices
-      const filtersWithSupplier = { ...filters, includeSupplierExpenses: 'true' };
+      // Si se filtró por tipo de gasto (sin tipo de ingreso), solo pedir gastos al backend
+      let derivedType = filters.type;
+      if (!derivedType && filters.typeExpense && !filters.typeIncome) derivedType = 'expense';
+      if (!derivedType && filters.typeIncome && !filters.typeExpense) derivedType = 'income';
+
+      const filtersWithSupplier = { ...filters, type: derivedType, includeSupplierExpenses: 'true' };
       const data = await balanceActions.getGeneralBalance(filtersWithSupplier);
-      console.log('📊 Datos recibidos del backend:', data);
-      
+
       const incomes = data.list?.incomes || [];
       const expenses = data.list?.expenses || [];
-      
-      // Combinar movimientos y eliminar duplicados usando un Map
+
       const movementsMap = new Map();
-      
-      incomes.forEach((m) => {
-        const key = `income-${m.idIncome}`;
-        if (!movementsMap.has(key)) {
-          movementsMap.set(key, { ...m, movimiento: "Ingreso" });
-        }
-      });
-      
-      expenses.forEach((m) => {
-        const key = `expense-${m.idExpense}`;
-        if (!movementsMap.has(key)) {
-          movementsMap.set(key, { ...m, movimiento: "Gasto" });
-        }
-      });
-      
+      incomes.forEach((m) => movementsMap.set(`income-${m.idIncome}`, { ...m, movimiento: "Ingreso" }));
+      expenses.forEach((m) => movementsMap.set(`expense-${m.idExpense}`, { ...m, movimiento: "Gasto" }));
+
       const allMovements = Array.from(movementsMap.values());
-      
-      console.log(`✅ Movimientos cargados: ${incomes.length} ingresos, ${expenses.length} gastos, ${allMovements.length} únicos`);
-      console.log('💰 Total Ingresos:', data.totalIncome);
-      console.log('💸 Total Gastos:', data.totalExpense);
-      console.log('📊 Balance:', data.balance);
-      
-      // 🚨 DEBUG ESPECÍFICO PARA AMEX EN SUMMARY
-      console.log('\n=== DEBUG AMEX EN SUMMARY ===');
-      let amexIncomes = 0;
-      let amexExpenses = 0;
-      
-      // Revisar ingresos AMEX
-      incomes.forEach(income => {
-        if (income.paymentMethod && income.paymentMethod.toUpperCase().includes('AMEX')) {
-          amexIncomes++;
-          console.log('🔍 INGRESO AMEX:', {
-            id: income.idIncome,
-            amount: income.amount,
-            paymentMethod: income.paymentMethod,
-            date: income.date,
-            notes: income.notes
-          });
-        }
-      });
-      
-      // Revisar gastos AMEX
-      expenses.forEach(expense => {
-        if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
-          amexExpenses++;
-          console.log('🔍 GASTO AMEX:', {
-            id: expense.idExpense,
-            amount: expense.amount,
-            paymentMethod: expense.paymentMethod,
-            date: expense.date,
-            notes: expense.notes
-          });
-        }
-      });
-      
-      console.log(`💳 RESUMEN AMEX: ${amexIncomes} ingresos, ${amexExpenses} gastos`);
-      
-      // Verificar métodos de pago únicos
-      const allPaymentMethods = new Set();
-      allMovements.forEach(mov => {
-        if (mov.paymentMethod) allPaymentMethods.add(mov.paymentMethod);
-      });
-      console.log('📋 Métodos de pago encontrados:', [...allPaymentMethods].sort());
-      
-      // 🔍 BÚSQUEDA ESPECÍFICA DE VARIACIONES DE AMEX
-      const paymentMethodsArray = [...allPaymentMethods];
-      const amexVariants = paymentMethodsArray.filter(method => 
-        method.toLowerCase().includes('amex') || 
-        method.toLowerCase().includes('american') || 
-        method.toLowerCase().includes('express') ||
-        method.toLowerCase().includes('amx') ||
-        method.toLowerCase().includes('amerx') ||
-        method.toLowerCase().includes('card') && method.toLowerCase().includes('amex')
-      );
-      
-      // 🔍 BÚSQUEDA ADICIONAL: Revisar TODOS los gastos para buscar AMEX en notas/descripción
-      let amexInNotes = 0;
-      console.log('🔍 BUSCANDO AMEX EN TODAS LAS TRANSACCIONES:');
-      
-      allMovements.forEach((mov, index) => {
-        const searchText = `${mov.paymentMethod || ''} ${mov.notes || ''} ${mov.description || ''} ${mov.typeExpense || ''}`.toLowerCase();
-        
-        if (searchText.includes('amex') || searchText.includes('american express')) {
-          amexInNotes++;
-          console.log(`📍 POSIBLE AMEX #${amexInNotes}:`, {
-            movimiento: mov.movimiento,
-            amount: mov.amount,
-            paymentMethod: mov.paymentMethod,
-            notes: mov.notes?.substring(0, 100),
-            typeExpense: mov.typeExpense,
-            date: mov.date,
-            searchText: searchText.substring(0, 150)
-          });
-        }
-      });
-      
-      console.log(`🔍 Gastos con AMEX en texto: ${amexInNotes}`);
-      
-      if (amexVariants.length > 0) {
-        console.log('🔍 VARIACIONES DE AMEX ENCONTRADAS:', amexVariants);
-        
-        // Contar gastos con estas variaciones
-        let totalAmexVariants = 0;
-        allMovements.forEach(mov => {
-          if (mov.paymentMethod && amexVariants.includes(mov.paymentMethod)) {
-            totalAmexVariants++;
-            console.log('💳 TRANSACCIÓN AMEX VARIANT:', {
-              tipo: mov.movimiento,
-              amount: mov.amount,
-              paymentMethod: mov.paymentMethod,
-              date: mov.date,
-              notes: mov.notes?.substring(0, 50)
-            });
-          }
-        });
-        console.log(`📊 Total transacciones con variaciones AMEX: ${totalAmexVariants}`);
-      } else {
-        console.log('❌ NO se encontraron variaciones de AMEX en los métodos de pago');
-      }
-      
-      console.log('=== FIN DEBUG AMEX EN SUMMARY ===\n');
-      
-      // Actualizar estado con un pequeño delay para asegurar re-render
       setMovements(allMovements);
-      
-      // Pequeño delay para asegurar que el estado se actualice completamente
-      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Extraer staff únicos de los movimientos
       const uniqueStaff = [];

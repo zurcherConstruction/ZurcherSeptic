@@ -3,6 +3,7 @@ const archiveBudgets = require("./archiveBudgets");
 const { sendScheduledNewsletters, processRecurringNewsletters } = require("./newsletterScheduler");
 const { checkKnowledgeDocExpiry } = require("../services/checkKnowledgeDocExpiry");
 const { checkUnpaidFixedExpenses } = require("../services/checkUnpaidFixedExpenses");
+const { runDailyNotificationCheck } = require("../services/maintenanceNotificationService");
 
 // Solo activar el cron si la variable de entorno lo indica
 if (process.env.ENABLE_AUTO_ARCHIVE === 'true') {
@@ -47,11 +48,23 @@ cron.schedule("0 8 * * *", () => {
 });
 console.log("✅ Cron de gastos fijos impagos activado (diario a las 08:00).");
 
+// Mantenimiento — Notificaciones al cliente (D-7, D-4, D-1) — DESHABILITADO (envío manual)
+// cron.schedule("0 8 * * *", async () => {
+//   console.log("⏰ [CRON] Verificando notificaciones de visitas de mantenimiento...");
+//   try {
+//     await runDailyNotificationCheck();
+//   } catch (err) {
+//     console.error("❌ [CRON] Error en notificaciones de mantenimiento:", err.message);
+//   }
+// });
+console.log("ℹ️ Cron de notificaciones de mantenimiento DESHABILITADO (envío manual).");
+
 // Exportar función para ejecución manual
 module.exports = {
   archiveBudgets,
   sendScheduledNewsletters,
   processRecurringNewsletters,
   checkKnowledgeDocExpiry,
-  checkUnpaidFixedExpenses
+  checkUnpaidFixedExpenses,
+  runDailyNotificationCheck,
 };

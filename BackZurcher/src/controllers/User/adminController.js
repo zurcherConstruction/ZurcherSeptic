@@ -176,8 +176,9 @@ const updateStaff = async (req, res, next) => { // Añadido next
         if (name) staffToUpdate.name = name;
         if (phone) staffToUpdate.phone = phone;
         if (address) staffToUpdate.address = address;
-        if (isActive !== undefined && typeof isActive === 'boolean') { // Manejar isActive explícitamente
-            staffToUpdate.isActive = isActive;
+        if (isActive !== undefined) {
+            // FormData envía booleans como strings "true"/"false"
+            staffToUpdate.isActive = isActive === true || isActive === 'true';
         }
         
         // Actualizar comisión solo si es sales_rep
@@ -249,16 +250,19 @@ const deactivateOrDeleteStaff = async (req, res) => {
             message: 'Usuario eliminado permanentemente',
         });
     } else if (action === 'deactivate') {
-        // Desactivar el usuario
         await staff.update({
             isActive: false,
             deactivatedAt: new Date(),
             deactivatedBy: req.staff.id,
         });
-        return res.json({
-            error: false,
-            message: 'Usuario desactivado exitosamente',
+        return res.json({ error: false, message: 'Usuario desactivado exitosamente' });
+    } else if (action === 'activate') {
+        await staff.update({
+            isActive: true,
+            deactivatedAt: null,
+            deactivatedBy: null,
         });
+        return res.json({ error: false, message: 'Usuario activado exitosamente' });
     } else {
         throw new CustomError('Acción no válida', 400);
     }
