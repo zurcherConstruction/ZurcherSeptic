@@ -37,11 +37,11 @@ const getMonthlySalesIndicators = async (req, res) => {
     const yearStart = `${targetYear}-01-01T00:00:00.000Z`;
     const yearEnd   = `${targetYear}-12-31T23:59:59.999Z`;
 
-    // ── 1. Ventas del año: works creados en el año objetivo (no cancelados)
+    // ── 1. Ventas del año: works creados en el año objetivo (excluir cancelados y mantenimiento)
     const yearWorks = await Work.findAll({
       where: {
         createdAt:       { [Op.between]: [yearStart, yearEnd] },
-        status:          { [Op.notIn]: ['cancelled'] },
+        status:          { [Op.notIn]: ['cancelled', 'maintenance'] },
         propertyAddress: { [Op.notILike]: 'DEMO%' },
       },
       attributes: ['idWork', 'createdAt', 'idBudget'],
