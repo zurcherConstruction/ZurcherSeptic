@@ -54,6 +54,7 @@ const Summary = () => {
   const [receiptAction, setReceiptAction] = useState('keep'); // 'keep', 'change', 'delete'
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Para forzar re-render
+  const [page, setPage] = useState(0);
   
   // 🆕 Estados para tipos de ingreso/gasto (con fallback a constantes)
   const [incomeTypes, setIncomeTypes] = useState(INCOME_TYPES);
@@ -270,6 +271,7 @@ const Summary = () => {
 
   const handleFilter = (e) => {
     e.preventDefault();
+    setPage(0);
     setSearchParams(p => {
       const map = { startDate: 'startDate', endDate: 'endDate', type: 'type', typeIncome: 'typeIncome', typeExpense: 'typeExpense', staffId: 'staffId', verified: 'verified', paymentMethod: 'paymentMethod', search: 'q' };
       Object.entries(map).forEach(([k, pk]) => { if (filters[k]) p.set(pk, filters[k]); else p.delete(pk); });
@@ -594,6 +596,8 @@ const Summary = () => {
     }
   };
 
+  const PAGE_SIZE = 75;
+
   // Filtrado en frontend
   const filteredMovements = movements.filter((mov) => {
     if (filters.type && filters.type === "income" && mov.movimiento !== "Ingreso")
@@ -621,6 +625,9 @@ const Summary = () => {
     }
     return true;
   });
+
+  const totalPages = Math.ceil(filteredMovements.length / PAGE_SIZE);
+  const pagedMovements = filteredMovements.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
@@ -924,7 +931,7 @@ const Summary = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredMovements.map((mov) => (
+                    pagedMovements.map((mov) => (
                       <tr key={mov.idIncome || mov.idExpense} className={`hover:bg-gray-50 transition-colors ${
                         mov.verified 
                           ? mov.movimiento === 'Ingreso' 
@@ -1059,6 +1066,34 @@ const Summary = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Paginación */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+                <span className="text-xs text-gray-500">
+                  Mostrando {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filteredMovements.length)} de {filteredMovements.length} registros
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0}
+                    className="px-3 py-1.5 text-xs font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="text-xs text-gray-600 font-medium">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1}
+                    className="px-3 py-1.5 text-xs font-medium rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
