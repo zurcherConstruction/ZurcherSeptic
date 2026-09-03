@@ -16,7 +16,7 @@ const getMonthlyExpenses = async (req, res) => {
     // 🚫 Excluir también 'Gasto Fijo' que se gestiona en la tabla FixedExpense
     let generalExpensesWhere = {
       typeExpense: {
-        [Op.in]: ['Gastos Generales', 'Gasto Flota', 'Subcontratista']
+        [Op.in]: ['Gastos Generales', 'Gasto Flota']
       },
       supplierInvoiceItemId: null, // 🚫 Excluir gastos ya vinculados a invoices de proveedores
       date: {
@@ -364,7 +364,7 @@ function getFrequencyMultiplier(frequency, monthNum, year) {
 function shouldIncludeFixedExpenseInMonth(frequency, startDate, endDate, monthDate) {
   // Para one_time: verificar que esté en el mismo mes/año que startDate
   if (frequency === 'one_time') {
-    return monthDate.getMonth() + 1 === startDate.getMonth() + 1 && 
+    return monthDate.getMonth() + 1 === startDate.getMonth() + 1 &&
            monthDate.getFullYear() === startDate.getFullYear();
   }
 
