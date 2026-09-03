@@ -1,4 +1,4 @@
-const { Expense, FixedExpense, FleetAsset, sequelize } = require('../data');
+const { Expense, FixedExpense, FixedExpensePayment, FleetAsset, sequelize } = require('../data');
 const { Op } = require('sequelize');
 
 /**
@@ -119,6 +119,37 @@ const getMonthlyExpenses = async (req, res) => {
       raw: true
     });
 
+    // 2b. PAGOS REALES de los gastos fijos (FixedExpensePayments del período consultado)
+    const fixedExpenseIds = fixedExpensesQuery.map(fe => fe.idFixedExpense);
+    const yearStart = `${currentYear}-01-01`;
+    const yearEnd   = `${currentYear}-12-31`;
+    const monthStart = specificMonth
+      ? `${currentYear}-${specificMonth.toString().padStart(2, '0')}-01`
+      : yearStart;
+    const monthEnd = specificMonth
+      ? `${currentYear}-${specificMonth.toString().padStart(2, '0')}-31`
+      : yearEnd;
+
+    let actualPaymentsMap = {}; // { fixedExpenseId: { 'MM': totalPaid } }
+
+    if (fixedExpenseIds.length > 0) {
+      const actualPayments = await FixedExpensePayment.findAll({
+        where: {
+          fixedExpenseId: { [Op.in]: fixedExpenseIds },
+          periodStart: { [Op.gte]: monthStart, [Op.lte]: monthEnd }
+        },
+        attributes: ['fixedExpenseId', 'periodStart', 'amount'],
+        raw: true
+      });
+
+      actualPayments.forEach(p => {
+        const fid = p.fixedExpenseId;
+        const mm  = p.periodStart.substring(5, 7);
+        if (!actualPaymentsMap[fid]) actualPaymentsMap[fid] = {};
+        actualPaymentsMap[fid][mm] = (actualPaymentsMap[fid][mm] || 0) + parseFloat(p.amount);
+      });
+    }
+
     // 3. PROCESAR GASTOS POR MES
     const monthlyData = {};
     
@@ -225,42 +256,45 @@ const getMonthlyExpenses = async (req, res) => {
 
     // 5. PROCESAR GASTOS FIJOS (generar por cada mes que aplique)
     fixedExpensesQuery.forEach(fixedExpense => {
-      // Parsear como hora local (sin Z) para evitar el desfase UTC → local timezone
       const startDate = new Date(fixedExpense.startDate + 'T00:00:00');
       const endDate = fixedExpense.endDate
         ? new Date(fixedExpense.endDate + 'T00:00:00')
         : new Date(`${currentYear}-12-31T00:00:00`);
       const baseAmount = parseFloat(fixedExpense.totalAmount);
 
-      // Determinar en qué meses aplica este gasto fijo
       monthsToProcess.forEach(monthNum => {
         const monthDate = new Date(currentYear, monthNum - 1, 1);
-        
-        // Verificar si el gasto fijo aplica en este mes
+
         if (shouldIncludeFixedExpenseInMonth(fixedExpense.frequency, startDate, endDate, monthDate)) {
           const monthKey = monthNum.toString().padStart(2, '0');
-          
+
           if (monthlyData[monthKey]) {
-            // 🆕 Calcular cuántas veces se paga este gasto en el mes
             const timesPerMonth = getFrequencyMultiplier(fixedExpense.frequency, monthNum, currentYear);
-            const monthlyAmount = baseAmount * timesPerMonth;
-            
+            const configuredAmount = baseAmount * timesPerMonth;
+
+            // Usar el monto realmente pagado ese mes si existe; si no, mostrar el configurado como pendiente
+            const paymentsThisMonth = (actualPaymentsMap[fixedExpense.idFixedExpense] || {})[monthKey] || 0;
+            const isPaid = paymentsThisMonth > 0;
+            const displayAmount = isPaid ? paymentsThisMonth : configuredAmount;
+
             monthlyData[monthKey].fixedExpenses.count++;
-            monthlyData[monthKey].fixedExpenses.total += monthlyAmount;
+            monthlyData[monthKey].fixedExpenses.total += displayAmount;
             monthlyData[monthKey].fixedExpenses.items.push({
               id: fixedExpense.idFixedExpense,
               name: fixedExpense.name,
               description: fixedExpense.description,
-              amount: monthlyAmount, // 🆕 Usar el monto ya multiplicado
-              baseAmount: baseAmount, // 🆕 Guardar el monto base para referencia
+              amount: displayAmount,
+              configuredAmount: configuredAmount,
+              paidAmount: paymentsThisMonth,
+              isPaid,
+              pendingAmount: isPaid ? 0 : configuredAmount,
               frequency: fixedExpense.frequency,
-              timesPerMonth: timesPerMonth, // 🆕 Mostrar cuántas veces se paga
+              timesPerMonth,
               category: fixedExpense.category,
               type: 'fixed',
               dueDay: fixedExpense.dueDay,
               startDate: fixedExpense.startDate,
               endDate: fixedExpense.endDate,
-              // Para gastos fijos, calculamos una fecha estimada de vencimiento
               estimatedDueDate: `${currentYear}-${monthKey}-${String(fixedExpense.dueDay || 1).padStart(2, '0')}`
             });
           }

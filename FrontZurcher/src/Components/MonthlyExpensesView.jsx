@@ -643,7 +643,7 @@ const MonthlyExpensesView = () => {
                                             </div>
                                             <div className="space-y-2">
                                               {staffExpenses.map((item, idx) => (
-                                                <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border border-blue-100">
+                                                <div key={idx} className={`flex items-center justify-between p-2 bg-white rounded border ${item.isPaid === false ? 'border-yellow-300 bg-yellow-50' : 'border-blue-100'}`}>
                                                   <div className="flex-1">
                                                     <p className="text-sm font-medium text-gray-800">{item.name}</p>
                                                     {item.description && (
@@ -651,8 +651,12 @@ const MonthlyExpensesView = () => {
                                                     )}
                                                   </div>
                                                   <div className="text-right ml-4">
-                                                    <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.amount)}</p>
-                                                    <p className="text-xs text-gray-500">{item.frequency}</p>
+                                                    <p className={`text-sm font-semibold ${item.isPaid === false ? 'text-yellow-700' : 'text-gray-900'}`}>
+                                                      {formatCurrency(item.amount)}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                      {item.isPaid === false ? '⏳ Pendiente' : '✓ Pagado'} · {item.frequency}
+                                                    </p>
                                                   </div>
                                                 </div>
                                               ))}
@@ -688,7 +692,7 @@ const MonthlyExpensesView = () => {
                                             </div>
                                             <div className="space-y-2">
                                               {categoryExpenses.map((item, idx) => (
-                                                <div key={idx} className="flex items-center justify-between p-2 bg-white rounded border border-orange-100">
+                                                <div key={idx} className={`flex items-center justify-between p-2 rounded border ${item.isPaid === false ? 'border-yellow-300 bg-yellow-50' : 'bg-white border-orange-100'}`}>
                                                   <div className="flex-1">
                                                     <p className="text-sm font-medium text-gray-800">{item.name}</p>
                                                     {item.description && (
@@ -696,8 +700,12 @@ const MonthlyExpensesView = () => {
                                                     )}
                                                   </div>
                                                   <div className="text-right ml-4">
-                                                    <p className="text-sm font-semibold text-gray-900">{formatCurrency(item.amount)}</p>
-                                                    <p className="text-xs text-gray-500">{item.frequency}</p>
+                                                    <p className={`text-sm font-semibold ${item.isPaid === false ? 'text-yellow-700' : 'text-gray-900'}`}>
+                                                      {formatCurrency(item.amount)}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                      {item.isPaid === false ? '⏳ Pendiente' : '✓ Pagado'} · {item.frequency}
+                                                    </p>
                                                   </div>
                                                 </div>
                                               ))}
