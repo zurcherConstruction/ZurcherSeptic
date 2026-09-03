@@ -120,23 +120,20 @@ const getMonthlyExpenses = async (req, res) => {
     });
 
     // 2b. PAGOS REALES de los gastos fijos (FixedExpensePayments del período consultado)
+    // Usar LIKE sobre el texto de periodStart para evitar casteo a DATE en registros corruptos
     const fixedExpenseIds = fixedExpensesQuery.map(fe => fe.idFixedExpense);
-    const yearStart = `${currentYear}-01-01`;
-    const yearEnd   = `${currentYear}-12-31`;
-    const monthStart = specificMonth
-      ? `${currentYear}-${specificMonth.toString().padStart(2, '0')}-01`
-      : yearStart;
-    const monthEnd = specificMonth
-      ? `${currentYear}-${specificMonth.toString().padStart(2, '0')}-31`
-      : yearEnd;
+    const mmPattern = specificMonth
+      ? `${currentYear}-${specificMonth.toString().padStart(2, '0')}-%`
+      : `${currentYear}-%`;
 
     let actualPaymentsMap = {}; // { fixedExpenseId: { 'MM': totalPaid } }
 
     if (fixedExpenseIds.length > 0) {
+
       const actualPayments = await FixedExpensePayment.findAll({
         where: {
           fixedExpenseId: { [Op.in]: fixedExpenseIds },
-          periodStart: { [Op.gte]: monthStart, [Op.lte]: monthEnd }
+          periodStart: { [Op.like]: mmPattern }
         },
         attributes: ['fixedExpenseId', 'periodStart', 'amount'],
         raw: true
