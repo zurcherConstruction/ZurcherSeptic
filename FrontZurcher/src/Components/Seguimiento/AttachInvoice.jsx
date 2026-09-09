@@ -2310,29 +2310,6 @@ const AttachReceipt = () => {
               </div>
             )}
 
-            {/* Payment Details - Campo adicional para detalles */}
-            {paymentMethod && (
-              <div>
-                <label htmlFor="paymentDetails" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
-                  <DocumentTextIcon className="h-5 w-5 mr-2 text-gray-500" />
-                  Detalles del Pago (Opcional)
-                </label>
-                <input
-                  id="paymentDetails"
-                  type="text"
-                  value={paymentDetails}
-                  onChange={(e) => setPaymentDetails(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder={
-                    paymentMethod === 'Cheque' ? 'Ej: Check #1234' :
-                      paymentMethod.includes('Card') || paymentMethod.includes('Débito') ? 'Ej: Últimos 4 dígitos: 5678' :
-                        paymentMethod === 'Transferencia Bancaria' ? 'Ej: Ref #ABC123' :
-                          'Detalles adicionales...'
-                  }
-                />
-              </div>
-            )}
-
             {/* Fecha de Pago */}
             {paymentMethod && (
               <div>
@@ -2350,19 +2327,27 @@ const AttachReceipt = () => {
               </div>
             )}
 
-            {/* Notes */}
+            {/* Notas / Detalles del Pago - campo unificado */}
             <div>
               <label htmlFor="notes" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                 <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Notas (Opcional)
+                Notas / Detalles del Pago (Opcional)
               </label>
               <textarea
                 id="notes"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => {
+                  setNotes(e.target.value);
+                  setPaymentDetails(e.target.value);
+                }}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
                 rows="3"
-                placeholder="Agregar notas adicionales..."
+                placeholder={
+                  paymentMethod === 'Cheque'                                                        ? 'Ej: Check #1234, notas adicionales...' :
+                  paymentMethod?.includes('Card') || paymentMethod?.includes('Débito')             ? 'Ej: Últimos 4 dígitos: 5678, notas...' :
+                  paymentMethod === 'Transferencia Bancaria'                                        ? 'Ej: Ref #ABC123, notas adicionales...' :
+                                                                                                     'Detalles del pago, notas adicionales...'
+                }
               />
             </div>
 
