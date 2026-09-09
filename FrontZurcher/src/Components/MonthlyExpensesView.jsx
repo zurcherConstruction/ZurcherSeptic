@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../utils/formatters';
 import api from '../utils/apiClient';
+import * as XLSX from 'xlsx';
 
 const MonthlyExpensesView = () => {
   const [data, setData] = useState(null);
@@ -15,6 +16,18 @@ const MonthlyExpensesView = () => {
   
   // Estados para controlar qué secciones están expandidas
   const [expandedSections, setExpandedSections] = useState({});
+
+  // Estado para visor de comprobantes
+  const [receiptViewer, setReceiptViewer] = useState(null);
+
+  // Estado para modal de exportación
+  const [exportModal, setExportModal] = useState(false);
+  const [exportOptions, setExportOptions] = useState({
+    generales: true,
+    flota: true,
+    fijos: true,
+    resumen: true,
+  });
 
   const months = [
     { value: 1, label: 'Enero' },
@@ -160,17 +173,114 @@ const MonthlyExpensesView = () => {
     }
   };
 
+  const exportToExcel = (opts = exportOptions) => {
+    if (!data) return;
+
+    const monthData = data.monthlyData.find(m => m.monthNumber === parseInt(selectedMonth));
+    if (!monthData) return;
+
+    const monthName = months.find(m => m.value === parseInt(selectedMonth))?.label || selectedMonth;
+    const fileName = `Gastos_${monthName}_${selectedYear}.xlsx`;
+    const wb = XLSX.utils.book_new();
+    let hasSheets = false;
+
+    // ── Hoja 1: Gastos Generales ─────────────────────────────────
+    if (opts.generales && monthData.generalExpenses.items.length > 0) {
+      const rows = monthData.generalExpenses.items.map(item => ({
+        'Fecha':          item.date,
+        'Proveedor':      item.vendor || '',
+        'Notas':          item.notes || '',
+        'Método de pago': item.paymentMethod || '',
+        'Monto ($)':      parseFloat(item.amount),
+        'Estado':         item.status === 'paid' ? 'Pagado' : item.status === 'pending' ? 'Pendiente' : (item.status || ''),
+        'Cargado por':    item.createdByName || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 35 }, { wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Gastos Generales');
+      hasSheets = true;
+    }
+
+    // ── Hoja 2: Gasto Flota ──────────────────────────────────────
+    if (opts.flota && monthData.fleetExpenses.items.length > 0) {
+      const rows = monthData.fleetExpenses.items.map(item => ({
+        'Fecha':          item.date,
+        'Vehículo':       item.fleetAssetInfo?.name || '',
+        'Empresa':        item.fleetAssetInfo?.companyLabel || '',
+        'Notas':          item.notes || '',
+        'Método de pago': item.paymentMethod || '',
+        'Monto ($)':      parseFloat(item.amount),
+        'Cargado por':    item.createdByName || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 18 }, { wch: 30 }, { wch: 20 }, { wch: 12 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Gasto Flota');
+      hasSheets = true;
+    }
+
+    // ── Hoja 3: Gastos Fijos ─────────────────────────────────────
+    if (opts.fijos && monthData.fixedExpenses.items.length > 0) {
+      const rows = monthData.fixedExpenses.items.map(item => ({
+        'Nombre':                item.name,
+        'Categoría':             item.category || '',
+        'Frecuencia':            item.frequency || '',
+        'Monto configurado ($)': parseFloat(item.configuredAmount || item.amount),
+        'Monto pagado ($)':      parseFloat(item.paidAmount || 0),
+        'Estado':                item.isPaid ? 'Pagado' : 'Pendiente',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Gastos Fijos');
+      hasSheets = true;
+    }
+
+    // ── Hoja 4: Resumen ──────────────────────────────────────────
+    if (opts.resumen) {
+      const resumenRows = [];
+      if (opts.generales) resumenRows.push({ 'Categoría': 'Gastos Generales', 'Total ($)': monthData.generalExpenses.total });
+      if (opts.flota)     resumenRows.push({ 'Categoría': 'Gasto Flota',      'Total ($)': monthData.fleetExpenses.total });
+      if (opts.fijos)     resumenRows.push({ 'Categoría': 'Gastos Fijos',     'Total ($)': monthData.fixedExpenses.total });
+      const totalSelected =
+        (opts.generales ? monthData.generalExpenses.total : 0) +
+        (opts.flota     ? monthData.fleetExpenses.total    : 0) +
+        (opts.fijos     ? monthData.fixedExpenses.total    : 0);
+      resumenRows.push({ 'Categoría': 'TOTAL', 'Total ($)': totalSelected });
+      const ws = XLSX.utils.json_to_sheet(resumenRows);
+      ws['!cols'] = [{ wch: 22 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Resumen');
+      hasSheets = true;
+    }
+
+    if (!hasSheets) return;
+    XLSX.writeFile(wb, fileName);
+    setExportModal(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            📊 Gastos Devengados Mensuales
-          </h1>
-          <p className="text-lg text-gray-600">
-            Análisis de gastos generados independientemente del estado de pago
-          </p>
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              📊 Gastos Devengados Mensuales
+            </h1>
+            <p className="text-lg text-gray-600">
+              Análisis de gastos generados independientemente del estado de pago
+            </p>
+          </div>
+          {data && (
+            <button
+              onClick={() => setExportModal(true)}
+              className="flex-shrink-0 flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-medium text-sm shadow-sm transition-colors"
+              title="Exportar a Excel"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Exportar Excel
+            </button>
+          )}
         </div>
 
         {/* Filtros */}
@@ -388,6 +498,20 @@ const MonthlyExpensesView = () => {
                                       )}
                                     </div>
                                   </div>
+                                  {/* Botón comprobante */}
+                                  {item.receipts && item.receipts.length > 0 && (
+                                    <button
+                                      onClick={() => setReceiptViewer(item.receipts[0])}
+                                      className="ml-3 flex-shrink-0 bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium flex items-center gap-1"
+                                      title="Ver comprobante"
+                                    >
+                                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                      </svg>
+                                      Ver
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -741,6 +865,111 @@ const MonthlyExpensesView = () => {
           </div>
         )}
       </div>
+
+      {/* Modal selección de exportación Excel */}
+      {exportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Exportar a Excel</h3>
+              <button
+                onClick={() => setExportModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Seleccioná qué secciones incluir:</p>
+              {[
+                { key: 'generales', label: 'Gastos Generales' },
+                { key: 'flota',     label: 'Gasto Flota' },
+                { key: 'fijos',     label: 'Gastos Fijos' },
+                { key: 'resumen',   label: 'Hoja Resumen' },
+              ].map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={exportOptions[key]}
+                    onChange={e => setExportOptions(prev => ({ ...prev, [key]: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button
+                onClick={() => setExportModal(false)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => exportToExcel(exportOptions)}
+                disabled={!Object.values(exportOptions).some(Boolean)}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal visor de comprobantes */}
+      {receiptViewer && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <span className="font-semibold text-gray-800 text-sm truncate">
+                {receiptViewer.originalName || 'Comprobante'}
+              </span>
+              <button
+                onClick={() => setReceiptViewer(null)}
+                className="text-gray-500 hover:text-gray-800 ml-4 flex-shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              {receiptViewer.mimeType?.startsWith('image/') ? (
+                <img
+                  src={receiptViewer.fileUrl}
+                  alt={receiptViewer.originalName || 'Comprobante'}
+                  className="max-w-full h-auto mx-auto rounded"
+                />
+              ) : receiptViewer.mimeType === 'application/pdf' ? (
+                <iframe
+                  key={receiptViewer.fileUrl}
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(receiptViewer.fileUrl)}&embedded=true`}
+                  title={receiptViewer.originalName || 'Comprobante PDF'}
+                  width="100%"
+                  height="600px"
+                  className="rounded border"
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-600 mb-4">Vista previa no disponible</p>
+                  <a
+                    href={receiptViewer.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                  >
+                    Abrir archivo
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

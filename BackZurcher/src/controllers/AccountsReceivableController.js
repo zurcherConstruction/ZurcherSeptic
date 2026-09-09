@@ -164,26 +164,11 @@ const AccountsReceivableController = {
             attributes: ['id', 'message', 'createdAt', 'workId']
           });
 
-          console.log(`📧 [AccountsReceivable] Factura ${invoice.id} (Work: ${invoice.workId}):`, {
-            sentNote: sentNote ? {
-              id: sentNote.id,
-              message: sentNote.message,
-              createdAt: sentNote.createdAt,
-              createdAtType: typeof sentNote.createdAt
-            } : null
-          });
-
           const resultData = {
             ...invoice.toJSON(),
             sentAt: sentNote?.createdAt || null,
             wasSent: !!sentNote
           };
-
-          console.log(`🔍 [AccountsReceivable] Datos resultado para factura ${invoice.id}:`, {
-            sentAt: resultData.sentAt,
-            sentAtType: typeof resultData.sentAt,
-            wasSent: resultData.wasSent
-          });
 
           return resultData;
         })

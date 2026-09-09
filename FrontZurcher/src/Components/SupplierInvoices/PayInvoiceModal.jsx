@@ -28,6 +28,12 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
   const [simpleWorkDistribution, setSimpleWorkDistribution] = useState([]);
   const [simpleWorkSearchTerm, setSimpleWorkSearchTerm] = useState('');
   
+  // Para create_fixed_once
+  const [fixedOnceName, setFixedOnceName] = useState('');
+  const [fixedOnceCategory, setFixedOnceCategory] = useState('Otros');
+  const [fixedOncePeriodStart, setFixedOncePeriodStart] = useState('');
+  const [fixedOncePeriodEnd, setFixedOncePeriodEnd] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,6 +44,21 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       fetchAvailableWorks();
     } else if (paymentType === 'create_with_simple_works') {
       fetchAvailableSimpleWorks();
+    } else if (paymentType === 'create_fixed_once') {
+      // Pre-llenar nombre desde vendor + invoice
+      if (!fixedOnceName && invoice) {
+        setFixedOnceName(`${invoice.vendor} - Invoice #${invoice.invoiceNumber}`);
+      }
+      // Pre-llenar período: primer y último día del mes del paymentDate
+      if (!fixedOncePeriodStart && paymentDate) {
+        const d = new Date(paymentDate + 'T12:00:00');
+        const y = d.getFullYear();
+        const m = d.getMonth(); // 0-indexed
+        const firstDay = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(Date.UTC(y, m + 1, 0)).toISOString().split('T')[0];
+        setFixedOncePeriodStart(firstDay);
+        setFixedOncePeriodEnd(lastDay);
+      }
     }
   }, [paymentType]);
 
@@ -312,6 +333,21 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       }
     }
 
+    if (paymentType === 'create_fixed_once') {
+      if (!fixedOnceName.trim()) {
+        alert('Ingresá un nombre para el gasto fijo');
+        return false;
+      }
+      if (!fixedOncePeriodStart || !fixedOncePeriodEnd) {
+        alert('Ingresá las fechas del período');
+        return false;
+      }
+      if (fixedOncePeriodStart > fixedOncePeriodEnd) {
+        alert('La fecha de inicio del período no puede ser mayor al fin');
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -343,6 +379,11 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
         formData.append('distribution', JSON.stringify(simpleWorkDistribution));
       } else if (paymentType === 'create_general') {
         formData.append('generalDescription', generalExpenseDescription);
+      } else if (paymentType === 'create_fixed_once') {
+        formData.append('fixedOnceName', fixedOnceName);
+        formData.append('fixedOnceCategory', fixedOnceCategory);
+        formData.append('fixedOncePeriodStart', fixedOncePeriodStart);
+        formData.append('fixedOncePeriodEnd', fixedOncePeriodEnd);
       }
 
       const response = await fetch(
@@ -454,7 +495,7 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
             <label className="block text-sm font-semibold text-gray-700 mb-3">
               Tipo de Pago
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               {/* Opción 1: Vincular Existente */}
               <button
                 type="button"
@@ -520,6 +561,23 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                 <h3 className="font-semibold text-gray-800">Gasto General</h3>
                 <p className="text-sm text-gray-500 mt-1">
                   Crear expense sin vincular a obra
+                </p>
+              </button>
+
+              {/* Opción 5: Gasto Fijo Único */}
+              <button
+                type="button"
+                onClick={() => setPaymentType('create_fixed_once')}
+                className={`p-4 border-2 rounded-lg transition-all ${
+                  paymentType === 'create_fixed_once'
+                    ? 'border-purple-600 bg-purple-50 shadow-md'
+                    : 'border-gray-200 hover:border-purple-300'
+                }`}
+              >
+                <FaFileInvoiceDollar className={`text-3xl mb-2 mx-auto ${paymentType === 'create_fixed_once' ? 'text-purple-600' : 'text-gray-400'}`} />
+                <h3 className="font-semibold text-gray-800">Gasto Fijo Único</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Registrar como gasto fijo de un período
                 </p>
               </button>
             </div>
@@ -1023,7 +1081,7 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                       </p>
                     </div>
                   </div>
-                  
+
                   {/* Campo de Descripción */}
                   <div className="mt-3">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1039,6 +1097,103 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                     <p className="text-xs text-gray-500 mt-1">
                       Esta descripción se agregará a: {invoice.vendor} - Invoice #{invoice.invoiceNumber}
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {/* OPCIÓN 5: Gasto Fijo Único */}
+              {paymentType === 'create_fixed_once' && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3 mb-4">
+                    <FaFileInvoiceDollar className="text-purple-600 text-2xl mt-1" />
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-800">Gasto Fijo Único</h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Se registrará <strong>{formatCurrency(invoice.totalAmount)}</strong> como gasto fijo de un período específico. Aparecerá en Monthly Expenses del mes seleccionado.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {/* Nombre */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nombre del gasto *
+                      </label>
+                      <input
+                        type="text"
+                        value={fixedOnceName}
+                        onChange={e => setFixedOnceName(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                        placeholder="Ej: Renta Oficina, Seguro Camión..."
+                      />
+                    </div>
+
+                    {/* Categoría */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Categoría *
+                      </label>
+                      <select
+                        value={fixedOnceCategory}
+                        onChange={e => setFixedOnceCategory(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                      >
+                        {['Renta','Servicios','Seguros','Salarios','Equipamiento','Software/Subscripciones','Mantenimiento Vehicular','Combustible','Impuestos','Contabilidad/Legal','Marketing','Telefonía','Otros'].map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Período */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Período que cubre este pago *
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Inicio</label>
+                          <input
+                            type="date"
+                            value={fixedOncePeriodStart}
+                            onChange={e => setFixedOncePeriodStart(e.target.value)}
+                            required
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${!fixedOncePeriodStart ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Fin</label>
+                          <input
+                            type="date"
+                            value={fixedOncePeriodEnd}
+                            onChange={e => setFixedOncePeriodEnd(e.target.value)}
+                            required
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm ${!fixedOncePeriodEnd ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Cartel dinámico del período */}
+                      {fixedOncePeriodStart && fixedOncePeriodEnd ? (
+                        <div className="mt-2 flex items-start gap-2 bg-purple-100 border border-purple-300 rounded-lg px-3 py-2">
+                          <span className="text-purple-600 text-base mt-0.5">📅</span>
+                          <p className="text-sm text-purple-800">
+                            Este pago pertenece al período de{' '}
+                            <strong>
+                              {new Date(fixedOncePeriodStart + 'T12:00:00').toLocaleDateString('es-US', { month: 'long', year: 'numeric' })}
+                            </strong>.
+                            {' '}Aparecerá en Monthly Expenses de ese mes.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                          <span className="text-red-500 text-base mt-0.5">⚠️</span>
+                          <p className="text-sm text-red-700">
+                            <strong>Requerido:</strong> Indicá las fechas del período que cubre este pago para que aparezca en el mes correcto de Monthly Expenses.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

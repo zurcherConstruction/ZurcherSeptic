@@ -1,4 +1,4 @@
-const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceExpense, Expense, FixedExpense, Work, SimpleWork, Staff, Receipt, Permit, sequelize } = require('../data');
+const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceExpense, Expense, FixedExpense, FixedExpensePayment, Work, SimpleWork, Staff, Receipt, Permit, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { cloudinary } = require('../utils/cloudinaryConfig');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 🆕 Para subir receipts
@@ -1514,10 +1514,10 @@ const paySupplierInvoice = async (req, res) => {
       });
     }
 
-    if (!['link_existing', 'create_with_works', 'create_with_simple_works', 'create_general'].includes(paymentType)) {
+    if (!['link_existing', 'create_with_works', 'create_with_simple_works', 'create_general', 'create_fixed_once'].includes(paymentType)) {
       await transaction.rollback();
       return res.status(400).json({
-        error: 'paymentType inválido. Debe ser: link_existing, create_with_works, create_with_simple_works, o create_general'
+        error: 'paymentType inválido. Debe ser: link_existing, create_with_works, create_with_simple_works, create_general o create_fixed_once'
       });
     }
 
@@ -1987,6 +1987,81 @@ const paySupplierInvoice = async (req, res) => {
           console.error('  ⚠️ Error enviando notificación:', notificationError.message);
         }
 
+        break;
+      }
+
+      // ===== OPCIÓN 5: GASTO FIJO ÚNICO =====
+      case 'create_fixed_once': {
+        console.log('📌 [PayInvoice] Creando gasto fijo único...');
+
+        const fixedOnceName     = req.body.fixedOnceName     || `${invoice.vendor} - Invoice #${invoice.invoiceNumber}`;
+        const fixedOnceCategory = req.body.fixedOnceCategory || 'Otros';
+        const fixedOncePeriodStart = req.body.fixedOncePeriodStart; // YYYY-MM-DD
+        const fixedOncePeriodEnd   = req.body.fixedOncePeriodEnd;   // YYYY-MM-DD
+
+        if (!fixedOncePeriodStart || !fixedOncePeriodEnd) {
+          throw new Error('Se requieren las fechas del período (fixedOncePeriodStart, fixedOncePeriodEnd)');
+        }
+
+        // Crear el FixedExpense de tipo único
+        const fixedExpense = await FixedExpense.create({
+          name:             fixedOnceName,
+          description:      `Generado desde Invoice #${invoice.invoiceNumber} - ${invoice.vendor}`,
+          totalAmount:      parseFloat(invoice.totalAmount),
+          paidAmount:       parseFloat(invoice.totalAmount),
+          frequency:        'one_time',
+          category:         fixedOnceCategory,
+          startDate:        fixedOncePeriodStart,
+          endDate:          fixedOncePeriodEnd,
+          isActive:         false,
+          vendor:           invoice.vendor,
+          paymentStatus:    'paid',
+          paidDate:         finalPaymentDate,
+          paymentMethod:    paymentMethod,
+          notes:            `Invoice #${invoice.invoiceNumber}`,
+          createdByStaffId: req.user?.id || null,
+        }, { transaction });
+
+        // Crear el pago del período
+        const fixedPayment = await FixedExpensePayment.create({
+          fixedExpenseId:   fixedExpense.idFixedExpense,
+          amount:           parseFloat(invoice.totalAmount),
+          paymentDate:      finalPaymentDate,
+          paymentMethod:    paymentMethod,
+          periodStart:      fixedOncePeriodStart,
+          periodEnd:        fixedOncePeriodEnd,
+          notes:            `Invoice #${invoice.invoiceNumber} - ${invoice.vendor}`,
+          createdByStaffId: req.user?.id || null,
+        }, { transaction });
+
+        // Subir receipt si existe
+        if (receiptFile) {
+          const uploadResult = await uploadBufferToCloudinary(receiptFile.buffer, {
+            folder: 'zurcher_receipts',
+            resource_type: receiptFile.mimetype === 'application/pdf' ? 'raw' : 'auto',
+            format: receiptFile.mimetype === 'application/pdf' ? undefined : 'jpg',
+            access_mode: 'public'
+          });
+
+          await Receipt.create({
+            relatedModel: 'FixedExpensePayment',
+            relatedId:    fixedPayment.idPayment.toString(),
+            type:         'Gasto Fijo',
+            notes:        `Receipt de invoice #${invoice.invoiceNumber}`,
+            fileUrl:      uploadResult.secure_url,
+            publicId:     uploadResult.public_id,
+            mimeType:     receiptFile.mimetype,
+            originalName: receiptFile.originalname
+          }, { transaction });
+        }
+
+        createdExpenses.push({
+          fixedExpenseId: fixedExpense.idFixedExpense,
+          amount: invoice.totalAmount,
+          type: 'fixed_once'
+        });
+
+        console.log(`  ✅ Gasto fijo único creado: ${fixedOnceName} $${invoice.totalAmount} período ${fixedOncePeriodStart} → ${fixedOncePeriodEnd}`);
         break;
       }
     }
