@@ -1,4 +1,4 @@
-const { Expense, FixedExpense, FixedExpensePayment, FleetAsset, sequelize } = require('../data');
+const { Expense, FixedExpense, FixedExpensePayment, FleetAsset, Receipt, sequelize } = require('../data');
 const { Op } = require('sequelize');
 
 /**
@@ -18,7 +18,8 @@ const getMonthlyExpenses = async (req, res) => {
       typeExpense: {
         [Op.in]: ['Gastos Generales', 'Gasto Flota']
       },
-      supplierInvoiceItemId: null, // 🚫 Excluir gastos ya vinculados a invoices de proveedores
+      supplierInvoiceItemId: null, // excluir gastos vinculados a invoices de proveedores
+      workId: null,                // excluir gastos vinculados a works (se ven en el perfil del work)
       date: {
         [Op.gte]: `${currentYear}-01-01`,
         [Op.lte]: `${currentYear}-12-31`
@@ -65,6 +66,21 @@ const getMonthlyExpenses = async (req, res) => {
       order: [['date', 'ASC']],
       raw: false
     });
+
+    // 1b. COMPROBANTES de los gastos generales
+    const generalExpenseIds = generalExpensesQuery.map(e => String(e.idExpense));
+    const receiptsMap = {};
+    if (generalExpenseIds.length > 0) {
+      const receipts = await Receipt.findAll({
+        where: { relatedModel: 'Expense', relatedId: { [Op.in]: generalExpenseIds } },
+        attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName'],
+        raw: true
+      });
+      receipts.forEach(r => {
+        if (!receiptsMap[r.relatedId]) receiptsMap[r.relatedId] = [];
+        receiptsMap[r.relatedId].push(r);
+      });
+    }
 
     // 2. GASTOS FIJOS desde FixedExpense (independientes del pago)
     // ✅ Incluye TODOS los gastos (activos e inactivos) que tengan startDate en el año consultado
@@ -251,7 +267,8 @@ const getMonthlyExpenses = async (req, res) => {
             licensePlate: expense.fleetAsset.licensePlate,
             serialNumber: expense.fleetAsset.serialNumber,
             companyLabel: fleetCompany
-          } : null
+          } : null,
+          receipts: receiptsMap[String(expense.idExpense)] || []
         });
       }
     });
