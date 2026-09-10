@@ -16,7 +16,7 @@ const getMonthlyExpenses = async (req, res) => {
     // 🚫 Excluir también 'Gasto Fijo' que se gestiona en la tabla FixedExpense
     let generalExpensesWhere = {
       typeExpense: {
-        [Op.in]: ['Gastos Generales', 'Gasto Flota']
+        [Op.in]: ['Gastos Generales', 'Gasto Flota', 'Publicidad', 'Otro']
       },
       supplierInvoiceItemId: null, // excluir gastos vinculados a invoices de proveedores
       workId: null,                // excluir gastos vinculados a works (se ven en el perfil del work)
@@ -207,6 +207,22 @@ const getMonthlyExpenses = async (req, res) => {
           partial: 0,
           items: []
         },
+        advertisingExpenses: {
+          count: 0,
+          total: 0,
+          paid: 0,
+          unpaid: 0,
+          partial: 0,
+          items: []
+        },
+        otherExpenses: {
+          count: 0,
+          total: 0,
+          paid: 0,
+          unpaid: 0,
+          partial: 0,
+          items: []
+        },
         totalMonth: 0
       };
     });
@@ -215,8 +231,10 @@ const getMonthlyExpenses = async (req, res) => {
     generalExpensesQuery.forEach(expense => {
       const expenseMonth = expense.date.substring(5, 7);
       const amount = parseFloat(expense.amount);
-      const isFleetExpense = expense.typeExpense === 'Gasto Flota';
-      const isContractor  = expense.typeExpense === 'Subcontratista';
+      const isFleetExpense    = expense.typeExpense === 'Gasto Flota';
+      const isContractor      = expense.typeExpense === 'Subcontratista';
+      const isAdvertising     = expense.typeExpense === 'Publicidad';
+      const isOther           = expense.typeExpense === 'Otro';
 
       if (monthlyData[expenseMonth]) {
         const fleetCompany = expense.fleetAsset
@@ -229,7 +247,11 @@ const getMonthlyExpenses = async (req, res) => {
           ? monthlyData[expenseMonth].fleetExpenses
           : isContractor
             ? monthlyData[expenseMonth].contractorExpenses
-            : monthlyData[expenseMonth].generalExpenses;
+            : isAdvertising
+              ? monthlyData[expenseMonth].advertisingExpenses
+              : isOther
+                ? monthlyData[expenseMonth].otherExpenses
+                : monthlyData[expenseMonth].generalExpenses;
 
         targetBucket.count++;
         targetBucket.total += amount;
@@ -254,8 +276,8 @@ const getMonthlyExpenses = async (req, res) => {
           paidAmount: parseFloat(expense.paidAmount || 0),
           paymentMethod: expense.paymentMethod,
           pendingAmount: amount - parseFloat(expense.paidAmount || 0),
-          type: isFleetExpense ? 'fleet' : isContractor ? 'contractor' : 'general',
-          category: isFleetExpense ? 'Gasto Vehículos/Máquinas' : isContractor ? 'Subcontratista' : 'Gastos Generales',
+          type: isFleetExpense ? 'fleet' : isContractor ? 'contractor' : isAdvertising ? 'advertising' : isOther ? 'other' : 'general',
+          category: isFleetExpense ? 'Gasto Vehículos/Máquinas' : isContractor ? 'Subcontratista' : isAdvertising ? 'Publicidad' : isOther ? 'Otro' : 'Gastos Generales',
           createdAt: expense.createdAt,
           createdByName: expense.Staff?.name || 'N/A',
           fleetAssetInfo: isFleetExpense && expense.fleetAsset ? {
@@ -323,7 +345,7 @@ const getMonthlyExpenses = async (req, res) => {
 
     // 6. CALCULAR TOTALES MENSUALES
     Object.values(monthlyData).forEach(monthData => {
-      monthData.totalMonth = monthData.generalExpenses.total + monthData.fixedExpenses.total + monthData.fleetExpenses.total + monthData.contractorExpenses.total;
+      monthData.totalMonth = monthData.generalExpenses.total + monthData.fixedExpenses.total + monthData.fleetExpenses.total + monthData.contractorExpenses.total + monthData.advertisingExpenses.total + monthData.otherExpenses.total;
       
       // Ordenar items por fecha
       monthData.generalExpenses.items.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -332,15 +354,17 @@ const getMonthlyExpenses = async (req, res) => {
 
     // 7. CALCULAR TOTALES ANUALES (solo si no se filtró por mes específico)
     const yearTotals = specificMonth ? null : {
-      generalExpenses:    Object.values(monthlyData).reduce((sum, month) => sum + month.generalExpenses.total, 0),
-      fixedExpenses:      Object.values(monthlyData).reduce((sum, month) => sum + month.fixedExpenses.total, 0),
-      fleetExpenses:      Object.values(monthlyData).reduce((sum, month) => sum + month.fleetExpenses.total, 0),
-      contractorExpenses: Object.values(monthlyData).reduce((sum, month) => sum + month.contractorExpenses.total, 0),
+      generalExpenses:      Object.values(monthlyData).reduce((sum, month) => sum + month.generalExpenses.total, 0),
+      fixedExpenses:        Object.values(monthlyData).reduce((sum, month) => sum + month.fixedExpenses.total, 0),
+      fleetExpenses:        Object.values(monthlyData).reduce((sum, month) => sum + month.fleetExpenses.total, 0),
+      contractorExpenses:   Object.values(monthlyData).reduce((sum, month) => sum + month.contractorExpenses.total, 0),
+      advertisingExpenses:  Object.values(monthlyData).reduce((sum, month) => sum + month.advertisingExpenses.total, 0),
+      otherExpenses:        Object.values(monthlyData).reduce((sum, month) => sum + month.otherExpenses.total, 0),
       totalYear: 0
     };
 
     if (yearTotals) {
-      yearTotals.totalYear = yearTotals.generalExpenses + yearTotals.fixedExpenses + yearTotals.fleetExpenses + yearTotals.contractorExpenses;
+      yearTotals.totalYear = yearTotals.generalExpenses + yearTotals.fixedExpenses + yearTotals.fleetExpenses + yearTotals.contractorExpenses + yearTotals.advertisingExpenses + yearTotals.otherExpenses;
     }
 
     res.status(200).json({

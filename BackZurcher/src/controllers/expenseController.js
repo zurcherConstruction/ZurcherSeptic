@@ -1058,7 +1058,10 @@ const getExpenseTypes = async (req, res) => {
       'Comisión Vendedor',
       'Gasto Fijo',
       'Gasto Flota',
-      'Subcontratista'
+      'Subcontratista',
+      'Publicidad',
+      'NOC',
+      'Otro'
     ];
     
     res.status(200).json({ types });

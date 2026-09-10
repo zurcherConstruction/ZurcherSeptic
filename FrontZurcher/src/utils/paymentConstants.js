@@ -75,6 +75,9 @@ export const EXPENSE_TYPES = [
   'Gasto Fijo',
   'Gasto Flota', // 🚗 Gastos de vehículos y maquinaria (fleet)
   'Subcontratista', // 🔨 Pagos a subcontratistas/contratistas externos
+  'Publicidad',
+  'NOC',
+  'Otro',
 ];
 
 // Tipos de Comprobantes (sincronizado con Receipt.js)
@@ -94,6 +97,12 @@ export const RECEIPT_TYPES = [
   'Inspección Final',
   'Gasto Fijo', // 🆕 Para comprobantes de gastos fijos
   'Gasto Flota', // 🚗 Para comprobantes de gastos de vehículos/maquinaria
+  'Subcontratista',
+  'Invoice Proveedor',
+  'Factura SimpleWork',
+  'Publicidad',
+  'NOC',
+  'Otro',
 ];
 
 // Helper para obtener label de método de pago

@@ -36,7 +36,10 @@ module.exports = (sequelize) => {
             'Gasto Flota', // 🚗 Para comprobantes de gastos de flota
             'Subcontratista', // 🔨 Para comprobantes de pagos a subcontratistas
             'Invoice Proveedor', // 🆕 Para invoices de proveedores
-            'Factura SimpleWork' // 🆕 Para facturas de SimpleWork
+            'Factura SimpleWork', // 🆕 Para facturas de SimpleWork
+            'Publicidad', // 🆕
+            'NOC', // 🆕
+            'Otro' // 🆕
         ),
         allowNull: false,
     },

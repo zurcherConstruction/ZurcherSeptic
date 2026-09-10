@@ -38,7 +38,10 @@ module.exports = (sequelize) => {
             'Comisión Vendedor', // 🆕 Nuevo tipo para comisiones
             'Gasto Fijo', // 🆕 Para gastos fijos recurrentes (alquiler, servicios, etc.)
             'Gasto Flota', // 🚗 Para gastos de vehículos y maquinaria
-            'Subcontratista' // 🔨 Pagos a subcontratistas/contratistas externos
+            'Subcontratista', // 🔨 Pagos a subcontratistas/contratistas externos
+            'Publicidad', // 🆕 Gastos de publicidad y marketing
+            'NOC', // 🆕 Notice of Commencement y trámites legales
+            'Otro' // 🆕 Otros gastos no categorizados
         ),
         allowNull: false,
     },
