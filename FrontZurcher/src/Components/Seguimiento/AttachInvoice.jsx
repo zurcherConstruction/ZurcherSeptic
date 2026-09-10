@@ -37,7 +37,9 @@ const generalExpenseTypes = [
   "Subcontratista", // 🔨 Pagos a subcontratistas/contratistas externos
   // "Comisión Vendedor", // ❌ Removido - Las comisiones se pagan desde CommissionsManager.jsx
   "Gasto Fijo", // 🆕 Los gastos fijos son siempre generales
-  "Gasto Flota" // 🚗 gasto general asociado a vehículo/maquinaria (activo opcional)
+  "Gasto Flota", // 🚗 gasto general asociado a vehículo/maquinaria (activo opcional)
+  "Publicidad", // 🆕 General — no requiere work específico
+  "Otro", // 🆕 General — sin work obligatorio
   // "Comprobante Gasto" // ❌ Removido del sistema
 ];
 

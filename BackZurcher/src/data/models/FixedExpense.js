@@ -57,6 +57,7 @@ module.exports = (sequelize) => {
         'Contabilidad/Legal',
         'Marketing',
         'Telefonía',
+        'Publicidad',
         'Otros'
       ),
       allowNull: false,

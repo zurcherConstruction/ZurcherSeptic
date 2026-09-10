@@ -24,8 +24,10 @@ const MonthlyExpensesView = () => {
   const [exportModal, setExportModal] = useState(false);
   const [exportOptions, setExportOptions] = useState({
     generales: true,
+    publicidad: true,
     flota: true,
     fijos: true,
+    otros: true,
     resumen: true,
   });
 
@@ -201,7 +203,24 @@ const MonthlyExpensesView = () => {
       hasSheets = true;
     }
 
-    // ── Hoja 2: Gasto Flota ──────────────────────────────────────
+    // ── Hoja 2: Publicidad ───────────────────────────────────────
+    if (opts.publicidad && monthData.advertisingExpenses?.items?.length > 0) {
+      const rows = monthData.advertisingExpenses.items.map(item => ({
+        'Fecha':          item.date,
+        'Proveedor':      item.vendor || '',
+        'Notas':          item.notes || '',
+        'Método de pago': item.paymentMethod || '',
+        'Monto ($)':      parseFloat(item.amount),
+        'Estado':         item.status === 'paid' ? 'Pagado' : item.status === 'pending' ? 'Pendiente' : (item.status || ''),
+        'Cargado por':    item.createdByName || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 12 }, { wch: 25 }, { wch: 35 }, { wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Publicidad');
+      hasSheets = true;
+    }
+
+    // ── Hoja 3: Gasto Flota ──────────────────────────────────────
     if (opts.flota && monthData.fleetExpenses.items.length > 0) {
       const rows = monthData.fleetExpenses.items.map(item => ({
         'Fecha':          item.date,
@@ -234,16 +253,37 @@ const MonthlyExpensesView = () => {
       hasSheets = true;
     }
 
-    // ── Hoja 4: Resumen ──────────────────────────────────────────
+    // ── Hoja 4: Otros ────────────────────────────────────────────
+    if (opts.otros && monthData.otherExpenses?.items?.length > 0) {
+      const rows = monthData.otherExpenses.items.map(item => ({
+        'Fecha':           item.date,
+        'Proveedor':       item.vendor || '',
+        'Notas':           item.notes || '',
+        'Tipo':            item.typeExpense || '',
+        'Método de pago':  item.paymentMethod || '',
+        'Monto ($)':       parseFloat(item.amount),
+        'Cargado por':     item.createdByName || '',
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 30 }, { wch: 14 }, { wch: 18 }, { wch: 12 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Otros Gastos');
+      hasSheets = true;
+    }
+
+    // ── Hoja 5: Resumen ──────────────────────────────────────────
     if (opts.resumen) {
       const resumenRows = [];
-      if (opts.generales) resumenRows.push({ 'Categoría': 'Gastos Generales', 'Total ($)': monthData.generalExpenses.total });
-      if (opts.flota)     resumenRows.push({ 'Categoría': 'Gasto Flota',      'Total ($)': monthData.fleetExpenses.total });
-      if (opts.fijos)     resumenRows.push({ 'Categoría': 'Gastos Fijos',     'Total ($)': monthData.fixedExpenses.total });
+      if (opts.generales)   resumenRows.push({ 'Categoría': 'Gastos Generales', 'Total ($)': monthData.generalExpenses.total });
+      if (opts.publicidad)  resumenRows.push({ 'Categoría': 'Publicidad',       'Total ($)': monthData.advertisingExpenses?.total || 0 });
+      if (opts.flota)       resumenRows.push({ 'Categoría': 'Gasto Flota',      'Total ($)': monthData.fleetExpenses.total });
+      if (opts.fijos)       resumenRows.push({ 'Categoría': 'Gastos Fijos',     'Total ($)': monthData.fixedExpenses.total });
+      if (opts.otros)       resumenRows.push({ 'Categoría': 'Otros Gastos',     'Total ($)': monthData.otherExpenses?.total || 0 });
       const totalSelected =
-        (opts.generales ? monthData.generalExpenses.total : 0) +
-        (opts.flota     ? monthData.fleetExpenses.total    : 0) +
-        (opts.fijos     ? monthData.fixedExpenses.total    : 0);
+        (opts.generales  ? monthData.generalExpenses.total             : 0) +
+        (opts.publicidad ? (monthData.advertisingExpenses?.total || 0) : 0) +
+        (opts.flota      ? monthData.fleetExpenses.total               : 0) +
+        (opts.fijos      ? monthData.fixedExpenses.total               : 0) +
+        (opts.otros      ? (monthData.otherExpenses?.total       || 0) : 0);
       resumenRows.push({ 'Categoría': 'TOTAL', 'Total ($)': totalSelected });
       const ws = XLSX.utils.json_to_sheet(resumenRows);
       ws['!cols'] = [{ wch: 22 }, { wch: 14 }];
@@ -512,6 +552,144 @@ const MonthlyExpensesView = () => {
                                       Ver
                                     </button>
                                   )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Publicidad - Sección desplegable */}
+                    {month.advertisingExpenses?.count > 0 && (
+                      <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => toggleSection(`publicidad-${month.month}`)}
+                          className="w-full bg-slate-200 hover:bg-slate-100 px-6 py-4 flex items-center justify-between transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-slate-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                              </svg>
+                            </div>
+                            <div className="text-left">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                Publicidad ({month.advertisingExpenses.count})
+                              </h4>
+                              <p className="text-sm text-gray-600">
+                                Pagados: {formatCurrency(month.advertisingExpenses.paid || 0)} •
+                                Pendientes: {formatCurrency(month.advertisingExpenses.unpaid || 0)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-xl font-bold text-purple-600">
+                              {formatCurrency(month.advertisingExpenses.total)}
+                            </div>
+                            <svg className={`h-5 w-5 text-gray-400 transition-transform ${expandedSections[`publicidad-${month.month}`] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </button>
+                        {expandedSections[`publicidad-${month.month}`] && (
+                          <div className="border-t border-purple-200 bg-white">
+                            <div className="p-6 space-y-3">
+                              {month.advertisingExpenses.items.map((item, index) => (
+                                <div key={index} className="bg-gradient-to-r from-purple-50 to-fuchsia-50 border border-purple-100 rounded-lg p-4">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3 mb-1">
+                                        <span className="text-lg font-bold text-purple-700">{formatCurrency(item.amount)}</span>
+                                        <span className="text-sm text-gray-500">{formatDateMDY ? formatDateMDY(item.date) : item.date}</span>
+                                      </div>
+                                      {item.vendor && <p className="text-sm font-medium text-gray-700">{item.vendor}</p>}
+                                      {item.notes && <p className="text-sm text-gray-600 mt-1">{item.notes}</p>}
+                                      <p className="text-xs text-gray-400 mt-1">Cargado por: {item.createdByName}</p>
+                                    </div>
+                                    {item.receipts && item.receipts.length > 0 && (
+                                      <button onClick={() => setReceiptViewer(item.receipts[0])} className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded transition-colors ml-3">
+                                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        Ver
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Otros Gastos - Sección desplegable */}
+                    {month.otherExpenses?.count > 0 && (
+                      <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => toggleSection(`otros-${month.month}`)}
+                          className="w-full bg-slate-100 hover:bg-slate-200 px-6 py-4 flex items-center justify-between transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="bg-slate-500 text-white rounded-lg p-2">
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <div className="text-left">
+                              <h4 className="text-lg font-semibold text-gray-900">
+                                Otros Gastos ({month.otherExpenses.count})
+                              </h4>
+                              <p className="text-sm text-gray-600">
+                                Pagados: {formatCurrency(month.otherExpenses.paid || 0)} •
+                                Pendientes: {formatCurrency(month.otherExpenses.unpaid || 0)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-xl font-bold text-slate-600">
+                              {formatCurrency(month.otherExpenses.total)}
+                            </div>
+                            <svg className={`h-5 w-5 text-gray-400 transition-transform ${expandedSections[`otros-${month.month}`] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </button>
+                        {expandedSections[`otros-${month.month}`] && (
+                          <div className="border-t border-slate-200 bg-white">
+                            <div className="p-6 space-y-3">
+                              {month.otherExpenses.items.map((item, index) => (
+                                <div key={index} className="bg-slate-50 border border-slate-100 rounded-lg p-4">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3 mb-1">
+                                        <span className="text-lg font-bold text-slate-700">{formatCurrency(item.amount)}</span>
+                                        <span className="text-sm text-gray-500">{formatDateMDY ? formatDateMDY(item.date) : item.date}</span>
+                                        {item.typeExpense && (
+                                          <span className="text-xs px-2 py-0.5 bg-slate-200 text-slate-700 rounded">{item.typeExpense}</span>
+                                        )}
+                                      </div>
+                                      {item.vendor && <p className="text-sm font-medium text-gray-700">{item.vendor}</p>}
+                                      {item.notes && <p className="text-sm text-gray-600 mt-1">{item.notes}</p>}
+                                      {(item.workId || item.simpleWorkId) && (
+                                        <p className="text-xs text-slate-500 mt-1">
+                                          Vinculado a: {item.workId ? `Work #${item.workId}` : `SimpleWork #${item.simpleWorkId}`}
+                                        </p>
+                                      )}
+                                      <p className="text-xs text-gray-400 mt-1">Cargado por: {item.createdByName}</p>
+                                    </div>
+                                    {item.receipts && item.receipts.length > 0 && (
+                                      <button onClick={() => setReceiptViewer(item.receipts[0])} className="flex items-center gap-1 text-xs text-slate-600 hover:text-slate-800 bg-slate-200 hover:bg-slate-300 px-2 py-1 rounded transition-colors ml-3">
+                                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        Ver
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -884,10 +1062,12 @@ const MonthlyExpensesView = () => {
             <div className="px-6 py-5 space-y-3">
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Seleccioná qué secciones incluir:</p>
               {[
-                { key: 'generales', label: 'Gastos Generales' },
-                { key: 'flota',     label: 'Gasto Flota' },
-                { key: 'fijos',     label: 'Gastos Fijos' },
-                { key: 'resumen',   label: 'Hoja Resumen' },
+                { key: 'generales',  label: 'Gastos Generales' },
+                { key: 'publicidad', label: 'Publicidad' },
+                { key: 'flota',      label: 'Gasto Flota' },
+                { key: 'fijos',      label: 'Gastos Fijos' },
+                { key: 'otros',      label: 'Otros Gastos' },
+                { key: 'resumen',    label: 'Hoja Resumen' },
               ].map(({ key, label }) => (
                 <label key={key} className="flex items-center gap-3 cursor-pointer select-none">
                   <input

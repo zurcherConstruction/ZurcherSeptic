@@ -64,6 +64,7 @@ const Summary = () => {
   const [fleetAssetsLoading, setFleetAssetsLoading] = useState(false);
   const [works, setWorks] = useState([]);
   const [worksLoading, setWorksLoading] = useState(false);
+  const [simpleWorks, setSimpleWorks] = useState([]);
   const [fixedExpenses, setFixedExpenses] = useState([]);
   
   const dispatch = useDispatch();
@@ -199,6 +200,21 @@ const Summary = () => {
     }
   };
 
+  const fetchSimpleWorks = async () => {
+    try {
+      const response = await api.get('/simple-works?limit=1000');
+      const list = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.data?.simpleWorks)
+          ? response.data.simpleWorks
+          : [];
+      setSimpleWorks(list);
+    } catch (error) {
+      console.error('Error al cargar simple works:', error);
+      setSimpleWorks([]);
+    }
+  };
+
   const fetchFixedExpenses = async () => {
     try {
       const response = await api.get('/fixed-expenses?isActive=true');
@@ -225,9 +241,11 @@ const Summary = () => {
         'Comprobante Gasto',
         'Gastos Generales',
         'Gasto Flota',
-        'Subcontratista'
+        'Subcontratista',
+        'NOC',
+        'Otro'
       ];
-      return expenseTypesLinkedToWork.includes(data?.typeExpense) || !!data?.workId;
+      return expenseTypesLinkedToWork.includes(data?.typeExpense) || !!data?.workId || !!data?.simpleWorkId;
     }
 
     return false;
@@ -251,6 +269,7 @@ const Summary = () => {
     fetchTypes(); // Cargar tipos primero
     fetchFleetAssets();
     fetchWorks();
+    fetchSimpleWorks();
     fetchFixedExpenses();
     fetchMovements();
     // eslint-disable-next-line
@@ -364,6 +383,7 @@ const Summary = () => {
       typeExpense: mov.typeExpense || "",
       fleetAssetId: mov.fleetAssetId || mov.fleetAssetInfo?.id || "",
       workId: mov.workId || "",
+      simpleWorkId: mov.simpleWorkId || "",
       paymentMethod: mov.paymentMethod || "",
       verified: mov.verified || false,
       periodStart: mov.periodStart ? mov.periodStart.toString().slice(0, 10) : "",
@@ -484,6 +504,7 @@ const Summary = () => {
           date: editData.date,
           typeExpense: editData.typeExpense,
           workId: shouldShowWorkLinkField('Gasto', editData) ? (editData.workId || null) : undefined,
+          simpleWorkId: ['NOC', 'Otro'].includes(editData.typeExpense) ? (editData.simpleWorkId || null) : undefined,
           fleetAssetId: editData.typeExpense === 'Gasto Flota' ? (editData.fleetAssetId || null) : null,
           paymentMethod: editData.paymentMethod,
           verified: editData.verified,
@@ -1299,6 +1320,30 @@ const Summary = () => {
                     <p className="text-xs text-gray-500 mt-1">
                       Puedes cambiar o quitar el work vinculado al editar este movimiento.
                     </p>
+
+                    {/* SimpleWork — solo para NOC y Otro */}
+                    {['NOC', 'Otro'].includes(editData.typeExpense) && (
+                      <div className="mt-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Vincular a Simple Work (Opcional)
+                        </label>
+                        <select
+                          value={editData.simpleWorkId || ''}
+                          onChange={(e) => setEditData({ ...editData, simpleWorkId: e.target.value, workId: e.target.value ? '' : editData.workId })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                        >
+                          <option value="">Sin vincular a simple work</option>
+                          {simpleWorks.map((sw) => (
+                            <option key={sw.id || sw.idSimpleWork} value={sw.id || sw.idSimpleWork}>
+                              {sw.workNumber ? `${sw.workNumber} — ` : ''}{sw.propertyAddress || sw.description || 'Sin dirección'}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Si vinculás a un Simple Work, se quitará el vínculo al Work regular.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -1139,7 +1139,7 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                         onChange={e => setFixedOnceCategory(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                       >
-                        {['Renta','Servicios','Seguros','Salarios','Equipamiento','Software/Subscripciones','Mantenimiento Vehicular','Combustible','Impuestos','Contabilidad/Legal','Marketing','Telefonía','Otros'].map(cat => (
+                        {['Renta','Servicios','Seguros','Salarios','Equipamiento','Software/Subscripciones','Mantenimiento Vehicular','Combustible','Impuestos','Contabilidad/Legal','Marketing','Telefonía','Publicidad','Otros'].map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                       </select>
