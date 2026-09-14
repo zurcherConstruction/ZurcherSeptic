@@ -113,8 +113,10 @@ router.post('/:idWork/maintenance-contract/generate', verifyToken, allowRoles(['
 // 🆕 Enviar Contrato de Mantenimiento al cliente para firma (DocuSign/SignNow)
 router.post('/:idWork/maintenance-contract/send', verifyToken, allowRoles(['admin', 'owner', 'worker']), WorkController.sendMaintenanceContractToClient);
 
-// 🆕 Verificar si el Contrato de Mantenimiento ya fue firmado
+// 🆕 Verificar si el Contrato de Mantenimiento ya fue firmado (autenticado - panel admin)
 router.get('/:idWork/maintenance-contract/signature-status', verifyToken, allowRoles(['admin', 'owner', 'worker']), WorkController.checkMaintenanceContractSignature);
+// 🌐 Versión pública para la página de firma del cliente (sin token)
+router.get('/:idWork/maintenance-contract/public-status', WorkController.checkMaintenanceContractSignature);
 router.get('/:idWork/maintenance-contract/sign', WorkController.getMaintenanceContractSigningUrl);
 
 // 🆕 Generar Permiso de Operación (PDF auto-completado, acepta body con ediciones)

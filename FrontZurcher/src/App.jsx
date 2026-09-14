@@ -61,6 +61,7 @@ import FixedExpensesManager from "./Components/FixedExpenses/FixedExpensesManage
 import MonthlyExpensesView from "./Components/MonthlyExpensesView"; // 🆕 Gastos Devengados Mensuales
 // 🆕 Importar página de revisión de presupuesto (pública)
 import BudgetReviewPage from "./Components/Budget/BudgetReviewPage";
+import MaintenanceContractSignPage from "./Components/Works/MaintenanceContractSignPage";
 // Importar componentes de la Landing
 import LandingClients from "./Components/Landing/LandingClients";
 import AboutPage from "./Components/Landing/AboutPage";
@@ -190,7 +191,8 @@ function App() {
   const isClientPortalRoute = location.pathname.startsWith("/client-portal/");
   const isInvoicePublicRoute = location.pathname.startsWith("/invoice/");
   const isMaintenanceResponseRoute = location.pathname.startsWith("/maintenance-confirm/") || location.pathname.startsWith("/maintenance-reject/") || location.pathname.startsWith("/maintenance-reschedule");
-  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute || isSimpleWorkApproveRoute || isInvoicePublicRoute || isMaintenanceResponseRoute;
+  const isMaintenanceContractSignRoute = location.pathname.startsWith("/sign-maintenance/");
+  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute || isSimpleWorkApproveRoute || isInvoicePublicRoute || isMaintenanceResponseRoute || isMaintenanceContractSignRoute;
 
   // Determinar si mostrar header y sidebar
   const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
@@ -227,6 +229,9 @@ function App() {
 
               {/* 🆕 Ruta pública para revisión de presupuestos */}
               <Route path="/budget-review/:budgetId/:reviewToken" element={<BudgetReviewPage />} />
+
+              {/* 🆕 Ruta pública para firma de contrato de mantenimiento */}
+              <Route path="/sign-maintenance/:idWork" element={<MaintenanceContractSignPage />} />
 
               {/* 🆕 Ruta pública para formulario de mantenimiento (protegida por token en query params) */}
               <Route path="/maintenance-form" element={<MaintenanceForm />} />
