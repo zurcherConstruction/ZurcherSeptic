@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import api from '../../utils/axios';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'https://zurcherapi.up.railway.app';
 
 export default function MaintenanceContractSignPage() {
   const { idWork } = useParams();
@@ -10,10 +12,10 @@ export default function MaintenanceContractSignPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (justSigned) return; // DocuSign just returned — no need to check, show thank-you
-    const fetchInfo = async () => {
+    if (justSigned) return;
+    const fetchStatus = async () => {
       try {
-        const { data } = await api.get(`/work/${idWork}/maintenance-contract/public-status`);
+        const { data } = await axios.get(`${API_URL}/work/${idWork}/maintenance-contract/public-status`);
         setStatus(data.isSigned ? 'already_signed' : 'ready');
       } catch (err) {
         setError(err.response?.status === 400
@@ -22,14 +24,12 @@ export default function MaintenanceContractSignPage() {
         setStatus('error');
       }
     };
-    fetchInfo();
+    fetchStatus();
   }, [idWork, justSigned]);
 
   const handleSign = () => {
     setStatus('signing');
-    // Redirigir al endpoint del backend que genera la URL de DocuSign y redirige
-    const backendUrl = import.meta.env.VITE_API_URL || 'https://zurcherseptic-production.up.railway.app';
-    window.location.href = `${backendUrl}/work/${idWork}/maintenance-contract/sign`;
+    window.location.href = `${API_URL}/work/${idWork}/maintenance-contract/sign`;
   };
 
   return (
@@ -111,7 +111,7 @@ export default function MaintenanceContractSignPage() {
                 maxWidth: '320px'
               }}
             >
-              ✍️ Sign Document
+              Sign Document
             </button>
             <p style={{ color: '#9ca3af', fontSize: '12px', marginTop: '16px' }}>
               You can click this button multiple times — a fresh secure session is generated each time.
