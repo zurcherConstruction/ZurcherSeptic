@@ -641,6 +641,45 @@ class DocuSignService {
   }
 
   /**
+   * Obtener URL de firma embebida usando datos exactos del signer (email, name, clientUserId separados)
+   */
+  async getRecipientViewUrlWithClientUserId(envelopeId, email, name, clientUserId, returnUrl = null) {
+    try {
+      console.log(`🔗 Generando URL de firma para envelope: ${envelopeId}`);
+      console.log(`   email="${email}", userName="${name}", clientUserId="${clientUserId}"`);
+
+      await this.getAccessToken();
+
+      const envelopesApi = new docusign.EnvelopesApi(this.apiClient);
+      const defaultReturnUrl = process.env.FRONTEND_URL || 'https://zurcher-construction.vercel.app';
+
+      const recipientViewRequest = docusign.RecipientViewRequest.constructFromObject({
+        returnUrl: returnUrl || defaultReturnUrl,
+        authenticationMethod: 'none',
+        email: email,
+        userName: name,
+        clientUserId: clientUserId
+      });
+
+      const results = await envelopesApi.createRecipientView(
+        this.accountId,
+        envelopeId,
+        { recipientViewRequest }
+      );
+
+      console.log(`✅ URL de firma generada exitosamente`);
+      return results.url;
+
+    } catch (error) {
+      console.error('❌ Error generando URL de firma:', error.message);
+      if (error.response) {
+        console.error('DocuSign error body:', JSON.stringify(error.response.body || error.response.data, null, 2));
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Obtener URL de firma embebida para el cliente
    * @param {string} envelopeId - ID del envelope
    * @param {string} email - Email del firmante
@@ -891,7 +930,7 @@ class DocuSignService {
         if (!signer.clientUserId) {
           console.log('⚠️ Este envelope fue enviado por EMAIL TRADICIONAL (sin firma embebida)');
           console.log('📧 El enlace en el correo original de DocuSign NO EXPIRA');
-          
+
           throw new Error(
             'Este documento fue enviado por email tradicional de DocuSign. ' +
             'El enlace en el correo original es permanente y no expira. ' +
@@ -901,12 +940,18 @@ class DocuSignService {
         }
 
         console.log('✅ Envelope usa firma embebida - generando nuevo enlace...');
+        // Usar el nombre y clientUserId EXACTOS que DocuSign tiene registrados
+        const exactEmail = signer.email.toLowerCase();
+        const exactName = signer.name;
+        const exactClientUserId = signer.clientUserId;
+        console.log(`🔑 Datos exactos: email=${exactEmail}, name="${exactName}", clientUserId=${exactClientUserId}`);
 
         // Generar nuevo enlace de firma
-        const signingUrl = await this.getRecipientViewUrl(
+        const signingUrl = await this.getRecipientViewUrlWithClientUserId(
           envelopeId,
-          clientEmail.toLowerCase(),
-          clientName,
+          exactEmail,
+          exactName,
+          exactClientUserId,
           returnUrl
         );
 
@@ -925,7 +970,7 @@ class DocuSignService {
       } catch (error) {
         console.error('❌ Error regenerando enlace de firma:', error.message);
         if (error.response) {
-          console.error('Response:', JSON.stringify(error.response.body, null, 2));
+          console.error('DocuSign error:', JSON.stringify(error.response.body || error.response.data, null, 2));
         }
         throw error;
       }

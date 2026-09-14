@@ -3151,11 +3151,16 @@ const getMaintenanceContractSigningUrl = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error generando URL de firma del contrato:', error);
+    const docuSignBody = error.response?.body || error.response?.data;
+    if (docuSignBody) {
+      console.error('DocuSign response body:', JSON.stringify(docuSignBody, null, 2));
+    }
     return res.status(500).send(`
       <html><body style="font-family:Arial;text-align:center;padding:50px;">
         <h2>❌ Error</h2>
         <p>Could not generate the signing link. Please contact us at admin@zurcherseptic.com</p>
         <p style="color:#999;font-size:12px;">${error.message}</p>
+        ${docuSignBody ? `<pre style="text-align:left;background:#f5f5f5;padding:10px;font-size:11px;">${JSON.stringify(docuSignBody, null, 2)}</pre>` : ''}
       </body></html>
     `);
   }
