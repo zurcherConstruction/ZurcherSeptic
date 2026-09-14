@@ -312,11 +312,14 @@ class ServiceMaintenanceContract {
     y2 -= 22;
 
     draw2('Signature: ____________________________', margin, y2, { size: 8.5 });
-    draw2('Signature: ____________________________', col + 10, y2, { size: 8.5 });
+    draw2('Client Signature: ____________________________', col + 10, y2, { size: 8.5 });
     y2 -= 16;
 
     draw2(`Title:  ${COMPANY.signerName}`, margin, y2, { size: 8.5 });
     draw2('Title:  OWNER', col + 10, y2, { size: 8.5 });
+    y2 -= 14;
+
+    draw2('Sign Date: ____________________________', col + 10, y2, { size: 8.5 });
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);

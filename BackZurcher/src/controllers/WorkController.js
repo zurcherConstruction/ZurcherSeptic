@@ -2959,7 +2959,7 @@ const sendMaintenanceContractToClient = async (req, res) => {
     let signatureResult;
 
     if (USE_DOCUSIGN_CONTRACT) {
-      signatureResult = await signatureService.sendBudgetForSignature(
+      signatureResult = await signatureService.sendMaintenanceContractForSignature(
         tmpPath, recipientEmail, recipientName, fileName, emailSubject, emailMessage
       );
     } else {

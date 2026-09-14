@@ -500,6 +500,104 @@ class DocuSignService {
   }
 
   /**
+   * Enviar contrato de mantenimiento para firma (anchors específicos del PDF del contrato)
+   */
+  async sendMaintenanceContractForSignature(pdfPath, clientEmail, clientName, fileName, subject, message) {
+    return await withAutoRefreshToken(async (accessToken) => {
+      const normalizedEmail = clientEmail.toLowerCase();
+      console.log('\n🚀 === ENVIANDO CONTRATO DE MANTENIMIENTO A DOCUSIGN ===');
+      console.log('📧 Cliente:', normalizedEmail, '-', clientName);
+
+      this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
+
+      let pdfBytes;
+      if (pdfPath.startsWith('http://') || pdfPath.startsWith('https://')) {
+        const axios = require('axios');
+        const response = await axios.get(pdfPath, { responseType: 'arraybuffer' });
+        pdfBytes = Buffer.from(response.data);
+      } else {
+        pdfBytes = fs.readFileSync(pdfPath);
+      }
+
+      const pdfBase64 = pdfBytes.toString('base64');
+
+      const document = docusign.Document.constructFromObject({
+        documentBase64: pdfBase64,
+        name: fileName,
+        fileExtension: 'pdf',
+        documentId: '1'
+      });
+
+      const signer = docusign.Signer.constructFromObject({
+        email: normalizedEmail,
+        name: clientName,
+        recipientId: '1',
+        routingOrder: '1',
+        clientUserId: normalizedEmail
+      });
+
+      // Anchor: 'Client Signature:' (lado derecho del bloque de firma)
+      const signHereTab = docusign.SignHere.constructFromObject({
+        documentId: '1',
+        anchorString: 'Client Signature:',
+        anchorUnits: 'pixels',
+        anchorXOffset: '110',
+        anchorYOffset: '-5',
+        name: 'SignHere',
+        optional: 'false',
+        scaleValue: '1'
+      });
+
+      // Anchor: 'Sign Date:' (campo de fecha debajo de la firma del cliente)
+      const dateSignedTab = docusign.DateSigned.constructFromObject({
+        documentId: '1',
+        anchorString: 'Sign Date:',
+        anchorUnits: 'pixels',
+        anchorXOffset: '60',
+        anchorYOffset: '-5',
+        name: 'DateSigned',
+        optional: 'true',
+        fontSize: 'size9'
+      });
+
+      signer.tabs = docusign.Tabs.constructFromObject({
+        signHereTabs: [signHereTab],
+        dateSignedTabs: [dateSignedTab]
+      });
+
+      const envelopeDefinition = docusign.EnvelopeDefinition.constructFromObject({
+        emailSubject: subject,
+        emailBlurb: message,
+        documents: [document],
+        recipients: docusign.Recipients.constructFromObject({
+          signers: [signer],
+          carbonCopies: []
+        }),
+        notification: undefined,
+        status: 'sent',
+        enableWetSign: 'false',
+        allowMarkup: 'false',
+        allowReassign: 'false',
+        emailSettings: {
+          replyEmailAddressOverride: process.env.SMTP_FROM || 'noreply@zurcherseptic.com',
+          replyEmailNameOverride: 'Zurcher Construction'
+        },
+        eventNotification: undefined
+      });
+
+      const envelopesApi = new docusign.EnvelopesApi(this.apiClient);
+      const results = await envelopesApi.createEnvelope(this.accountId, { envelopeDefinition });
+
+      console.log('✅ Contrato enviado a DocuSign. Envelope ID:', results.envelopeId);
+      return {
+        success: true,
+        envelopeId: results.envelopeId,
+        status: results.status
+      };
+    });
+  }
+
+  /**
    * Crear definición del envelope para PPI (Pre-Permit Inspection) con 2 firmas
    */
   createPPIEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, applicant, subject, message) {
