@@ -222,6 +222,46 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
       comment: 'Fecha y hora cuando se subió el documento/imagen extra'
+    },
+    maintenanceContractSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha y hora cuando se envió el contrato de mantenimiento al cliente para firma'
+    },
+    maintenanceContractSentEmail: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: 'Email al que se envió el contrato de mantenimiento'
+    },
+    maintenanceContractEnvelopeId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: 'DocuSign envelope ID del contrato de mantenimiento'
+    },
+    maintenanceContractSignatureMethod: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Método de firma usado: docusign | signnow'
+    },
+    maintenanceContractSignedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha en que el cliente firmó el contrato de mantenimiento'
+    },
+    maintenanceContractSignedUrl: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'URL del contrato de mantenimiento firmado (en Cloudinary)'
+    },
+    maintenanceContractFormData: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Datos del formulario del contrato de mantenimiento (última generación)'
+    },
+    operatingPermitFormData: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Datos del formulario del permiso de operación (última generación)'
     }
 
   }, {
