@@ -115,6 +115,7 @@ router.post('/:idWork/maintenance-contract/send', verifyToken, allowRoles(['admi
 
 // 🆕 Verificar si el Contrato de Mantenimiento ya fue firmado
 router.get('/:idWork/maintenance-contract/signature-status', verifyToken, allowRoles(['admin', 'owner', 'worker']), WorkController.checkMaintenanceContractSignature);
+router.get('/:idWork/maintenance-contract/sign', WorkController.getMaintenanceContractSigningUrl);
 
 // 🆕 Generar Permiso de Operación (PDF auto-completado, acepta body con ediciones)
 router.post('/:idWork/operating-permit/generate', verifyToken, allowRoles(['admin', 'owner', 'worker']), invalidateWorkCache, WorkController.generateOperatingPermit);
