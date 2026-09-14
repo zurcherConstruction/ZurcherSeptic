@@ -679,7 +679,7 @@ class DocuSignService {
     } catch (error) {
       console.error('❌ Error generando URL de firma:', error.message);
       if (error.response) {
-        console.error('Response:', JSON.stringify(error.response.body, null, 2));
+        console.error('Response:', JSON.stringify(error.response.body || error.response.data, null, 2));
       }
       throw error;
     }

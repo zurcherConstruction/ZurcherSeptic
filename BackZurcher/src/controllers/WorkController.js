@@ -3138,15 +3138,16 @@ const getMaintenanceContractSigningUrl = async (req, res) => {
     const frontendUrl = (process.env.FRONTEND_URL || 'https://www.zurcherseptic.com').replace(/\/$/, '');
     const returnUrl = `${frontendUrl}/sign-maintenance/${idWork}?signed=true`;
 
-    const signingUrl = await docuSignService.getRecipientViewUrl(
+    // Usar regenerateSigningLink (igual que budget): verifica estado del envelope,
+    // obtiene el signer real de DocuSign y genera la URL con datos exactos.
+    const result = await docuSignService.regenerateSigningLink(
       work.maintenanceContractEnvelopeId,
       signerEmail,
       signerName,
       returnUrl
     );
 
-    // Redirigir al cliente a la URL de firma de DocuSign
-    return res.redirect(signingUrl);
+    return res.redirect(result.signingUrl);
 
   } catch (error) {
     console.error('❌ Error generando URL de firma del contrato:', error);
