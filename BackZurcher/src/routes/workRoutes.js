@@ -115,9 +115,7 @@ router.post('/:idWork/maintenance-contract/send', verifyToken, allowRoles(['admi
 
 // 🆕 Verificar si el Contrato de Mantenimiento ya fue firmado (autenticado - panel admin)
 router.get('/:idWork/maintenance-contract/signature-status', verifyToken, allowRoles(['admin', 'owner', 'worker']), WorkController.checkMaintenanceContractSignature);
-// 🌐 Versión pública para la página de firma del cliente (sin token)
-router.get('/:idWork/maintenance-contract/public-status', WorkController.checkMaintenanceContractSignature);
-router.get('/:idWork/maintenance-contract/sign', WorkController.getMaintenanceContractSigningUrl);
+// Nota: /sign y /public-status son rutas públicas definidas en WorkPublicRoutes.js
 
 // 🆕 Generar Permiso de Operación (PDF auto-completado, acepta body con ediciones)
 router.post('/:idWork/operating-permit/generate', verifyToken, allowRoles(['admin', 'owner', 'worker']), invalidateWorkCache, WorkController.generateOperatingPermit);

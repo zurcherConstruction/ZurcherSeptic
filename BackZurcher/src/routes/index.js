@@ -86,6 +86,10 @@ router.use('/docusign', docusignRoutes); // 🆕 OAuth de DocuSign (público, si
 // 🆕 RUTAS PÚBLICAS DE BUDGETS (antes del verifyToken)
 // Estas rutas permiten a los clientes revisar presupuestos sin autenticación
 router.use('/budgets', budgetPublicRoutes); // Rutas públicas de presupuestos
+
+// 🆕 RUTAS PÚBLICAS DE WORKS (antes del verifyToken)
+const workPublicRoutes = require('./WorkPublicRoutes');
+router.use('/work', workPublicRoutes); // Firma de contrato de mantenimiento (público)
 router.use('/client-portal', clientPortalRoutes); // 🆕 Portal del cliente (público)
 router.use('/ppi', ppiPublicRoutes); // 🆕 Rutas públicas de firma de PPI
 router.use('/simple-works', simpleWorkPublicRoutes); // 🆕 Aprobación pública de SimpleWork
