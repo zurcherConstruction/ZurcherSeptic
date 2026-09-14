@@ -5,6 +5,10 @@
  */
 
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const fs = require('fs');
+const path = require('path');
+
+const FIRMA_EMPRESA_PATH = path.join(__dirname, '../assets/firma_empresa.png');
 
 const COMPANY = {
   name: 'ZURCHER CONSTRUCTION LLC',
@@ -311,7 +315,28 @@ class ServiceMaintenanceContract {
     draw2(`Name:  ${customerName || ''}`, col + 10, y2, { size: 8.5 });
     y2 -= 22;
 
-    draw2('Signature: ____________________________', margin, y2, { size: 8.5 });
+    // Firma de la empresa: imagen si existe, línea en blanco si no
+    let firmaEmbebida = false;
+    if (fs.existsSync(FIRMA_EMPRESA_PATH)) {
+      try {
+        const firmaBytes = fs.readFileSync(FIRMA_EMPRESA_PATH);
+        const firmaImg  = await pdfDoc.embedPng(firmaBytes);
+        const firmaH    = 28;
+        const firmaW    = firmaImg.width * (firmaH / firmaImg.height);
+        page2.drawImage(firmaImg, {
+          x: margin + 50,
+          y: y2 - firmaH + 6,
+          width:  firmaW,
+          height: firmaH,
+        });
+        firmaEmbebida = true;
+      } catch (e) {
+        console.warn('⚠️ No se pudo embeber firma_empresa.png:', e.message);
+      }
+    }
+    if (!firmaEmbebida) {
+      draw2('Signature: ____________________________', margin, y2, { size: 8.5 });
+    }
     draw2('Client Signature: ____________________________', col + 10, y2, { size: 8.5 });
     y2 -= 16;
 
