@@ -2979,8 +2979,8 @@ const sendMaintenanceContractToClient = async (req, res) => {
 
     // Enviar email al cliente con botón para firmar
     if (USE_DOCUSIGN_CONTRACT) {
-      const frontendUrl = process.env.FRONTEND_URL || 'https://www.zurcherseptic.com';
-      const signUrl = `${process.env.BACKEND_URL || 'https://zurcherseptic-production.up.railway.app'}/work/${idWork}/maintenance-contract/sign`;
+      const frontendUrl = (process.env.FRONTEND_URL || 'https://www.zurcherseptic.com').replace(/\/$/, '');
+      const signUrl = `${frontendUrl}/sign-maintenance/${idWork}`;
 
       try {
         await sendEmail({
@@ -3135,11 +3135,14 @@ const getMaintenanceContractSigningUrl = async (req, res) => {
     const docuSignService = new ServiceDocuSign();
     const signerEmail = work.maintenanceContractSentEmail || work.Permit?.applicantEmail || '';
     const signerName  = work.Permit?.applicantName || work.Permit?.applicant || 'Client';
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.zurcherseptic.com').replace(/\/$/, '');
+    const returnUrl = `${frontendUrl}/sign-maintenance/${idWork}?signed=true`;
 
     const signingUrl = await docuSignService.getRecipientViewUrl(
       work.maintenanceContractEnvelopeId,
       signerEmail,
-      signerName
+      signerName,
+      returnUrl
     );
 
     // Redirigir al cliente a la URL de firma de DocuSign
