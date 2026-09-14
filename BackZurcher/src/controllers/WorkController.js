@@ -2977,6 +2977,43 @@ const sendMaintenanceContractToClient = async (req, res) => {
     work.maintenanceContractSignatureMethod  = USE_DOCUSIGN_CONTRACT ? 'docusign' : 'signnow';
     await work.save();
 
+    // Enviar email al cliente con botón para firmar
+    if (USE_DOCUSIGN_CONTRACT) {
+      const frontendUrl = process.env.FRONTEND_URL || 'https://www.zurcherseptic.com';
+      const signUrl = `${process.env.BACKEND_URL || 'https://zurcherseptic-production.up.railway.app'}/work/${idWork}/maintenance-contract/sign`;
+
+      try {
+        await sendEmail({
+          to: recipientEmail,
+          subject: emailSubject,
+          html: `
+            <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <img src="https://res.cloudinary.com/your-cloud/image/upload/logo.png" alt="Zurcher Construction" style="height:60px; margin-bottom:20px;" />
+              <h2 style="color:#063260;">Please Sign Your Maintenance Service Contract</h2>
+              <p>Dear ${recipientName},</p>
+              <p>Your <strong>2-Year Maintenance Service Contract</strong> for the property at <strong>${propertyAddress}</strong> is ready for your signature.</p>
+              <p>Please click the button below to review and sign the document:</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${signUrl}"
+                   style="background-color: #063260; color: white; padding: 14px 32px;
+                          text-decoration: none; border-radius: 6px; display: inline-block;
+                          font-size: 16px; font-weight: bold;">
+                  ✍️ Sign Maintenance Contract
+                </a>
+              </div>
+              <p style="color:#666; font-size:13px;">This link will remain valid. You can click it multiple times — a fresh signing session is generated each time.</p>
+              <p style="color:#666; font-size:13px;">If you have any questions, please contact us at <a href="mailto:admin@zurcherseptic.com">admin@zurcherseptic.com</a> or call +1 (954) 636-8200.</p>
+              <hr style="border:none; border-top:1px solid #eee; margin:20px 0;" />
+              <p style="color:#999; font-size:12px;">Zurcher Construction LLC · SEPTIC TANK DIVISION · CFC1433240</p>
+            </div>
+          `
+        });
+        console.log(`✅ Email de firma enviado a ${recipientEmail}`);
+      } catch (emailErr) {
+        console.error('⚠️ Email de firma no enviado (no crítico):', emailErr.message);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       message: `Contrato enviado para firma a ${recipientEmail} via ${USE_DOCUSIGN_CONTRACT ? 'DocuSign' : 'SignNow'}`,
@@ -3065,6 +3102,61 @@ const checkMaintenanceContractSignature = async (req, res) => {
   }
 };
 
+// ─── Generar URL de firma on-demand para el cliente (redirige a DocuSign) ─────
+const getMaintenanceContractSigningUrl = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const work = await _loadWorkWithPermit(idWork);
+
+    if (!work) {
+      return res.status(404).send(`
+        <html><body style="font-family:Arial;text-align:center;padding:50px;">
+          <h2>❌ Work not found</h2><p>The requested document does not exist.</p>
+        </body></html>
+      `);
+    }
+
+    if (!work.maintenanceContractEnvelopeId) {
+      return res.status(400).send(`
+        <html><body style="font-family:Arial;text-align:center;padding:50px;">
+          <h2>❌ Document not ready</h2><p>The maintenance contract has not been sent for signature yet.</p>
+        </body></html>
+      `);
+    }
+
+    if (work.maintenanceContractSignedAt) {
+      return res.send(`
+        <html><body style="font-family:Arial;text-align:center;padding:50px;">
+          <h2>✅ Already Signed</h2><p>Thank you! This document has already been signed.</p>
+        </body></html>
+      `);
+    }
+
+    const docuSignService = new ServiceDocuSign();
+    const signerEmail = work.maintenanceContractSentEmail || work.Permit?.applicantEmail || '';
+    const signerName  = work.Permit?.applicantName || work.Permit?.applicant || 'Client';
+
+    const signingUrl = await docuSignService.getRecipientViewUrl(
+      work.maintenanceContractEnvelopeId,
+      signerEmail,
+      signerName
+    );
+
+    // Redirigir al cliente a la URL de firma de DocuSign
+    return res.redirect(signingUrl);
+
+  } catch (error) {
+    console.error('❌ Error generando URL de firma del contrato:', error);
+    return res.status(500).send(`
+      <html><body style="font-family:Arial;text-align:center;padding:50px;">
+        <h2>❌ Error</h2>
+        <p>Could not generate the signing link. Please contact us at admin@zurcherseptic.com</p>
+        <p style="color:#999;font-size:12px;">${error.message}</p>
+      </body></html>
+    `);
+  }
+};
+
 module.exports = {
   createWork,
   getWorks,
@@ -3096,4 +3188,5 @@ module.exports = {
   generateOperatingPermit,        // 🆕 Generar permiso de operación PDF
   sendMaintenanceContractToClient,      // 🆕 Enviar contrato al cliente para firma (DocuSign/SignNow)
   checkMaintenanceContractSignature,    // 🆕 Verificar si el contrato fue firmado
+  getMaintenanceContractSigningUrl,     // 🆕 URL on-demand para que el cliente firme (redirect)
 };

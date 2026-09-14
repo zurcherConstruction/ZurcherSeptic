@@ -207,7 +207,7 @@ class StaffAttendanceController {
       
       for (const staffId of allActiveStaffIds) {
         // Buscar datos de asistencia
-        const attendanceStat = monthlyStats.find(stat => stat.Staff.id === staffId);
+        const attendanceStat = monthlyStats.find(stat => stat.Staff && stat.Staff.id === staffId);
         
         // Obtener datos de staff (de asistencia, instalaciones o mantenimientos)
         let staffInfo;
