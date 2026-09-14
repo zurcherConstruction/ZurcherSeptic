@@ -37,6 +37,7 @@ module.exports = (sequelize) => {
         'inspeccion',
         'culvert',
         'drainfield',
+        'pumping',
         'otro'
       ),
       allowNull: false,

@@ -193,8 +193,8 @@ class StaffAttendanceController {
       // 🆕 Crear un Set de todos los staff con actividad
       const allActiveStaffIds = new Set();
       
-      // Agregar staff con registros de asistencia
-      monthlyStats.forEach(stat => allActiveStaffIds.add(stat.Staff.id));
+      // Agregar staff con registros de asistencia (ignorar si el Staff fue eliminado)
+      monthlyStats.forEach(stat => { if (stat.Staff) allActiveStaffIds.add(stat.Staff.id); });
       
       // Agregar staff con instalaciones
       Object.keys(installationsByStaff).forEach(staffId => allActiveStaffIds.add(staffId));

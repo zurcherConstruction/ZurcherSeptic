@@ -49,7 +49,7 @@ const TC_SECTIONS = [
   {
     id: 'change_orders',
     title: '6. CHANGE ORDERS AND ADDITIONAL WORK',
-    text: 'Any changes to the scope of work requested by the Client must be agreed upon in writing through a Change Order. Additional work beyond the agreed scope will be billed at the Provider\'s standard rates.',
+    text: 'Any changes to the scope of work requested by the Client must be agreed upon in writing through a Change Order. Additional work beyond the agreed-upon scope will be billed at the Provider\'s standard rates. Additional charges will apply for dirt removal, if necessary. If a jackhammer is required due to the presence of rocks or other hard materials, the following rates will apply (minimum of 2 hours): $350 for the first hour, $250 for the second hour, $200 for each additional hour. Extra Sand and Other Materials Charges: Any extra sand loads will be billed immediately as a change order after system installation. An additional change order will apply if soil fill is required to cover the system.',
   },
   {
     id: 'warranty',

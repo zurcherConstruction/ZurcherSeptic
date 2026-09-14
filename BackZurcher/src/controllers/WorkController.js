@@ -12,8 +12,13 @@ const { v4: uuidv4 } = require('uuid');
 const { Op, literal} = require('sequelize');
 const {scheduleInitialMaintenanceVisits} = require('./MaintenanceController'); // Asegúrate de importar la función de programación de mantenimientos iniciales
 const { sequelize } = require('../data'); 
-const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService'); // 🆕 Portal de cliente 
-const { sendEmail } = require('../utils/notifications/emailService');
+const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService'); // 🆕 Portal de cliente
+const ServiceMaintenanceContract = require('../services/ServiceMaintenanceContract');
+const ServiceOperatingPermit     = require('../services/ServiceOperatingPermit');
+const { sendEmail }              = require('../utils/notifications/emailService');
+const ServiceDocuSign            = require('../services/ServiceDocuSign');
+const ServiceSignNow             = require('../services/ServiceSignNow');
+const USE_DOCUSIGN_CONTRACT      = process.env.USE_DOCUSIGN === 'true';
 
 const ORLANDO_TIMEZONE = 'America/New_York';
 const formatOrlandoDateTime = () => new Date().toLocaleString('es-US', { timeZone: ORLANDO_TIMEZONE });
@@ -2686,6 +2691,380 @@ const replaceExtraDocument = async (req, res) => {
   }
 };
 
+// ─── Helper: carga Work con Permit para auto-completar campos ────────────────
+const _loadWorkWithPermit = (idWork) =>
+  Work.findByPk(idWork, {
+    include: [{
+      model: Permit,
+      attributes: [
+        'idPermit', 'applicant', 'applicantName', 'applicantEmail', 'applicantPhone',
+        'ppiPropertyOwnerPhone', 'propertyAddress', 'city', 'state', 'zipCode',
+        'lot', 'block', 'subdivision', 'section', 'township', 'range', 'parcelNo',
+        'applicationNo', 'permitNumber', 'systemType', 'gpdCapacity', 'squareFeetSystem',
+      ],
+    }],
+  });
+
+// ─── Obtener datos pre-rellenados para modales de generación ─────────────────
+const getDocumentPreviewData = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const work = await _loadWorkWithPermit(idWork);
+    if (!work) return res.status(404).json({ success: false, message: 'Work no encontrado' });
+
+    const p = work.Permit;
+    const startDate = work.installationStartDate || work.startDate || null;
+
+    // Datos guardados de generaciones anteriores (prioridad 1)
+    const sc = work.maintenanceContractFormData || {};
+    const sp = work.operatingPermitFormData     || {};
+
+    // Helper: fecha como YYYY-MM-DD
+    const toDate = (v) => v ? (typeof v === 'string' ? v.split('T')[0] : new Date(v).toISOString().split('T')[0]) : '';
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        // Contrato — prioridad: datos propios > datos del permiso > Permit > defaults
+        contract: {
+          propertyAddress: sc.propertyAddress || sp.propertyAddress  || p?.propertyAddress || work.propertyAddress || '',
+          customerName:    sc.customerName    || sp.ownerName        || p?.applicant || p?.applicantName || '',
+          customerPhone:   sc.customerPhone   || sp.ownerPhone       || p?.applicantPhone || p?.ppiPropertyOwnerPhone || '',
+          customerEmail:   sc.customerEmail   || sp.ownerEmail       || p?.applicantEmail || '',
+          customerCity:    sc.customerCity    || sp.propertyCity     || p?.city || '',
+          customerState:   sc.customerState   || sp.propertyState    || p?.state || 'FL',
+          customerZip:     sc.customerZip     || sp.propertyZip      || p?.zipCode || '',
+          systemModel:     sc.systemModel     || sp.systemModel      || p?.systemType || '',
+          serialNumber:    sc.serialNumber    || '',
+          startDate:       sc.startDate       ? toDate(sc.startDate)
+                         : sp.installationDate ? toDate(sp.installationDate)
+                         : startDate           ? toDate(startDate) : '',
+          lot:             sc.lot         || sp.lot         || p?.lot || '',
+          block:           sc.block       || sp.block       || p?.block || '',
+          subdivision:     sc.subdivision || sp.subdivision || p?.subdivision || '',
+        },
+        // Permiso — prioridad: datos propios > datos del contrato > Permit > defaults
+        permit: {
+          propertyAddress:    sp.propertyAddress    || sc.propertyAddress || p?.propertyAddress || work.propertyAddress || '',
+          propertyCity:       sp.propertyCity       || sc.customerCity   || p?.city || '',
+          propertyState:      sp.propertyState      || sc.customerState  || p?.state || 'FL',
+          propertyZip:        sp.propertyZip        || sc.customerZip    || p?.zipCode || '',
+          ownerName:          sp.ownerName          || sc.customerName   || p?.applicant || p?.applicantName || '',
+          ownerPhone:         sp.ownerPhone         || sc.customerPhone  || p?.applicantPhone || p?.ppiPropertyOwnerPhone || '',
+          ownerEmail:         sp.ownerEmail         || sc.customerEmail  || p?.applicantEmail || '',
+          ownerAddress:       sp.ownerAddress       || '',
+          ownerCity:          sp.ownerCity          || sc.customerCity   || p?.city || '',
+          ownerZip:           sp.ownerZip           || sc.customerZip    || p?.zipCode || '',
+          lot:                sp.lot                || sc.lot            || p?.lot || '',
+          block:              sp.block              || sc.block          || p?.block || '',
+          subdivision:        sp.subdivision        || sc.subdivision    || p?.subdivision || '',
+          section:            sp.section            || p?.section || '',
+          township:           sp.township           || p?.township || '',
+          range:              sp.range              || p?.range || '',
+          parcelNo:           sp.parcelNo           || p?.parcelNo || '',
+          applicationNumber:  sp.applicationNumber  || p?.applicationNo || p?.permitNumber || '',
+          systemManufacturer: sp.systemManufacturer || 'Gorman (delta)',
+          systemModel:        sp.systemModel        || sc.systemModel    || p?.systemType || '',
+          septicTankGallons:  sp.septicTankGallons  || p?.gpdCapacity || '',
+          drainfieldSqFt:     sp.drainfieldSqFt     || p?.squareFeetSystem || '',
+          installationDate:   sp.installationDate   ? toDate(sp.installationDate)
+                            : sc.startDate          ? toDate(sc.startDate)
+                            : startDate             ? toDate(startDate) : '',
+          drainfieldType:     sp.drainfieldType     || 'standard_subsurface',
+          drainfieldConfig:   sp.drainfieldConfig   || 'trenches',
+          onsiteWell:         sp.onsiteWell         || 'no',
+          additionalComments: sp.additionalComments || '',
+        },
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo datos para documentos:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── Generar Contrato de Mantenimiento (2-Year Service Contract) ─────────────
+// Acepta body con campos editables; si faltan, usa los del Permit/Work
+const generateMaintenanceContract = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const work = await _loadWorkWithPermit(idWork);
+    if (!work) return res.status(404).json({ success: false, message: 'Work no encontrado' });
+
+    const p = work.Permit;
+    const dbStart = work.installationStartDate || work.maintenanceStartDate || work.startDate;
+    const b = req.body || {};
+
+    const workData = {
+      propertyAddress: b.propertyAddress || p?.propertyAddress || work.propertyAddress || '',
+      customerName:    b.customerName    || p?.applicant || p?.applicantName || '',
+      customerPhone:   b.customerPhone   || p?.applicantPhone || p?.ppiPropertyOwnerPhone || '',
+      customerEmail:   b.customerEmail   || p?.applicantEmail || '',
+      customerCity:    b.customerCity    || p?.city || '',
+      customerState:   b.customerState   || p?.state || 'FL',
+      customerZip:     b.customerZip     || p?.zipCode || '',
+      systemModel:     b.systemModel     || p?.systemType || '',
+      serialNumber:    b.serialNumber    || '',
+      startDate:       b.startDate       || dbStart || new Date(),
+      contractDate:    new Date(),
+      lot:             b.lot             || p?.lot || '',
+      block:           b.block           || p?.block || '',
+      subdivision:     b.subdivision     || p?.subdivision || '',
+    };
+
+    const pdfBuffer = await ServiceMaintenanceContract.generate(workData);
+
+    const cloudinaryResult = await uploadBufferToCloudinary(pdfBuffer, {
+      folder:        'zurcher/work-documents/maintenance-contracts',
+      resource_type: 'raw',
+      public_id:     `maintenance_contract_work_${idWork}_${Date.now()}`,
+      format:        'pdf',
+    });
+
+    if (work.maintenanceServicePublicId) {
+      await deleteFromCloudinary(work.maintenanceServicePublicId).catch(() => {});
+    }
+
+    work.maintenanceServiceUrl        = cloudinaryResult.secure_url;
+    work.maintenanceServicePublicId   = cloudinaryResult.public_id;
+    work.maintenanceServiceSentAt     = new Date();
+    work.maintenanceContractFormData  = workData;
+    await work.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Contrato de mantenimiento generado exitosamente',
+      data: {
+        url:      cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt:   work.maintenanceServiceSentAt,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error generando contrato de mantenimiento:', error);
+    return res.status(500).json({ success: false, message: 'Error al generar contrato', details: error.message });
+  }
+};
+
+// ─── Generar Permiso de Operación (OSTDS DEP 4081) ───────────────────────────
+// Acepta body con campos editables; si faltan, usa los del Permit/Work
+const generateOperatingPermit = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const work = await _loadWorkWithPermit(idWork);
+    if (!work) return res.status(404).json({ success: false, message: 'Work no encontrado' });
+
+    const p = work.Permit;
+    const dbInstall = work.installationStartDate || work.startDate;
+    const b = req.body || {};
+
+    const workData = {
+      propertyAddress:    b.propertyAddress    || p?.propertyAddress || work.propertyAddress || '',
+      propertyCity:       b.propertyCity       || p?.city || '',
+      propertyState:      b.propertyState      || p?.state || 'FL',
+      propertyZip:        b.propertyZip        || p?.zipCode || '',
+      ownerName:          b.ownerName          || p?.applicant || p?.applicantName || '',
+      ownerPhone:         b.ownerPhone         || p?.applicantPhone || p?.ppiPropertyOwnerPhone || '',
+      ownerEmail:         b.ownerEmail         || p?.applicantEmail || '',
+      ownerAddress:       b.ownerAddress       || '',
+      ownerCity:          b.ownerCity          || p?.city || '',
+      ownerZip:           b.ownerZip           || p?.zipCode || '',
+      lot:                b.lot                || p?.lot || '',
+      block:              b.block              || p?.block || '',
+      subdivision:        b.subdivision        || p?.subdivision || '',
+      section:            b.section            || p?.section || '',
+      township:           b.township           || p?.township || '',
+      range:              b.range              || p?.range || '',
+      parcelNo:           b.parcelNo           || p?.parcelNo || '',
+      applicationNumber:  b.applicationNumber  || p?.applicationNo || p?.permitNumber || '',
+      systemManufacturer: b.systemManufacturer || 'Gorman (delta)',
+      systemModel:        b.systemModel        || p?.systemType || '',
+      septicTankGallons:  b.septicTankGallons  || p?.gpdCapacity || '',
+      drainfieldSqFt:     b.drainfieldSqFt     || p?.squareFeetSystem || '',
+      installationDate:   b.installationDate   || dbInstall || new Date(),
+      drainfieldType:     b.drainfieldType     || 'standard_subsurface',
+      drainfieldConfig:   b.drainfieldConfig   || 'trenches',
+      onsiteWell:         b.onsiteWell         || 'no',
+      additionalComments: b.additionalComments || '',
+      signatureDate:      new Date(),
+    };
+
+    const pdfBuffer = await ServiceOperatingPermit.generate(workData);
+
+    const cloudinaryResult = await uploadBufferToCloudinary(pdfBuffer, {
+      folder:        'zurcher/work-documents/operating-permits-generated',
+      resource_type: 'raw',
+      public_id:     `operating_permit_gen_work_${idWork}_${Date.now()}`,
+      format:        'pdf',
+    });
+
+    if (work.operatingPermitPublicId) {
+      await deleteFromCloudinary(work.operatingPermitPublicId).catch(() => {});
+    }
+
+    work.operatingPermitUrl        = cloudinaryResult.secure_url;
+    work.operatingPermitPublicId   = cloudinaryResult.public_id;
+    work.operatingPermitSentAt     = new Date();
+    work.operatingPermitFormData   = workData;
+    await work.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Permiso de operación generado exitosamente',
+      data: {
+        url:      cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt:   work.operatingPermitSentAt,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error generando permiso de operación:', error);
+    return res.status(500).json({ success: false, message: 'Error al generar permiso', details: error.message });
+  }
+};
+
+// ─── Enviar Contrato de Mantenimiento al cliente para firma (DocuSign/SignNow) ─
+const sendMaintenanceContractToClient = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const { toEmail, toName } = req.body;
+
+    const work = await _loadWorkWithPermit(idWork);
+    if (!work) return res.status(404).json({ success: false, message: 'Work no encontrado' });
+    if (!work.maintenanceServiceUrl) {
+      return res.status(400).json({ success: false, message: 'Primero debe generar el contrato de mantenimiento' });
+    }
+
+    const recipientEmail = toEmail || work.Permit?.applicantEmail;
+    const recipientName  = toName  || work.Permit?.applicant || work.Permit?.applicantName || 'Cliente';
+    if (!recipientEmail) {
+      return res.status(400).json({ success: false, message: 'No se encontró email del cliente. Ingresá el email manualmente.' });
+    }
+
+    const propertyAddress = work.Permit?.propertyAddress || work.propertyAddress || 'Property';
+    const fileName = `MaintenanceContract_${idWork}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    const emailSubject  = `Please sign: 2-Year Maintenance Service Contract — ${propertyAddress}`;
+    const emailMessage  = `Dear ${recipientName},\n\nPlease review and sign the attached 2-Year Maintenance Service Contract for the property at ${propertyAddress}.\n\nIf you have any questions, please contact us.\n\nBest regards,\nZurcher Construction LLC`;
+
+    // Descargar el PDF de Cloudinary a buffer y guardarlo temporalmente
+    const axios = require('axios');
+    const os    = require('os');
+    const tmpPath = path.join(os.tmpdir(), fileName);
+
+    const pdfResponse = await axios.get(work.maintenanceServiceUrl, { responseType: 'arraybuffer' });
+    fs.writeFileSync(tmpPath, Buffer.from(pdfResponse.data));
+
+    // Enviar para firma
+    const signatureService = USE_DOCUSIGN_CONTRACT ? new ServiceDocuSign() : new ServiceSignNow();
+    let signatureResult;
+
+    if (USE_DOCUSIGN_CONTRACT) {
+      signatureResult = await signatureService.sendBudgetForSignature(
+        tmpPath, recipientEmail, recipientName, fileName, emailSubject, emailMessage
+      );
+    } else {
+      signatureResult = await signatureService.sendBudgetForSignature(
+        tmpPath, fileName, recipientEmail, recipientName
+      );
+    }
+
+    // Limpiar temp
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+
+    work.maintenanceContractSentAt           = new Date();
+    work.maintenanceContractSentEmail        = recipientEmail;
+    work.maintenanceContractEnvelopeId       = USE_DOCUSIGN_CONTRACT ? signatureResult.envelopeId : signatureResult.documentId;
+    work.maintenanceContractSignatureMethod  = USE_DOCUSIGN_CONTRACT ? 'docusign' : 'signnow';
+    await work.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Contrato enviado para firma a ${recipientEmail} via ${USE_DOCUSIGN_CONTRACT ? 'DocuSign' : 'SignNow'}`,
+      data: {
+        sentAt:          work.maintenanceContractSentAt,
+        sentEmail:       recipientEmail,
+        envelopeId:      work.maintenanceContractEnvelopeId,
+        signatureMethod: work.maintenanceContractSignatureMethod,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Error enviando contrato de mantenimiento para firma:', error);
+    return res.status(500).json({ success: false, message: 'Error al enviar el contrato', details: error.message });
+  }
+};
+
+// ─── Verificar si el Contrato de Mantenimiento ya fue firmado ────────────────
+const checkMaintenanceContractSignature = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const work = await _loadWorkWithPermit(idWork);
+    if (!work) return res.status(404).json({ success: false, message: 'Work no encontrado' });
+
+    if (!work.maintenanceContractEnvelopeId) {
+      return res.status(400).json({ success: false, message: 'El contrato aún no fue enviado para firma' });
+    }
+
+    // Si ya está registrado como firmado, retornar directo
+    if (work.maintenanceContractSignedAt) {
+      return res.status(200).json({
+        success: true,
+        isSigned: true,
+        signedAt:  work.maintenanceContractSignedAt,
+        signedUrl: work.maintenanceContractSignedUrl,
+        status: 'completed',
+      });
+    }
+
+    const isDocuSign = work.maintenanceContractSignatureMethod === 'docusign';
+    const signatureService = isDocuSign ? new ServiceDocuSign() : new ServiceSignNow();
+    const statusResult = await signatureService.isDocumentSigned(work.maintenanceContractEnvelopeId);
+
+    // DocuSign devuelve { signed, status, completedDateTime }
+    // SignNow  devuelve { isSigned, status, signedAt }
+    const isSigned = statusResult.signed ?? statusResult.isSigned ?? false;
+
+    if (isSigned) {
+      // Descargar el PDF firmado a un archivo temporal
+      const os      = require('os');
+      const tmpPath = path.join(os.tmpdir(), `mc_signed_${idWork}.pdf`);
+
+      if (isDocuSign) {
+        // DocuSign: downloadSignedDocument(envelopeId, savePath) → escribe el archivo
+        await signatureService.downloadSignedDocument(work.maintenanceContractEnvelopeId, tmpPath);
+      } else {
+        // SignNow: downloadSignedDocument(documentId) → retorna Buffer
+        const buf = await signatureService.downloadSignedDocument(work.maintenanceContractEnvelopeId);
+        fs.writeFileSync(tmpPath, buf);
+      }
+
+      const signedBuffer = fs.readFileSync(tmpPath);
+      try { fs.unlinkSync(tmpPath); } catch (_) {}
+
+      const cloudResult = await uploadBufferToCloudinary(signedBuffer, {
+        folder:        'zurcher/work-documents/maintenance-contracts-signed',
+        resource_type: 'raw',
+        public_id:     `maintenance_contract_signed_work_${idWork}`,
+        format:        'pdf',
+      });
+
+      work.maintenanceContractSignedAt  = statusResult.completedDateTime || statusResult.signedAt || new Date();
+      work.maintenanceContractSignedUrl = cloudResult.secure_url;
+      await work.save();
+    }
+
+    return res.status(200).json({
+      success:   true,
+      isSigned,
+      signedAt:  work.maintenanceContractSignedAt  || null,
+      signedUrl: work.maintenanceContractSignedUrl || null,
+      status:    statusResult.status,
+    });
+  } catch (error) {
+    console.error('❌ Error verificando firma del contrato:', error);
+    return res.status(500).json({ success: false, message: 'Error al verificar la firma', details: error.message });
+  }
+};
+
 module.exports = {
   createWork,
   getWorks,
@@ -2712,4 +3091,9 @@ module.exports = {
   replaceMaintenanceService,     // 🔄 REEMPLAZAR - Servicio de Mantenimiento
   replaceExtraDocument,          // 🔄 REEMPLAZAR - Documento Extra
   getWorkPortalInfo,            // 🆕 Portal de cliente
+  getDocumentPreviewData,         // 🆕 Datos pre-rellenados para modales
+  generateMaintenanceContract,    // 🆕 Generar contrato de mantenimiento PDF
+  generateOperatingPermit,        // 🆕 Generar permiso de operación PDF
+  sendMaintenanceContractToClient,      // 🆕 Enviar contrato al cliente para firma (DocuSign/SignNow)
+  checkMaintenanceContractSignature,    // 🆕 Verificar si el contrato fue firmado
 };

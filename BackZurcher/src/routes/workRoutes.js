@@ -104,6 +104,21 @@ router.patch('/:idWork/maintenance-service', verifyToken, allowRoles(['admin', '
 // 🔄 Reemplazar Documento Extra
 router.patch('/:idWork/extra-document', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.replaceExtraDocument);
 
+// 🆕 Datos pre-rellenados para modales de generación de documentos
+router.get('/:idWork/document-preview-data', verifyToken, allowRoles(['admin', 'owner', 'worker']), WorkController.getDocumentPreviewData);
+
+// 🆕 Generar Contrato de Mantenimiento (PDF auto-completado, acepta body con ediciones)
+router.post('/:idWork/maintenance-contract/generate', verifyToken, allowRoles(['admin', 'owner', 'worker']), invalidateWorkCache, WorkController.generateMaintenanceContract);
+
+// 🆕 Enviar Contrato de Mantenimiento al cliente para firma (DocuSign/SignNow)
+router.post('/:idWork/maintenance-contract/send', verifyToken, allowRoles(['admin', 'owner', 'worker']), WorkController.sendMaintenanceContractToClient);
+
+// 🆕 Verificar si el Contrato de Mantenimiento ya fue firmado
+router.get('/:idWork/maintenance-contract/signature-status', verifyToken, allowRoles(['admin', 'owner', 'worker']), WorkController.checkMaintenanceContractSignature);
+
+// 🆕 Generar Permiso de Operación (PDF auto-completado, acepta body con ediciones)
+router.post('/:idWork/operating-permit/generate', verifyToken, allowRoles(['admin', 'owner', 'worker']), invalidateWorkCache, WorkController.generateOperatingPermit);
+
 router.post('/:idWork/validate-status-change',verifyToken, allowRoles(['admin', 'owner']), WorkController.validateStatusChangeOnly);
 router.post('/:idWork/change-status', verifyToken, allowRoles(['admin', 'owner',]), invalidateWorkCache, WorkController.changeWorkStatus);
 
