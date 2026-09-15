@@ -1988,7 +1988,7 @@ const sendPPIForSignature = async (req, res) => {
     // 📧 AHORA SÍ ENVIAR NUESTRO CORREO PERSONALIZADO (después de tener envelopeId)
     console.log('📧 Enviando correo personalizado al cliente...');
     
-    const { sendEmail } = require('../services/ServiceEmail');
+    const { sendEmail } = require('../utils/notifications/emailService');
     
     const clientMailOptions = {
       to: permit.applicantEmail,
