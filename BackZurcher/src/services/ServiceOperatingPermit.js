@@ -53,6 +53,8 @@ class ServiceOperatingPermit {
       drainfieldConfig   = 'trenches',
       onsiteWell         = 'no',
       additionalComments = '',
+      permitRequest      = 'new',
+      permitType         = 'aerobic',
     } = workData;
 
     const bytes  = fs.readFileSync(TEMPLATE_PATH);
@@ -61,6 +63,7 @@ class ServiceOperatingPermit {
     const page   = pdfDoc.getPages()[0];
 
     const BLACK = rgb(0, 0, 0);
+    const WHITE = rgb(1, 1, 1);
     const sz    = 8.5;
 
     const draw = (text, x, y) => {
@@ -68,8 +71,26 @@ class ServiceOperatingPermit {
       page.drawText(String(text), { x, y, size: sz, font, color: BLACK });
     };
 
+    const zapf = await pdfDoc.embedFont(StandardFonts.ZapfDingbats);
+    const tick  = (x, y) => page.drawText('✓', { x, y, size: 9, font: zapf, color: BLACK });
+    const cover = (x, y, w, h) => page.drawRectangle({ x, y, width: w, height: h, color: WHITE });
+
     // ── HEADER ─────────────────────────────────────────────────────────
     draw(applicationNumber,             520, 707);
+
+    // ── OPERATING PERMIT REQUEST (New / Renew / Amend) ─────────────────
+    // Tapar marca pre-impresa de "New" si no es la opción seleccionada
+    if (permitRequest !== 'new') cover(148, 677, 8, 14);
+    if (permitRequest === 'new')   tick(150, 679);
+    if (permitRequest === 'renew') tick(220, 679);
+    if (permitRequest === 'amend') tick(308, 679);
+
+    // ── OPERATING PERMIT TYPE ───────────────────────────────────────────
+    // Tapar marca pre-impresa de "ATU" si no es la opción seleccionada
+    if (permitType !== 'aerobic') cover(146, 658, 8, 14);
+    if (permitType === 'aerobic')     tick(148, 661);
+    if (permitType === 'commercial')  tick(148, 649);
+    if (permitType === 'industrial')  tick(148, 637);
 
     // ── GENERAL INFORMATION ────────────────────────────────────────────
     // Fila 1: Property Address / City / Zip

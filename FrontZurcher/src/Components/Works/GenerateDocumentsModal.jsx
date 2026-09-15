@@ -46,6 +46,8 @@ const GenerateDocumentsModal = ({ idWork, work, onClose, onDocumentGenerated }) 
     drainfieldConfig: 'trenches',
     onsiteWell: 'no',
     additionalComments: '',
+    permitRequest: 'new',
+    permitType: 'aerobic',
   });
 
   useEffect(() => {
@@ -389,6 +391,28 @@ const GenerateDocumentsModal = ({ idWork, work, onClose, onDocumentGenerated }) 
                         <option value="yes">Yes</option>
                       </select>
                     </div>
+                    {/* Permit Request */}
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Operating Permit request</label>
+                      <select name="permitRequest" value={permit.permitRequest} onChange={handlePermitChange}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="new">New</option>
+                        <option value="renew">Renew</option>
+                        <option value="amend">Amend</option>
+                      </select>
+                    </div>
+
+                    {/* Permit Type */}
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Operating Permit type</label>
+                      <select name="permitType" value={permit.permitType} onChange={handlePermitChange}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="aerobic">Aerobic Treatment Unit / PBTS</option>
+                        <option value="commercial">Commercial Strength Sewage</option>
+                        <option value="industrial">Industrial / Manufacturing Zone</option>
+                      </select>
+                    </div>
+
                     {/* Additional Comments */}
                     <div className="col-span-2">
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Additional Comments</label>
