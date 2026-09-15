@@ -319,6 +319,7 @@ async function processCustomInvoicePayment(customInvoiceId, amountPaid, session)
       notes: `Pago Stripe de ${invoice.invoiceNumber} - ${invoice.clientName}`,
       workId: invoice.workId || null,
       simpleWorkId: invoice.simpleWorkId || null,
+      customInvoiceId: invoice.id,
       staffId: null,
       paymentMethod: 'Stripe',
       stripePaymentIntentId: session.payment_intent,

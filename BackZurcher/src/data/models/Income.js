@@ -49,6 +49,12 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Vincula el ingreso con un SimpleWork (trabajos varios/cotizaciones)'
     },
+    // Custom Invoice ID - Para vincular ingresos con Custom Invoices
+    customInvoiceId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Vincula el ingreso con un Custom Invoice pagado'
+    },
     // 🆕 Método/Cuenta de pago
     paymentMethod: {
       type: DataTypes.ENUM(

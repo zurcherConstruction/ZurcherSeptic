@@ -1021,8 +1021,10 @@ const getIncomeTypes = async (req, res) => {
     const types = [
       'Factura Pago Inicial Budget',
       'Factura Pago Final Budget',
+      'Factura SimpleWork',
+      'Factura Custom Invoice',
       'DiseñoDif',
-      'Comprobante Ingreso'
+      'Comprobante Ingreso',
     ];
     
     res.status(200).json({ types });

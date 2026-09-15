@@ -66,6 +66,8 @@ const Summary = () => {
   const [worksLoading, setWorksLoading] = useState(false);
   const [simpleWorks, setSimpleWorks] = useState([]);
   const [fixedExpenses, setFixedExpenses] = useState([]);
+  const [customInvoices, setCustomInvoices] = useState([]);
+  const [customInvoicesLoading, setCustomInvoicesLoading] = useState(false);
   
   const dispatch = useDispatch();
   const { currentStaff: staff } = useSelector((state) => state.auth);
@@ -265,12 +267,26 @@ const Summary = () => {
     return editModal?.movement?.work || null;
   };
 
+  const fetchCustomInvoices = async () => {
+    setCustomInvoicesLoading(true);
+    try {
+      const res = await api.get('/custom-invoices');
+      const all = res.data?.data || res.data || [];
+      setCustomInvoices(Array.isArray(all) ? all : []);
+    } catch (e) {
+      console.error('Error cargando custom invoices:', e);
+    } finally {
+      setCustomInvoicesLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchTypes(); // Cargar tipos primero
     fetchFleetAssets();
     fetchWorks();
     fetchSimpleWorks();
     fetchFixedExpenses();
+    fetchCustomInvoices();
     fetchMovements();
     // eslint-disable-next-line
   }, []);
@@ -384,6 +400,7 @@ const Summary = () => {
       fleetAssetId: mov.fleetAssetId || mov.fleetAssetInfo?.id || "",
       workId: mov.workId || "",
       simpleWorkId: mov.simpleWorkId || "",
+      customInvoiceId: mov.customInvoiceId || "",
       paymentMethod: mov.paymentMethod || "",
       verified: mov.verified || false,
       periodStart: mov.periodStart ? mov.periodStart.toString().slice(0, 10) : "",
@@ -494,6 +511,8 @@ const Summary = () => {
           date: editData.date,
           typeIncome: editData.typeIncome,
           workId: shouldShowWorkLinkField('Ingreso', editData) ? (editData.workId || null) : undefined,
+          simpleWorkId: editData.simpleWorkId || null,
+          customInvoiceId: editData.typeIncome === 'Factura Custom Invoice' ? (editData.customInvoiceId || null) : undefined,
           paymentMethod: editData.paymentMethod, // 🆕 Incluir método de pago
           verified: editData.verified, // 🆕 Incluir verificación
         });
@@ -1344,6 +1363,48 @@ const Summary = () => {
                         </p>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Custom Invoice — solo cuando typeIncome es 'Factura Custom Invoice' */}
+                {editModal.movement?.movimiento === 'Ingreso' && editData.typeIncome === 'Factura Custom Invoice' && (
+                  <div className="mt-4 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
+                    <label className="block text-sm font-medium text-cyan-800 mb-2">
+                      🧾 Custom Invoice vinculado
+                    </label>
+                    {editData.customInvoiceId && (() => {
+                      const linked = customInvoices.find(inv => inv.id === editData.customInvoiceId);
+                      return linked ? (
+                        <div className="mb-2 text-xs text-cyan-700 bg-white border border-cyan-100 rounded px-3 py-2">
+                          <span className="font-mono font-semibold">{linked.invoiceNumber}</span> — {linked.clientName} — ${parseFloat(linked.paymentAmount || linked.total || 0).toFixed(2)} — <span className="italic">{linked.status}</span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-cyan-600 mb-2">ID: {editData.customInvoiceId}</p>
+                      );
+                    })()}
+                    <select
+                      value={editData.customInvoiceId || ''}
+                      onChange={(e) => {
+                        const invId = e.target.value;
+                        const inv = customInvoices.find(i => i.id === invId);
+                        setEditData({
+                          ...editData,
+                          customInvoiceId: invId || null,
+                          // Actualizar workId/simpleWorkId desde el invoice seleccionado
+                          ...(inv ? { workId: inv.workId || editData.workId, simpleWorkId: inv.simpleWorkId || editData.simpleWorkId } : {}),
+                        });
+                      }}
+                      className="w-full px-3 py-2 border border-cyan-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-sm"
+                      disabled={customInvoicesLoading}
+                    >
+                      <option value="">Sin vincular a Custom Invoice</option>
+                      {customInvoices.map(inv => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.invoiceNumber} — {inv.clientName} — ${parseFloat(inv.paymentAmount || inv.total || 0).toFixed(2)} ({inv.status})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-cyan-600 mt-1">Al seleccionar un Custom Invoice, el Work/SimpleWork se actualiza automáticamente.</p>
                   </div>
                 )}
 
