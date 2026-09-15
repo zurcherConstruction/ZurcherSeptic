@@ -43,6 +43,7 @@ import SimpleWorkExpenseTab from './SimpleWorkExpenseTab';
 import SimpleWorkItemsTab from './SimpleWorkItemsTab';
 import AdvancedCreateSimpleWorkModal from './AdvancedCreateSimpleWorkModal';
 import api from '../../utils/axios';
+import CustomInvoicePreviewModal from '../CustomInvoices/CustomInvoicePreviewModal';
 
 const SimpleWorkDetail = () => {
   const { id } = useParams();
@@ -72,6 +73,11 @@ const SimpleWorkDetail = () => {
 
   const [generatingPdf, setGeneratingPdf] = useState(false);
 
+  // Custom Invoices
+  const [customInvoices, setCustomInvoices] = useState([]);
+  const [loadingCustomInvoices, setLoadingCustomInvoices] = useState(false);
+  const [previewInvoiceId, setPreviewInvoiceId] = useState(null);
+
   // Collapsible sections in overview
   const [openSections, setOpenSections] = useState({
     payment: true, client: true, work: true, notes: false, budget: true, photos: false, receipts: true,
@@ -87,6 +93,15 @@ const SimpleWorkDetail = () => {
       dispatch(clearCurrentSimpleWork());
     };
   }, [id, dispatch]);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoadingCustomInvoices(true);
+    api.get(`/custom-invoices/by-simple-work/${id}`)
+      .then(res => setCustomInvoices(res.data?.data || []))
+      .catch(() => {})
+      .finally(() => setLoadingCustomInvoices(false));
+  }, [id]);
 
   const handleAssignStaff = async (staffId) => {
     try {
@@ -932,6 +947,66 @@ const SimpleWorkDetail = () => {
                   </div>
                 )}
 
+                {/* ── Custom Invoices ─────────────────────────────────────── */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-3 text-left"
+                    onClick={() => toggleSection('customInvoices')}
+                  >
+                    <span className="text-sm font-semibold text-gray-700">
+                      🧾 Custom Invoices ({loadingCustomInvoices ? '…' : customInvoices.length})
+                    </span>
+                    <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${openSections.customInvoices ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openSections.customInvoices && (
+                    <div className="px-4 pb-4 space-y-2 border-t border-gray-100">
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={() => navigate(`/custom-invoices/new?simpleWorkId=${work.id}`)}
+                          className="px-3 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-medium transition"
+                        >
+                          + Nuevo Custom Invoice
+                        </button>
+                      </div>
+                      {customInvoices.length === 0 && !loadingCustomInvoices && (
+                        <p className="text-xs text-gray-400 italic py-2">Sin custom invoices vinculados</p>
+                      )}
+                      {customInvoices.map(inv => (
+                        <div key={inv.id} className="border border-gray-100 rounded-lg px-3 py-2 hover:bg-gray-50 transition">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-xs font-semibold text-gray-800">{inv.invoiceNumber}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  inv.status === 'paid' ? 'bg-green-100 text-green-700' :
+                                  inv.status === 'sent' || inv.status === 'viewed' ? 'bg-blue-100 text-blue-700' :
+                                  inv.status === 'void' ? 'bg-red-100 text-red-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>{inv.status}</span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5">{inv.issueDate} · ${parseFloat(inv.total || 0).toFixed(2)}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => setPreviewInvoiceId(inv.id)}
+                                className="px-2 py-1 text-xs border border-cyan-200 text-cyan-700 rounded-lg hover:bg-cyan-50 transition"
+                              >
+                                Ver
+                              </button>
+                              <button
+                                onClick={() => navigate(`/custom-invoices/${inv.id}`)}
+                                className="px-2 py-1 text-xs bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition"
+                              >
+                                Editar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
               );
             })()}
@@ -1308,6 +1383,13 @@ const SimpleWorkDetail = () => {
             />
           )}
         </div>
+      )}
+
+      {previewInvoiceId && (
+        <CustomInvoicePreviewModal
+          invoiceId={previewInvoiceId}
+          onClose={() => setPreviewInvoiceId(null)}
+        />
       )}
     </div>
   );

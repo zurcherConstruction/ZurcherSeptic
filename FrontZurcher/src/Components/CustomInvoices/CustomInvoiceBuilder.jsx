@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import api from '../../utils/axios';
 import { toast } from 'react-toastify';
 
@@ -81,6 +81,7 @@ const TC_SECTIONS = [
 export default function CustomInvoiceBuilder() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isEdit = !!id && id !== 'new';
 
   const [loading, setLoading] = useState(isEdit);
@@ -118,6 +119,7 @@ export default function CustomInvoiceBuilder() {
     // Links
     budgetId: '',
     workId: '',
+    simpleWorkId: '',
     // Options
     priceDisplay: 'prices',
     requireSignature: false,
@@ -136,8 +138,13 @@ export default function CustomInvoiceBuilder() {
   const [workResults, setWorkResults] = useState([]);
   const [workSearching, setWorkSearching] = useState(false);
   const [workSelected, setWorkSelected] = useState(null); // { id, address }
+  const [simpleWorkSearch, setSimpleWorkSearch] = useState('');
+  const [simpleWorkResults, setSimpleWorkResults] = useState([]);
+  const [simpleWorkSearching, setSimpleWorkSearching] = useState(false);
+  const [simpleWorkSelected, setSimpleWorkSelected] = useState(null); // { id, address }
   const budgetTimer = useRef(null);
   const workTimer = useRef(null);
+  const simpleWorkTimer = useRef(null);
 
   // Catalog picker
   const [showCatalog, setShowCatalog] = useState(false);
@@ -146,6 +153,47 @@ export default function CustomInvoiceBuilder() {
   const [catalogCategory, setCatalogCategory] = useState('');
   const [catalogItemId, setCatalogItemId] = useState('');
   const [existingInvoiceNumber, setExistingInvoiceNumber] = useState('');
+
+  // Pre-fill workId / simpleWorkId from URL query params (e.g. from WorkDetail or SimpleWorkDetail)
+  useEffect(() => {
+    if (isEdit) return;
+    const qWorkId = searchParams.get('workId');
+    const qSimpleWorkId = searchParams.get('simpleWorkId');
+    if (qWorkId) {
+      set('workId', qWorkId);
+      setWorkSelected({ id: qWorkId, address: `Work ${qWorkId.slice(0, 8)}…` });
+      api.get(`/work/${qWorkId}`).then(({ data }) => {
+        const work = data?.data || data;
+        const b = work?.budget || work?.Budget;
+        if (work?.propertyAddress) setWorkSelected({ id: qWorkId, address: work.propertyAddress });
+        setForm(f => ({
+          ...f,
+          workId: qWorkId,
+          clientName: f.clientName || b?.applicantName || work?.applicantName || '',
+          clientEmail: f.clientEmail || b?.applicantEmail || work?.applicantEmail || '',
+          clientPhone: f.clientPhone || b?.applicantPhone || work?.applicantPhone || '',
+          clientAddress: f.clientAddress || work?.propertyAddress || b?.propertyAddress || '',
+        }));
+      }).catch(() => {});
+    } else if (qSimpleWorkId) {
+      set('simpleWorkId', qSimpleWorkId);
+      setSimpleWorkSelected({ id: qSimpleWorkId, address: `SimpleWork ${qSimpleWorkId.slice(0, 8)}…` });
+      api.get(`/simple-works/${qSimpleWorkId}`).then(({ data }) => {
+        const sw = data?.data || data;
+        const cd = sw?.clientData || {};
+        if (sw?.propertyAddress) setSimpleWorkSelected({ id: qSimpleWorkId, address: sw.propertyAddress });
+        setForm(f => ({
+          ...f,
+          simpleWorkId: qSimpleWorkId,
+          clientName: f.clientName || cd.name || cd.clientName || '',
+          clientEmail: f.clientEmail || cd.email || cd.clientEmail || '',
+          clientPhone: f.clientPhone || cd.phone || cd.clientPhone || '',
+          clientAddress: f.clientAddress || sw?.propertyAddress || '',
+        }));
+      }).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load existing invoice for edit
   useEffect(() => {
@@ -192,6 +240,7 @@ export default function CustomInvoiceBuilder() {
           dueDate: inv.dueDate || '',
           budgetId: inv.budgetId || '',
           workId: inv.workId || '',
+          simpleWorkId: inv.simpleWorkId || '',
           priceDisplay: inv.priceDisplay || 'prices',
           requireSignature: inv.requireSignature || false,
           requirePayment: inv.requirePayment || false,
@@ -213,6 +262,13 @@ export default function CustomInvoiceBuilder() {
           try {
             const { data: wd } = await api.get(`/work/${inv.workId}`);
             if (wd?.propertyAddress) setWorkSelected({ id: inv.workId, address: wd.propertyAddress });
+          } catch { /* use fallback label */ }
+        }
+        if (inv.simpleWorkId) {
+          setSimpleWorkSelected({ id: inv.simpleWorkId, address: `SimpleWork ${inv.simpleWorkId.slice(0, 8)}…` });
+          try {
+            const { data: swd } = await api.get(`/simple-works/${inv.simpleWorkId}`);
+            if (swd?.data?.propertyAddress) setSimpleWorkSelected({ id: inv.simpleWorkId, address: swd.data.propertyAddress });
           } catch { /* use fallback label */ }
         }
       } catch {
@@ -335,6 +391,7 @@ export default function CustomInvoiceBuilder() {
         paymentPercentage: parseFloat(form.paymentPercentage) || 100,
         budgetId: form.budgetId || undefined,
         workId: form.workId || undefined,
+        simpleWorkId: form.simpleWorkId || undefined,
         overrideNumber: form.overrideNumber || undefined,
         selectedTcSections: undefined,
         additionalTerms: undefined,
@@ -787,9 +844,9 @@ export default function CustomInvoiceBuilder() {
             {/* Optional links — search by address */}
             <details>
               <summary className="text-sm font-semibold text-gray-700 cursor-pointer select-none">
-                Vincular a Budget / Work (opcional)
+                Vincular a Budget / Work / Simple Work (opcional)
               </summary>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-3">
 
                 {/* Budget search */}
                 <div>
@@ -894,14 +951,103 @@ export default function CustomInvoiceBuilder() {
                           {workResults.map(w => (
                             <li key={w.idWork}
                               className="px-3 py-2 text-sm hover:bg-green-50 cursor-pointer border-b border-gray-50 last:border-0"
-                              onClick={() => {
+                              onClick={async () => {
                                 set('workId', w.idWork);
                                 setWorkSelected({ id: w.idWork, address: w.propertyAddress || w.idWork });
                                 setWorkResults([]);
                                 setWorkSearch('');
+                                // Auto-fill client fields if empty
+                                try {
+                                  const { data: wd } = await api.get(`/work/${w.idWork}`);
+                                  const work = wd?.data || wd;
+                                  const b = work?.budget || work?.Budget;
+                                  if (!form.clientName && (b?.applicantName || work?.applicantName))
+                                    set('clientName', b?.applicantName || work?.applicantName || '');
+                                  if (!form.clientEmail && (b?.applicantEmail || work?.applicantEmail))
+                                    set('clientEmail', b?.applicantEmail || work?.applicantEmail || '');
+                                  if (!form.clientPhone && (b?.applicantPhone || work?.applicantPhone))
+                                    set('clientPhone', b?.applicantPhone || work?.applicantPhone || '');
+                                  if (!form.clientAddress && (work?.propertyAddress || b?.propertyAddress))
+                                    set('clientAddress', work?.propertyAddress || b?.propertyAddress || '');
+                                } catch { /* silent */ }
                               }}
                             >
                               <span className="font-medium text-gray-800">{w.propertyAddress || 'Sin dirección'}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* SimpleWork search */}
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Simple Work</p>
+                  {simpleWorkSelected ? (
+                    <div className="flex items-center justify-between bg-orange-50 border border-orange-100 rounded-lg px-3 py-2">
+                      <span className="text-sm text-orange-800 font-medium truncate">{simpleWorkSelected.address}</span>
+                      <button
+                        type="button"
+                        onClick={() => { setSimpleWorkSelected(null); setSimpleWorkSearch(''); set('simpleWorkId', ''); }}
+                        className="ml-2 text-orange-400 hover:text-red-500 text-xs font-bold shrink-0"
+                      >✕</button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={simpleWorkSearch}
+                        onChange={e => {
+                          const q = e.target.value;
+                          setSimpleWorkSearch(q);
+                          setSimpleWorkResults([]);
+                          clearTimeout(simpleWorkTimer.current);
+                          if (q.length < 3) return;
+                          simpleWorkTimer.current = setTimeout(async () => {
+                            setSimpleWorkSearching(true);
+                            try {
+                              const { data } = await api.get(`/simple-works?search=${encodeURIComponent(q)}&limit=8`);
+                              setSimpleWorkResults(data.data || data.simpleWorks || []);
+                            } catch { /* silent */ }
+                            finally { setSimpleWorkSearching(false); }
+                          }, 350);
+                        }}
+                        placeholder="Buscar por dirección..."
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      />
+                      {simpleWorkSearching && (
+                        <p className="text-xs text-gray-400 mt-1">Buscando...</p>
+                      )}
+                      {simpleWorkResults.length > 0 && (
+                        <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                          {simpleWorkResults.map(sw => (
+                            <li key={sw.id}
+                              className="px-3 py-2 text-sm hover:bg-orange-50 cursor-pointer border-b border-gray-50 last:border-0"
+                              onClick={() => {
+                                set('simpleWorkId', sw.id);
+                                setSimpleWorkSelected({ id: sw.id, address: sw.propertyAddress || sw.id });
+                                setSimpleWorkResults([]);
+                                setSimpleWorkSearch('');
+                                // Auto-fill client fields if empty
+                                const cd = sw.clientData || {};
+                                if (!form.clientName && (cd.name || cd.clientName))
+                                  set('clientName', cd.name || cd.clientName || '');
+                                if (!form.clientEmail && (cd.email || cd.clientEmail))
+                                  set('clientEmail', cd.email || cd.clientEmail || '');
+                                if (!form.clientPhone && (cd.phone || cd.clientPhone))
+                                  set('clientPhone', cd.phone || cd.clientPhone || '');
+                                if (!form.clientAddress && sw.propertyAddress)
+                                  set('clientAddress', sw.propertyAddress);
+                              }}
+                            >
+                              <div>
+                                <span className="font-medium text-gray-800">{sw.propertyAddress || 'Sin dirección'}</span>
+                                {sw.workNumber && <span className="text-gray-400 ml-2 text-xs">#{sw.workNumber}</span>}
+                              </div>
+                              {(sw.clientData?.name || sw.clientData?.clientName) && (
+                                <p className="text-xs text-gray-500 mt-0.5">{sw.clientData?.name || sw.clientData?.clientName}</p>
+                              )}
                             </li>
                           ))}
                         </ul>

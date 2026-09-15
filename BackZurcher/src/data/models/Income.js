@@ -28,7 +28,8 @@ module.exports = (sequelize) => {
         type: DataTypes.ENUM(
             'Factura Pago Inicial Budget',
             'Factura Pago Final Budget',
-            'Factura SimpleWork', // 🆕 Pagos de SimpleWork (sincronizado con frontend)
+            'Factura SimpleWork',
+            'Factura Custom Invoice',
             'DiseñoDif',
             "Comprobante Ingreso",
         ),

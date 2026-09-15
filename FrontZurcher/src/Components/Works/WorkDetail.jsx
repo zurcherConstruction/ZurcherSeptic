@@ -10,10 +10,11 @@ import {
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 //import api from "../../utils/axios";
-import FinalInvoice from "../Budget/FinalInvoice";
-import { ExclamationTriangleIcon } from '@heroicons/react/24/solid';
-import CreateChangeOrderModal from './CreateChangeOrderModal';
-import ManualApprovalModal from './ManualApprovalModal';
+import FinalInvoice from "../Budget/FinalInvoice"
+import CustomInvoicePreviewModal from "../CustomInvoices/CustomInvoicePreviewModal";
+import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el banner
+import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
+import ManualApprovalModal from './ManualApprovalModal'; // 🆕 Modal de aprobación manual
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
 import PdfModal from "../Budget/PdfModal"; 
@@ -63,6 +64,11 @@ const WorkDetail = () => {
   // ✅ Estados para supplier invoices vinculados
   const [linkedInvoices, setLinkedInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+
+  // Custom Invoices linked to this work
+  const [customInvoices, setCustomInvoices] = useState([]);
+  const [loadingCustomInvoices, setLoadingCustomInvoices] = useState(false);
+  const [previewInvoiceId, setPreviewInvoiceId] = useState(null);
 
   // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
   const formatDate = (dateString) => {
@@ -222,6 +228,16 @@ const WorkDetail = () => {
     };
 
     loadLinkedInvoices();
+  }, [idWork]);
+
+  // Load custom invoices linked to this work
+  useEffect(() => {
+    if (!idWork) return;
+    setLoadingCustomInvoices(true);
+    api.get(`/custom-invoices/by-work/${idWork}`)
+      .then(res => setCustomInvoices(res.data?.data || []))
+      .catch(() => {})
+      .finally(() => setLoadingCustomInvoices(false));
   }, [idWork]);
 
   const handleVerifyInvoice = async (invoiceId) => {
@@ -1730,6 +1746,67 @@ const handleUploadInstalledImage = async () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                               </svg>
                               Ir al Invoice
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Custom Invoices vinculados */}
+            {!isCapataz && (
+              <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-cyan-500">
+                <h2
+                  className="text-lg md:text-xl font-semibold mb-4 cursor-pointer flex items-center justify-between"
+                  onClick={() => toggleSection('customInvoices')}
+                >
+                  <span>🧾 Custom Invoices ({loadingCustomInvoices ? '…' : customInvoices.length})</span>
+                  <span>{openSections.customInvoices ? '▲' : '▼'}</span>
+                </h2>
+                {openSections.customInvoices && (
+                  <div className="space-y-3">
+                    <div className="flex justify-end mb-2">
+                      <button
+                        onClick={() => navigate(`/custom-invoices/new?workId=${idWork}`)}
+                        className="px-3 py-1.5 text-sm bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-medium transition"
+                      >
+                        + Nuevo Custom Invoice
+                      </button>
+                    </div>
+                    {customInvoices.length === 0 && !loadingCustomInvoices && (
+                      <p className="text-sm text-gray-400 italic">No hay custom invoices vinculados</p>
+                    )}
+                    {customInvoices.map(inv => (
+                      <div key={inv.id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition">
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-sm font-semibold text-gray-800">{inv.invoiceNumber}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                inv.status === 'paid' ? 'bg-green-100 text-green-700' :
+                                inv.status === 'sent' || inv.status === 'viewed' ? 'bg-blue-100 text-blue-700' :
+                                inv.status === 'void' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>{inv.status}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-0.5">{inv.clientName}</p>
+                            <p className="text-xs text-gray-400">{inv.issueDate} · ${parseFloat(inv.total || 0).toFixed(2)}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => setPreviewInvoiceId(inv.id)}
+                              className="px-3 py-1.5 text-xs border border-cyan-200 text-cyan-700 rounded-lg hover:bg-cyan-50 transition"
+                            >
+                              Ver
+                            </button>
+                            <button
+                              onClick={() => navigate(`/custom-invoices/${inv.id}`)}
+                              className="px-3 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition"
+                            >
+                              Editar
                             </button>
                           </div>
                         </div>
@@ -3755,6 +3832,14 @@ const handleUploadInstalledImage = async () => {
           }}
           changeOrder={approvingCO}
           workId={idWork}
+        />
+      )}
+
+      {/* Modal de preview de Custom Invoice */}
+      {previewInvoiceId && (
+        <CustomInvoicePreviewModal
+          invoiceId={previewInvoiceId}
+          onClose={() => setPreviewInvoiceId(null)}
         />
       )}
     </div>
