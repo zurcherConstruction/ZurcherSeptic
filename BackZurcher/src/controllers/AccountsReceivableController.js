@@ -685,8 +685,8 @@ const AccountsReceivableController = {
           totalCollected += parseFloat(work.finalInvoice.amountPaid || 0);
         }
 
-        // Monto restante por cobrar
-        let remainingAmount = expectedTotal - totalCollected;
+        // Monto restante por cobrar — round a 2 decimales para evitar errores de floating-point
+        let remainingAmount = Math.round((expectedTotal - totalCollected) * 100) / 100;
 
         // Determinar estado de pago
         let paymentStatus;
@@ -696,6 +696,7 @@ const AccountsReceivableController = {
           remainingAmount = 0;
         } else if (remainingAmount <= 0) {
           paymentStatus = 'completed';
+          remainingAmount = 0;
         } else if (totalCollected > initialPayment) {
           paymentStatus = 'partial';
         } else if (initialPayment > 0) {

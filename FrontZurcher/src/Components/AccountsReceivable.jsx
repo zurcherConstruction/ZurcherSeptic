@@ -25,7 +25,7 @@ const AccountsReceivable = () => {
   const setActiveTab = (v) => setSearchParams(prev => { prev.set('tab', v); return prev; });
   const [commissionFilter, setCommissionFilter] = useState('all'); // all, paid, pending
   const [invoiceFilter, setInvoiceFilter] = useState({
-    status: 'all', // all, pending_payment, partial, initial_only, completed
+    status: 'active', // all, active (sin completados), pending_payment, partial, initial_only, completed
     startDate: '',
     endDate: '',
     salesRepId: '',
@@ -154,7 +154,10 @@ const AccountsReceivable = () => {
 
     return invoicesData.invoices.filter(invoice => {
       // Filtro por estado de pago
-      if (invoiceFilter.status !== 'all' && invoice.paymentStatus !== invoiceFilter.status) {
+      if (invoiceFilter.status === 'active') {
+        // Solo mostrar los que NO están completados
+        if (invoice.paymentStatus === 'completed') return false;
+      } else if (invoiceFilter.status !== 'all' && invoice.paymentStatus !== invoiceFilter.status) {
         return false;
       }
 
@@ -484,7 +487,8 @@ const AccountsReceivable = () => {
                   onChange={(e) => setInvoiceFilter({...invoiceFilter, status: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="all">Todos</option>
+                  <option value="active">Solo Activos</option>
+                  <option value="all">Todos (incl. completados)</option>
                   <option value="pending_payment">Sin Pagos</option>
                   <option value="initial_only">Solo Initial Payment</option>
                   <option value="partial">Pago Parcial</option>
