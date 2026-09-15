@@ -37,6 +37,7 @@ module.exports = (sequelize) => {
             'Subcontratista', // 🔨 Para comprobantes de pagos a subcontratistas
             'Invoice Proveedor', // 🆕 Para invoices de proveedores
             'Factura SimpleWork', // 🆕 Para facturas de SimpleWork
+            'Factura Custom Invoice', // 🆕 Para pagos de Custom Invoices
             'Publicidad', // 🆕
             'NOC', // 🆕
             'Otro' // 🆕

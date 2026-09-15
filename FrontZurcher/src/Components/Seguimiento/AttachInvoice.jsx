@@ -208,6 +208,11 @@ const AttachReceipt = () => {
   const [paymentHistory, setPaymentHistory] = useState([]);
   // 🆕 Estado para el modal de FixedExpensePaymentHistory
   const [showFixedExpensePaymentModal, setShowFixedExpensePaymentModal] = useState(false);
+  // Custom Invoice
+  const [selectedCustomInvoice, setSelectedCustomInvoice] = useState('');
+  const [customInvoiceList, setCustomInvoiceList] = useState([]);
+  const [loadingCustomInvoices, setLoadingCustomInvoices] = useState(false);
+  const [customInvoicePaymentAmount, setCustomInvoicePaymentAmount] = useState('');
   // 🛡️ Estado para prevenir doble envío (doble-clic)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastSubmitTime, setLastSubmitTime] = useState(0);
@@ -418,6 +423,26 @@ const AttachReceipt = () => {
       // Resetear campos de SimpleWork
       setSelectedSimpleWork("");
       setSimpleWorkPaymentAmount("");
+    }
+  }, [type]);
+
+  // Cargar custom invoices pendientes cuando se selecciona ese tipo
+  useEffect(() => {
+    if (type === 'Factura Custom Invoice') {
+      setIsGeneralTransaction(true);
+      setSelectedWork('');
+      setSelectedSimpleWork('');
+      setSelectedCustomInvoice('');
+      setCustomInvoicePaymentAmount('');
+      setLoadingCustomInvoices(true);
+      api.get('/custom-invoices')
+        .then(res => {
+          const all = res.data?.data || res.data || [];
+          // Solo mostrar las no pagadas
+          setCustomInvoiceList(all.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled'));
+        })
+        .catch(() => toast.error('Error cargando Custom Invoices'))
+        .finally(() => setLoadingCustomInvoices(false));
     }
   }, [type]);
 
@@ -852,6 +877,37 @@ const AttachReceipt = () => {
             throw error;
           }
 
+        } else if (type === 'Factura Custom Invoice') {
+          if (!selectedCustomInvoice) {
+            toast.error('Por favor, selecciona un Custom Invoice para registrar el pago.');
+            return;
+          }
+          const invoice = customInvoiceList.find(inv => inv.id === selectedCustomInvoice);
+          const paymentAmount = parseFloat(customInvoicePaymentAmount) ||
+            parseFloat(invoice?.paymentAmount || invoice?.total || 0);
+          if (!paymentAmount || paymentAmount <= 0) {
+            toast.error('Por favor ingresa un monto válido.');
+            return;
+          }
+          try {
+            const res = await api.post(`/custom-invoices/${selectedCustomInvoice}/mark-paid`, {
+              paidAmount: paymentAmount,
+              paymentMethod: paymentMethod || 'Otro',
+              paymentDetails: paymentDetails || null,
+              notes: notes || null,
+            });
+            const createdIncome = res.data?.data?.income;
+            if (file && createdIncome?.idIncome) {
+              formData.append('relatedModel', 'Income');
+              formData.append('relatedId', createdIncome.idIncome.toString());
+              await api.post('/receipt', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            }
+            toast.success(`✅ Custom Invoice ${invoice?.invoiceNumber || ''} marcado como pagado`);
+          } catch (error) {
+            console.error('❌ Error procesando pago Custom Invoice:', error);
+            throw error;
+          }
+
         } else {
           // Lógica original para otros tipos de gastos/ingresos
           
@@ -946,6 +1002,9 @@ const AttachReceipt = () => {
       setFixedExpensePaymentAmount(""); // 🆕 Limpiar monto de pago de gasto fijo
       setFixedExpensePeriodMonth(""); // 🆕 Limpiar periodo de gasto fijo
       setSelectedSimpleWork(""); // 🆕 Limpiar SimpleWork seleccionado
+      setSelectedCustomInvoice("");
+      setCustomInvoicePaymentAmount("");
+      setCustomInvoiceList([]);
 
     } catch (err) {
       console.error("❌❌❌ Error completo en handleSubmit:", err);
@@ -1769,6 +1828,111 @@ const AttachReceipt = () => {
                         })()}
                       </div>
                     )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* SELECTOR DE CUSTOM INVOICE */}
+            {type === 'Factura Custom Invoice' && (
+              <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-5">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="p-2 bg-cyan-500 rounded-lg">
+                    <DocumentTextIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <h5 className="font-semibold text-cyan-800">
+                    Seleccionar Custom Invoice para Cobrar
+                  </h5>
+                </div>
+
+                {loadingCustomInvoices && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500"></div>
+                    <span className="ml-3 text-sm text-gray-600">Cargando invoices...</span>
+                  </div>
+                )}
+
+                {!loadingCustomInvoices && customInvoiceList.length === 0 && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm font-medium text-yellow-800">No hay Custom Invoices pendientes de pago.</p>
+                  </div>
+                )}
+
+                {!loadingCustomInvoices && customInvoiceList.length > 0 && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Selecciona el Custom Invoice: <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={selectedCustomInvoice}
+                        onChange={(e) => {
+                          const invId = e.target.value;
+                          setSelectedCustomInvoice(invId);
+                          if (invId) {
+                            const inv = customInvoiceList.find(i => i.id === invId);
+                            if (inv) {
+                              const amt = parseFloat(inv.paymentAmount || inv.total || 0);
+                              setCustomInvoicePaymentAmount(amt.toFixed(2));
+                              setAmount(amt.toFixed(2));
+                            }
+                          } else {
+                            setCustomInvoicePaymentAmount('');
+                            setAmount('');
+                          }
+                        }}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent bg-white"
+                        required
+                      >
+                        <option value="">Seleccionar Custom Invoice...</option>
+                        {customInvoiceList.map((inv) => (
+                          <option key={inv.id} value={inv.id}>
+                            {inv.invoiceNumber} - {inv.clientName} - ${parseFloat(inv.paymentAmount || inv.total || 0).toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {selectedCustomInvoice && (() => {
+                      const inv = customInvoiceList.find(i => i.id === selectedCustomInvoice);
+                      if (!inv) return null;
+                      return (
+                        <div className="mb-4">
+                          {/* Detalles del invoice */}
+                          <div className="p-3 bg-white border border-cyan-200 rounded-lg text-sm space-y-1 mb-3">
+                            <p><strong>Cliente:</strong> {inv.clientName}</p>
+                            <p><strong>Total:</strong> ${parseFloat(inv.paymentAmount || inv.total || 0).toFixed(2)}</p>
+                            <p><strong>Estado:</strong> {inv.status}</p>
+                            {inv.workId && (
+                              <p className="text-cyan-700"><strong>Vinculado a Work:</strong> {inv.workId}</p>
+                            )}
+                            {inv.simpleWorkId && (
+                              <p className="text-cyan-700"><strong>Vinculado a SimpleWork:</strong> {inv.simpleWorkId}</p>
+                            )}
+                            {!inv.workId && !inv.simpleWorkId && (
+                              <p className="text-gray-500 italic">Sin vinculación a Work o SimpleWork</p>
+                            )}
+                          </div>
+
+                          {/* Monto */}
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Monto a registrar: <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={customInvoicePaymentAmount}
+                            onChange={(e) => {
+                              setCustomInvoicePaymentAmount(e.target.value);
+                              setAmount(e.target.value);
+                            }}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                            placeholder="Monto pagado"
+                          />
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>

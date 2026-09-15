@@ -55,7 +55,8 @@ export const FIXED_EXPENSE_FREQUENCIES = [
 export const INCOME_TYPES = [
   'Factura Pago Inicial Budget',
   'Factura Pago Final Budget',
-  'Factura SimpleWork', // 🆕 Pagos de SimpleWork
+  'Factura SimpleWork',
+  'Factura Custom Invoice',
   //'DiseñoDif',
   'Comprobante Ingreso',
 ];
@@ -100,6 +101,7 @@ export const RECEIPT_TYPES = [
   'Subcontratista',
   'Invoice Proveedor',
   'Factura SimpleWork',
+  'Factura Custom Invoice',
   'Publicidad',
   'NOC',
   'Otro',

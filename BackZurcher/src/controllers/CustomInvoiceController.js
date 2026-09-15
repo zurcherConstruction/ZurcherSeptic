@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
-const { CustomInvoice } = require('../data');
+const { CustomInvoice, Work, Budget, SimpleWork, Income } = require('../data');
 const { generateCustomInvoicePdf } = require('../utils/pdfGenerators/customInvoicePdfGenerator');
 const { sendEmail } = require('../utils/notifications/emailService');
 
@@ -53,11 +53,11 @@ const createInvoice = async (req, res) => {
       invoiceType = 'INV',
       overrideNumber,
       title,
-      clientName,
-      clientEmail,
-      clientPhone,
-      clientAddress,
-      clientCompany,
+      clientName: bodyClientName,
+      clientEmail: bodyClientEmail,
+      clientPhone: bodyClientPhone,
+      clientAddress: bodyClientAddress,
+      clientCompany: bodyClientCompany,
       companyName,
       companyEmail,
       companyPhone,
@@ -73,10 +73,44 @@ const createInvoice = async (req, res) => {
       dueDate,
       budgetId,
       workId,
+      simpleWorkId,
       requireSignature = false,
       requirePayment = false,
       paymentPercentage = 100,
     } = req.body;
+
+    // Auto-fill client data from linked Work or SimpleWork
+    let autoClient = {};
+    if (workId) {
+      const work = await Work.findByPk(workId, { include: [{ model: Budget, as: 'budget' }] });
+      if (work) {
+        const b = work.budget;
+        autoClient = {
+          clientName: b?.applicantName || '',
+          clientEmail: b?.applicantEmail || '',
+          clientPhone: b?.applicantPhone || '',
+          clientAddress: work.propertyAddress || b?.propertyAddress || '',
+        };
+      }
+    } else if (simpleWorkId) {
+      const sw = await SimpleWork.findByPk(simpleWorkId);
+      if (sw) {
+        const cd = sw.clientData || {};
+        autoClient = {
+          clientName: cd.name || cd.clientName || '',
+          clientEmail: cd.email || cd.clientEmail || '',
+          clientPhone: cd.phone || cd.clientPhone || '',
+          clientAddress: sw.propertyAddress || '',
+        };
+      }
+    }
+
+    // Body values take precedence over auto-fill
+    const clientName = bodyClientName || autoClient.clientName;
+    const clientEmail = bodyClientEmail !== undefined ? bodyClientEmail : autoClient.clientEmail;
+    const clientPhone = bodyClientPhone !== undefined ? bodyClientPhone : autoClient.clientPhone;
+    const clientAddress = bodyClientAddress !== undefined ? bodyClientAddress : autoClient.clientAddress;
+    const clientCompany = bodyClientCompany;
 
     if (!clientName) return res.status(400).json({ error: true, message: 'clientName es requerido' });
     if (!items.length) return res.status(400).json({ error: true, message: 'Se requiere al menos un item' });
@@ -113,9 +147,10 @@ const createInvoice = async (req, res) => {
       priceDisplay,
       notes,
       issueDate: issueDate || new Date().toISOString().split('T')[0],
-      dueDate,
+      dueDate: dueDate || null,
       budgetId,
       workId,
+      simpleWorkId,
       requireSignature,
       requirePayment,
       paymentPercentage: parseFloat(paymentPercentage) || 100,
@@ -189,6 +224,7 @@ const updateInvoice = async (req, res) => {
       items, discountAmount, discountDescription, taxRate,
       termsAndConditions, priceDisplay, notes, dueDate,
       requireSignature, requirePayment, paymentPercentage,
+      workId, simpleWorkId,
     } = req.body;
 
     const updItems = items || invoice.items;
@@ -226,6 +262,8 @@ const updateInvoice = async (req, res) => {
       ...(requirePayment !== undefined && { requirePayment }),
       ...(paymentPercentage !== undefined && { paymentPercentage: pct }),
       paymentAmount: payAmt,
+      ...(workId !== undefined && { workId: workId || null }),
+      ...(simpleWorkId !== undefined && { simpleWorkId: simpleWorkId || null }),
       pdfPath: null, // force PDF regen
     });
 
@@ -500,6 +538,8 @@ const createPaymentLink = async (req, res) => {
       line_items: [{ price: price.id, quantity: 1 }],
       customer_creation: 'always',
       after_completion: { type: 'redirect', redirect: { url: thankYouUrl } },
+      // metadata on the link → copied to checkout session → readable by webhook via session.metadata
+      metadata: { custom_invoice_id: invoice.id, invoice_number: invoice.invoiceNumber },
       payment_intent_data: {
         description: `Payment for ${invoice.invoiceNumber}`,
         metadata: { custom_invoice_id: invoice.id, invoice_number: invoice.invoiceNumber },
@@ -514,6 +554,77 @@ const createPaymentLink = async (req, res) => {
     res.json({ error: false, data: { url: paymentLink.url, id: paymentLink.id } });
   } catch (err) {
     console.error('❌ createPaymentLink:', err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+// POST /custom-invoices/:id/mark-paid
+const markAsPaid = async (req, res) => {
+  try {
+    const invoice = await CustomInvoice.findByPk(req.params.id);
+    if (!invoice) return res.status(404).json({ error: true, message: 'Invoice no encontrado' });
+    if (invoice.status === 'void') {
+      return res.status(400).json({ error: true, message: 'No se puede marcar como pagado un invoice anulado' });
+    }
+
+    const { paidAmount, paymentMethod = 'Otro', paymentDetails, notes: payNotes } = req.body;
+    const amount = parseFloat(paidAmount) || parseFloat(invoice.paymentAmount) || parseFloat(invoice.total);
+
+    await invoice.update({
+      status: 'paid',
+      paidAmount: amount,
+      paidAt: new Date(),
+    });
+
+    // Create Income record
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const income = await Income.create({
+      typeIncome: 'Factura Custom Invoice',
+      amount,
+      date: localDate,
+      notes: payNotes || `Pago de ${invoice.invoiceNumber} - ${invoice.clientName}`,
+      workId: invoice.workId || null,
+      simpleWorkId: invoice.simpleWorkId || null,
+      staffId: req.staff?.id || req.staff?.idStaff || null,
+      paymentMethod,
+      paymentDetails: paymentDetails || null,
+      verified: false,
+    });
+
+    res.json({ error: false, data: { invoice, income } });
+  } catch (err) {
+    console.error('❌ markAsPaid:', err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+// GET /work/:workId/custom-invoices
+const getInvoicesByWork = async (req, res) => {
+  try {
+    const invoices = await CustomInvoice.findAll({
+      where: { workId: req.params.workId },
+      order: [['createdAt', 'DESC']],
+      attributes: { exclude: ['termsAndConditions', 'items'] },
+    });
+    res.json({ error: false, data: invoices });
+  } catch (err) {
+    console.error('❌ getInvoicesByWork:', err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+// GET /simple-works/:simpleWorkId/custom-invoices
+const getInvoicesBySimpleWork = async (req, res) => {
+  try {
+    const invoices = await CustomInvoice.findAll({
+      where: { simpleWorkId: req.params.simpleWorkId },
+      order: [['createdAt', 'DESC']],
+      attributes: { exclude: ['termsAndConditions', 'items'] },
+    });
+    res.json({ error: false, data: invoices });
+  } catch (err) {
+    console.error('❌ getInvoicesBySimpleWork:', err);
     res.status(500).json({ error: true, message: err.message });
   }
 };
@@ -602,6 +713,9 @@ module.exports = {
   sendForSignature,
   createPaymentLink,
   clearPaymentLink,
+  markAsPaid,
+  getInvoicesByWork,
+  getInvoicesBySimpleWork,
   publicView,
   clientApprove,
   getAvailableYears,

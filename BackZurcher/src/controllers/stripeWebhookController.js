@@ -9,7 +9,7 @@
  */
 
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { Income, Budget, Work, FinalInvoice } = require('../data');
+const { Income, Budget, Work, FinalInvoice, CustomInvoice } = require('../data');
 const { sendNotification } = require('../utils/notifications/notificationService');
 const { sendNotificationToApp } = require('../utils/notifications/notificationServiceApp');
 const { filterDuplicates, registerSent } = require('../utils/notifications/notificationDeduplicator');
@@ -122,6 +122,9 @@ async function handleCheckoutSessionCompleted(session) {
       budgetId: metadata.budget_id
     }, amountPaid, session);
     
+  } else if (metadata.custom_invoice_id) {
+    // Custom Invoice payment link
+    await processCustomInvoicePayment(metadata.custom_invoice_id, amountPaid, session);
   } else {
     console.warn('⚠️ Tipo de pago no reconocido:', paymentType);
     console.warn('Metadata recibida:', metadata);
@@ -283,16 +286,80 @@ async function processFinalInvoicePayment(metadata, amountPaid, session) {
 }
 
 /**
+ * 🧾 Procesa el pago de un Custom Invoice via Stripe
+ */
+async function processCustomInvoicePayment(customInvoiceId, amountPaid, session) {
+  try {
+    const invoice = await CustomInvoice.findByPk(customInvoiceId);
+    if (!invoice) {
+      console.error('❌ CustomInvoice no encontrado:', customInvoiceId);
+      return;
+    }
+
+    if (invoice.status === 'paid') {
+      console.warn('⚠️ CustomInvoice ya estaba pagado:', customInvoiceId);
+      return;
+    }
+
+    const { receiptUrl } = await getReceiptDataFromSessionId(session.id);
+
+    await invoice.update({
+      status: 'paid',
+      paidAmount: amountPaid,
+      paidAt: new Date(),
+      stripeSessionId: session.id,
+    });
+
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const income = await Income.create({
+      typeIncome: 'Factura Custom Invoice',
+      amount: amountPaid,
+      date: localDate,
+      notes: `Pago Stripe de ${invoice.invoiceNumber} - ${invoice.clientName}`,
+      workId: invoice.workId || null,
+      simpleWorkId: invoice.simpleWorkId || null,
+      staffId: null,
+      paymentMethod: 'Stripe',
+      stripePaymentIntentId: session.payment_intent,
+      stripeSessionId: session.id,
+      paymentDetails: receiptUrl
+        ? `Stripe session: ${session.id} | Receipt: ${receiptUrl}`
+        : `Stripe session: ${session.id}`,
+      verified: false,
+    });
+
+    console.log(`✅ CustomInvoice ${customInvoiceId} pagado. Income: ${income.idIncome}`);
+
+    await sendPaymentNotifications(
+      { clientName: invoice.clientName, invoiceNumber: invoice.invoiceNumber },
+      amountPaid,
+      'custom_invoice',
+      session.customer_email,
+      customInvoiceId
+    );
+  } catch (error) {
+    console.error('❌ Error procesando pago de Custom Invoice:', error);
+    throw error;
+  }
+}
+
+/**
  * 📧 Envía notificaciones de pago recibido
  */
 async function sendPaymentNotifications(entity, amount, type, customerEmail) {
   try {
     const propertyAddress = entity.propertyAddress || entity.Permit?.propertyAddress || 'N/A';
-    const clientName = entity.applicantName || entity.Permit?.applicantName || 'Cliente';
-    
-    const message = type === 'invoice' 
-      ? `💰 ¡Pago recibido via Stripe! $${amount.toFixed(2)} para Invoice en ${propertyAddress}`
-      : `💰 ¡Pago final recibido via Stripe! $${amount.toFixed(2)} para ${propertyAddress}`;
+    const clientName = entity.applicantName || entity.clientName || entity.Permit?.applicantName || 'Cliente';
+
+    let message;
+    if (type === 'invoice') {
+      message = `💰 ¡Pago recibido via Stripe! $${amount.toFixed(2)} para Invoice en ${propertyAddress}`;
+    } else if (type === 'custom_invoice') {
+      message = `💰 ¡Pago Custom Invoice recibido via Stripe! $${amount.toFixed(2)} - ${clientName} (${entity.invoiceNumber || ''})`;
+    } else {
+      message = `💰 ¡Pago final recibido via Stripe! $${amount.toFixed(2)} para ${propertyAddress}`;
+    }
 
     // Notificación al sistema web
     await sendNotification({

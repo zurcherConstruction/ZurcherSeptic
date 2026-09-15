@@ -151,6 +151,12 @@ module.exports = (sequelize) => {
     workId: {
       type: DataTypes.UUID,
       allowNull: true,
+      comment: 'Vincula la factura con un Work (septic job)',
+    },
+    simpleWorkId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Vincula la factura con un SimpleWork (trabajo varios)',
     },
     // Client flow options
     requireSignature: {

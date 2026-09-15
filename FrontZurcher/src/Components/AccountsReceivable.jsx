@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
+import api from '../utils/axios';
 import {
   FaDollarSign,
   FaFileInvoiceDollar,
@@ -17,6 +18,7 @@ import { PAYMENT_METHODS_GROUPED } from '../utils/paymentConstants'; // 🆕 Imp
 
 const AccountsReceivable = () => {
   const token = useSelector((state) => state.auth.token);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'invoices';
@@ -58,13 +60,29 @@ const AccountsReceivable = () => {
     summary: {},
     income: []
   });
+  const [customInvoices, setCustomInvoices] = useState([]);
+  const [loadingCustomInvoices, setLoadingCustomInvoices] = useState(false);
 
   useEffect(() => {
     fetchAccountsReceivable();
     fetchPendingCommissions();
     fetchActiveInvoices();
     fetchIncome();
+    fetchPendingCustomInvoices();
   }, []);
+
+  const fetchPendingCustomInvoices = async () => {
+    setLoadingCustomInvoices(true);
+    try {
+      const res = await api.get('/custom-invoices');
+      const all = res.data?.data || res.data || [];
+      setCustomInvoices(all.filter(inv => inv.status !== 'paid' && inv.status !== 'cancelled' && inv.status !== 'void'));
+    } catch (e) {
+      console.error('Error cargando custom invoices:', e);
+    } finally {
+      setLoadingCustomInvoices(false);
+    }
+  };
 
   const fetchAccountsReceivable = async () => {
     setLoading(true);
@@ -636,6 +654,96 @@ const AccountsReceivable = () => {
               </table>
               </div>
             </div>
+          </div>
+
+          {/* Custom Invoices pendientes */}
+          <div className="bg-white rounded-lg shadow-md p-3 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <FaFileInvoiceDollar className="text-cyan-500 text-lg md:text-xl" />
+              <span>Custom Invoices Activos</span>
+              <span className="ml-1 text-sm font-normal text-gray-500">
+                ({loadingCustomInvoices ? '…' : customInvoices.length})
+              </span>
+            </h2>
+            {loadingCustomInvoices ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-500 mr-3"></div>
+                <span className="text-sm text-gray-500">Cargando...</span>
+              </div>
+            ) : customInvoices.length === 0 ? (
+              <p className="text-sm text-gray-400 italic py-4">No hay Custom Invoices pendientes de pago</p>
+            ) : (
+              <div className="overflow-x-auto -mx-3 md:mx-0">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Invoice #</th>
+                      <th className="px-3 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Cliente</th>
+                      <th className="px-3 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Fecha</th>
+                      <th className="px-3 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Total</th>
+                      <th className="px-3 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Estado</th>
+                      <th className="px-3 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">Vence</th>
+                      <th className="px-3 md:px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {customInvoices.map(inv => (
+                      <tr key={inv.id} className="hover:bg-gray-50">
+                        <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm font-medium text-cyan-700">
+                          {inv.invoiceNumber}
+                        </td>
+                        <td className="px-3 md:px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+                          {inv.clientName}
+                        </td>
+                        <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                          {inv.issueDate}
+                        </td>
+                        <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-700">
+                          ${parseFloat(inv.paymentAmount || inv.total || 0).toFixed(2)}
+                        </td>
+                        <td className="px-3 md:px-4 py-3 whitespace-nowrap">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            inv.status === 'sent' || inv.status === 'viewed' ? 'bg-blue-100 text-blue-700' :
+                            inv.status === 'partially_paid' ? 'bg-purple-100 text-purple-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {inv.status === 'sent' ? 'Enviado' :
+                             inv.status === 'viewed' ? 'Visto' :
+                             inv.status === 'partially_paid' ? 'Parcial' :
+                             inv.status === 'draft' ? 'Borrador' : inv.status}
+                          </span>
+                        </td>
+                        <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                          {inv.dueDate ? (
+                            <span className={new Date(inv.dueDate) < new Date() ? 'text-red-600 font-semibold' : ''}>
+                              {inv.dueDate}
+                            </span>
+                          ) : '—'}
+                        </td>
+                        <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm">
+                          <div className="flex gap-2">
+                            {inv.publicToken && (
+                              <button
+                                onClick={() => navigate(`/invoice/${inv.publicToken}`)}
+                                className="px-2 py-1 text-xs border border-cyan-300 text-cyan-700 rounded hover:bg-cyan-50 transition"
+                              >
+                                Ver
+                              </button>
+                            )}
+                            <button
+                              onClick={() => navigate(`/custom-invoices/${inv.id}`)}
+                              className="px-2 py-1 text-xs bg-cyan-600 text-white rounded hover:bg-cyan-700 transition"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

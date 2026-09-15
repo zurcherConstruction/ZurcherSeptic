@@ -686,11 +686,15 @@ const AccountsReceivableController = {
         }
 
         // Monto restante por cobrar
-        const remainingAmount = expectedTotal - totalCollected;
+        let remainingAmount = expectedTotal - totalCollected;
 
         // Determinar estado de pago
         let paymentStatus;
-        if (remainingAmount <= 0) {
+        // Si el work está marcado como paymentReceived → ya está cobrado
+        if (work.status === 'paymentReceived' || work.status === 'completed') {
+          paymentStatus = 'completed';
+          remainingAmount = 0;
+        } else if (remainingAmount <= 0) {
           paymentStatus = 'completed';
         } else if (totalCollected > initialPayment) {
           paymentStatus = 'partial';
