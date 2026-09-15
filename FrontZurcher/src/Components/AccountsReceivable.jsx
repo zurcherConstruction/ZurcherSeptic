@@ -116,7 +116,9 @@ const AccountsReceivable = () => {
     try {
       // Build query params from filters
       const params = new URLSearchParams();
-      if (invoiceFilter.status !== 'all') params.append('status', invoiceFilter.status);
+      // 'active' se filtra en frontend; mandamos 'all' al backend para traer todos y filtrar localmente
+      const backendStatus = invoiceFilter.status === 'active' ? 'all' : invoiceFilter.status;
+      if (backendStatus && backendStatus !== 'all') params.append('status', backendStatus);
       if (invoiceFilter.startDate) params.append('startDate', invoiceFilter.startDate);
       if (invoiceFilter.endDate) params.append('endDate', invoiceFilter.endDate);
       if (invoiceFilter.salesRepId) params.append('salesRepId', invoiceFilter.salesRepId);
