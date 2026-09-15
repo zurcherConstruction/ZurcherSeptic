@@ -2886,6 +2886,8 @@ const generateOperatingPermit = async (req, res) => {
       drainfieldConfig:   b.drainfieldConfig   || 'trenches',
       onsiteWell:         b.onsiteWell         || 'no',
       additionalComments: b.additionalComments || '',
+      permitRequest:      b.permitRequest      || 'new',
+      permitType:         b.permitType         || 'aerobic',
       signatureDate:      new Date(),
     };
 

@@ -548,16 +548,15 @@ class DocuSignService {
         scaleValue: '1'
       });
 
-      // Anchor: 'Sign Date:' (campo de fecha debajo de la firma del cliente)
+      // DocuSign completa la fecha cuando el cliente firma
       const dateSignedTab = docusign.DateSigned.constructFromObject({
         documentId: '1',
-        anchorString: 'Sign Date:',
+        anchorString: 'Owner Sign Date:',
         anchorUnits: 'pixels',
-        anchorXOffset: '60',
-        anchorYOffset: '-5',
+        anchorXOffset: '100',
+        anchorYOffset: '-3',
         name: 'DateSigned',
-        optional: 'true',
-        fontSize: 'size9'
+        anchorIgnoreIfNotPresent: 'false'
       });
 
       signer.tabs = docusign.Tabs.constructFromObject({

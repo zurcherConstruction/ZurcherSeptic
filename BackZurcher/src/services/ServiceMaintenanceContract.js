@@ -325,7 +325,7 @@ class ServiceMaintenanceContract {
         const firmaW    = firmaImg.width * (firmaH / firmaImg.height);
         page2.drawImage(firmaImg, {
           x: margin + 50,
-          y: y2 - firmaH + 6,
+          y: y2 - 6,   // bottom of image just below text baseline; top reaches ~22px above
           width:  firmaW,
           height: firmaH,
         });
@@ -338,13 +338,16 @@ class ServiceMaintenanceContract {
       draw2('Signature: ____________________________', margin, y2, { size: 8.5 });
     }
     draw2('Client Signature: ____________________________', col + 10, y2, { size: 8.5 });
-    y2 -= 16;
+    y2 -= 24;  // más espacio para no pisar la imagen de firma
 
     draw2(`Title:  ${COMPANY.signerName}`, margin, y2, { size: 8.5 });
     draw2('Title:  OWNER', col + 10, y2, { size: 8.5 });
     y2 -= 14;
 
-    draw2('Sign Date: ____________________________', col + 10, y2, { size: 8.5 });
+    // Fecha empresa: pre-llenada (izquierda)
+    draw2(`Sign Date:  ${formatDate(contractDate || new Date())}`, margin, y2, { size: 8.5 });
+    // Fecha cliente: DocuSign la completa al firmar (texto ancla para DateSigned tab)
+    draw2('Owner Sign Date:  ____________________', col + 10, y2, { size: 8.5 });
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
