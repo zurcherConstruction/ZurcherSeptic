@@ -586,6 +586,7 @@ const markAsPaid = async (req, res) => {
       notes: payNotes || `Pago de ${invoice.invoiceNumber} - ${invoice.clientName}`,
       workId: invoice.workId || null,
       simpleWorkId: invoice.simpleWorkId || null,
+      customInvoiceId: invoice.id,
       staffId: req.staff?.id || req.staff?.idStaff || null,
       paymentMethod,
       paymentDetails: paymentDetails || null,
