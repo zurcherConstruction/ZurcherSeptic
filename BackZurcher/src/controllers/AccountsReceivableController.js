@@ -650,39 +650,53 @@ const AccountsReceivableController = {
         order: [[{ model: Budget, as: 'budget' }, 'date', 'DESC']]
       });
 
-      const invoicesData = works.map(work => {
-        // ✅ CORREGIDO: Usar totalPrice (que ya tiene descuento aplicado)
+      const invoicesData = works
+        // Excluir entradas demo
+        .filter(work => {
+          const addr = (work.propertyAddress || '').toLowerCase();
+          const name = (work.budget?.applicantName || '').toLowerCase();
+          return !addr.includes('demo') && !name.includes('demo');
+        })
+        // Excluir presupuestos legacy con monto placeholder ($0 o $1)
+        .filter(work => {
+          const isLegacy = work.budget?.isLegacy;
+          const total = parseFloat(work.budget?.totalPrice || 0);
+          return !(isLegacy && total <= 1);
+        })
+        .map(work => {
         const budgetTotal = parseFloat(work.budget?.totalPrice || 0);
         const initialPayment = parseFloat(work.budget?.paymentProofAmount || 0);
-        
-        // Calcular change orders aprobados
+
+        // Calcular change orders aprobados (solo para mostrar info, no para el expectedTotal cuando hay FI)
         const changeOrders = work.changeOrders || [];
         const changeOrdersTotal = changeOrders.reduce((sum, co) => {
-          return sum + (parseFloat(co.newTotalPrice || 0) - parseFloat(co.previousTotalPrice || 0));
+          return sum + parseFloat(co.totalCost || 0);
         }, 0);
 
-        // Calcular extras de Final Invoice (si existe y está aplicado el descuento)
         const finalInvoice = work.finalInvoice;
+
+        // Si existe Final Invoice, es la fuente de verdad del monto total acordado.
+        // finalAmountDue ya incluye budget balance + extras + COs - descuento - initial.
+        // expectedTotal = lo que el cliente debe pagar en total (initial + finalAmountDue).
+        let expectedTotal;
         let finalInvoiceExtras = 0;
         let finalInvoiceDiscount = 0;
-        
+        let totalCollected = initialPayment;
+
         if (finalInvoice) {
           finalInvoiceExtras = parseFloat(finalInvoice.subtotalExtras || 0);
           finalInvoiceDiscount = parseFloat(finalInvoice.discount || 0);
-        }
+          // FI es la fuente de verdad: expectedTotal = lo acordado en el invoice final
+          expectedTotal = initialPayment + parseFloat(finalInvoice.finalAmountDue || 0);
 
-        // Total esperado = Budget + Change Orders + Extras - Descuento de Final Invoice
-        const expectedTotal = budgetTotal + changeOrdersTotal + finalInvoiceExtras - finalInvoiceDiscount;
-        
-        // Total cobrado hasta ahora (INCLUYE el pago inicial)
-        let totalCollected = initialPayment;
-        
-        // Si hay final invoice pagado, sumar lo adicional (sin contar el initial payment que ya está en totalCollected)
-        if (work.finalInvoice?.status === 'paid') {
-          // finalAmountDue es el monto de la final invoice (NO incluye initial payment)
-          totalCollected += parseFloat(work.finalInvoice.finalAmountDue || 0);
-        } else if (work.finalInvoice?.status === 'partially_paid') {
-          totalCollected += parseFloat(work.finalInvoice.amountPaid || 0);
+          if (finalInvoice.status === 'paid') {
+            totalCollected = expectedTotal; // FI paid = todo cobrado
+          } else if (finalInvoice.status === 'partially_paid') {
+            totalCollected += parseFloat(finalInvoice.totalAmountPaid || 0);
+          }
+        } else {
+          // Sin FI: expected = budget + change orders aprobados
+          expectedTotal = budgetTotal + changeOrdersTotal;
         }
 
         // Monto restante por cobrar — round a 2 decimales para evitar errores de floating-point
@@ -690,8 +704,16 @@ const AccountsReceivableController = {
 
         // Determinar estado de pago
         let paymentStatus;
-        // Si el work está marcado como paymentReceived → ya está cobrado
         if (work.status === 'paymentReceived' || work.status === 'completed') {
+          paymentStatus = 'completed';
+          remainingAmount = 0;
+        } else if (finalInvoice?.status === 'paid') {
+          // Final Invoice pagado = trabajo financieramente cerrado
+          paymentStatus = 'completed';
+          remainingAmount = 0;
+        } else if (initialPayment === 0 && !finalInvoice &&
+                   (work.status === 'maintenance' || work.budget?.isLegacy)) {
+          // Legacy / mantenimiento sin pago registrado ni FI → cobrado fuera del sistema
           paymentStatus = 'completed';
           remainingAmount = 0;
         } else if (remainingAmount <= 0) {
