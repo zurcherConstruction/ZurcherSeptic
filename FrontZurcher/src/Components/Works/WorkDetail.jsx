@@ -1884,7 +1884,7 @@ const handleUploadInstalledImage = async () => {
                   </div>
                 )}
               </div>
-            ) : isATUSystem ? (
+            ) : (isATUSystem || work?.status === 'maintenance') ? (
               <FinalDocumentsSection
                 work={work}
                 idWork={idWork}

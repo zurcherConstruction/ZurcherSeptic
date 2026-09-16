@@ -2,6 +2,7 @@ const { Budget, Permit, Work, BudgetLineItem } = require('../data');
 const { conn } = require('../data');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 const { PDFDocument } = require('pdf-lib');
+const { randomUUID } = require('crypto');
 
 // Función para comprimir PDF si es necesario
 const compressPdfIfNeeded = async (buffer, filename = 'PDF') => {
@@ -151,19 +152,23 @@ async function importExistingWork(req, res) {
       migrationNotes       // Notas sobre la importación
     } = req.body;
 
+    // Modo solo mantenimiento: sin permit ni monto de presupuesto
+    const maintenanceOnly = req.body.maintenanceOnly === 'true' || req.body.maintenanceOnly === true;
+
     // 3️⃣ VALIDACIONES BÁSICAS
     console.log('🔍 DEBUG req.body:', {
       permitNumber,
       propertyAddress,
       applicantName,
       totalPrice,
+      maintenanceOnly,
       lineItems: req.body.lineItems ? JSON.parse(req.body.lineItems) : 'NO_LINE_ITEMS'
     });
-    
-    if (!permitNumber) throw new Error('Número de permit requerido');
+
+    if (!maintenanceOnly && !permitNumber) throw new Error('Número de permit requerido');
     if (!propertyAddress) throw new Error('Dirección requerida');
     if (!applicantName) throw new Error('Nombre del cliente requerido');
-    
+
     // Calcular total basado en line items si no viene totalPrice
     let calculatedTotal = 0;
     if (req.body.lineItems) {
@@ -172,64 +177,37 @@ async function importExistingWork(req, res) {
         return total + (parseFloat(item.quantity || 0) * parseFloat(item.unitPrice || 0));
       }, 0);
     }
-    
+
     const finalTotal = totalPrice > 0 ? totalPrice : calculatedTotal;
-    if (!finalTotal || finalTotal <= 0) {
-      throw new Error(`Debe agregar elementos al presupuesto con precios. Total actual: $${finalTotal || 0}. LineItems: ${lineItems.length} items.`);
+    if (!maintenanceOnly && (!finalTotal || finalTotal <= 0)) {
+      throw new Error(`Debe agregar elementos al presupuesto con precios. Total actual: $${finalTotal || 0}`);
     }
 
     console.log("✅ Datos validados correctamente");
 
-    // 4️⃣ VERIFICAR SI YA EXISTE UN PERMIT (por permitNumber o propertyAddress)
-    console.log(`🔍 Verificando si ya existe un permit para:`);
-    console.log(`   - Permit Number: ${permitNumber}`);
-    console.log(`   - Property Address: ${propertyAddress}`);
-    
-    // Verificar si el usuario confirmó usar el permit existente
-    const useExistingPermit = req.body.useExistingPermit === 'true' || req.body.useExistingPermit === true;
-    
-    // ✅ PRIMERO buscar por permitNumber (ya que es único y más específico)
-    let existingPermit = await Permit.findOne({
-      where: { permitNumber },
-      transaction
-    });
-    
-    if (existingPermit && !useExistingPermit) {
-      // 🚨 Existe un permit con ese número y el usuario NO confirmó usarlo
-      console.log(`⚠️  Permit existente encontrado por número (${permitNumber})`);
-      await transaction.rollback();
-      return res.status(409).json({
-        error: true,
-        code: 'PERMIT_EXISTS',
-        conflictType: 'permitNumber',
-        message: `Ya existe un Permit con el número "${permitNumber}"`,
-        existingPermit: {
-          idPermit: existingPermit.idPermit,
-          permitNumber: existingPermit.permitNumber,
-          propertyAddress: existingPermit.propertyAddress,
-          applicantName: existingPermit.applicantName,
-          systemType: existingPermit.systemType
-        },
-        question: '¿Deseas usar el Permit existente o cambiar el número de Permit?'
-      });
-    }
-    
-    // ✅ Si no existe por permitNumber, buscar por propertyAddress
-    if (!existingPermit) {
-      existingPermit = await Permit.findOne({
-        where: { propertyAddress },
+    // 4️⃣ VERIFICAR/CREAR PERMIT (omitir si es solo mantenimiento)
+    let nuevoPermit = null;
+
+    if (!maintenanceOnly) {
+      console.log(`🔍 Verificando si ya existe un permit para:`);
+      console.log(`   - Permit Number: ${permitNumber}`);
+      console.log(`   - Property Address: ${propertyAddress}`);
+
+      const useExistingPermit = req.body.useExistingPermit === 'true' || req.body.useExistingPermit === true;
+
+      let existingPermit = await Permit.findOne({
+        where: { permitNumber },
         transaction
       });
-      
+
       if (existingPermit && !useExistingPermit) {
-        // 🚨 Existe un permit con esa dirección y el usuario NO confirmó usarlo
-        console.log(`⚠️  Permit existente encontrado por dirección (${propertyAddress})`);
+        console.log(`⚠️  Permit existente encontrado por número (${permitNumber})`);
         await transaction.rollback();
         return res.status(409).json({
           error: true,
           code: 'PERMIT_EXISTS',
-          conflictType: 'propertyAddress',
-          message: `Ya existe un Permit para la dirección "${propertyAddress}"`,
+          conflictType: 'permitNumber',
+          message: `Ya existe un Permit con el número "${permitNumber}"`,
           existingPermit: {
             idPermit: existingPermit.idPermit,
             permitNumber: existingPermit.permitNumber,
@@ -237,50 +215,82 @@ async function importExistingWork(req, res) {
             applicantName: existingPermit.applicantName,
             systemType: existingPermit.systemType
           },
-          question: '¿Deseas usar el Permit existente o cambiar la dirección?'
+          question: '¿Deseas usar el Permit existente o cambiar el número de Permit?'
         });
       }
-    }
-    
-    let nuevoPermit;
-    
-    if (existingPermit && useExistingPermit) {
-      // ✅ El usuario confirmó que quiere usar el existente
-      console.log(`🔄 Usando permit existente confirmado por usuario: ${existingPermit.idPermit}`);
-      console.log(`   📋 Permit number: ${existingPermit.permitNumber}`);
-      console.log(`   📍 Property address: ${existingPermit.propertyAddress}`);
-      nuevoPermit = existingPermit;
+
+      if (!existingPermit) {
+        existingPermit = await Permit.findOne({
+          where: { propertyAddress },
+          transaction
+        });
+
+        if (existingPermit && !useExistingPermit) {
+          console.log(`⚠️  Permit existente encontrado por dirección (${propertyAddress})`);
+          await transaction.rollback();
+          return res.status(409).json({
+            error: true,
+            code: 'PERMIT_EXISTS',
+            conflictType: 'propertyAddress',
+            message: `Ya existe un Permit para la dirección "${propertyAddress}"`,
+            existingPermit: {
+              idPermit: existingPermit.idPermit,
+              permitNumber: existingPermit.permitNumber,
+              propertyAddress: existingPermit.propertyAddress,
+              applicantName: existingPermit.applicantName,
+              systemType: existingPermit.systemType
+            },
+            question: '¿Deseas usar el Permit existente o cambiar la dirección?'
+          });
+        }
+      }
+
+      if (existingPermit && useExistingPermit) {
+        console.log(`🔄 Usando permit existente confirmado por usuario: ${existingPermit.idPermit}`);
+        nuevoPermit = existingPermit;
+      } else {
+        console.log(`🆕 Creando nuevo permit con permit number: ${permitNumber}`);
+        nuevoPermit = await Permit.create({
+          permitNumber,
+          propertyAddress,
+          applicantName,
+          applicantEmail: applicantEmail || '',
+          applicantPhone: applicantPhone || '',
+          systemType: systemType || 'REGULAR',
+          isPBTS: isPBTS === 'true' || isPBTS === true || false,
+          county: county || null,
+          lot: lot || '',
+          block: block || '',
+          permitPdfUrl: documentosGuardados.permit?.url || null,
+          permitPdfPublicId: documentosGuardados.permit?.publicId || null,
+          optionalDocsUrl: documentosGuardados.opcional?.url || null,
+          optionalDocsPublicId: documentosGuardados.opcional?.publicId || null,
+          isLegacy: true
+        }, { transaction });
+        console.log(`✅ Permit creado exitosamente: ${nuevoPermit.idPermit}`);
+      }
+
+      console.log("✅ Permit disponible:", nuevoPermit.idPermit);
     } else {
-      // ✅ No existe ninguno, crear uno nuevo
-      console.log(`🆕 Creando nuevo permit con:`);
-      console.log(`   - Permit Number: ${permitNumber}`);
-      console.log(`   - Property Address: ${propertyAddress}`);
-      
+      // Modo mantenimiento: crear Permit con número único autogenerado
+      // Necesario para que work.Permit exista y el sistema funcione correctamente
+      const maintenancePermitNumber = `MAINT-${randomUUID().slice(0, 8).toUpperCase()}`;
+      console.log(`ℹ️  Modo mantenimiento: creando permit con número ${maintenancePermitNumber}`);
       nuevoPermit = await Permit.create({
-        permitNumber,
+        permitNumber: maintenancePermitNumber,
         propertyAddress,
         applicantName,
         applicantEmail: applicantEmail || '',
         applicantPhone: applicantPhone || '',
-        systemType: systemType || 'REGULAR',
+        systemType: systemType || 'ATU',
         isPBTS: isPBTS === 'true' || isPBTS === true || false,
         county: county || null,
         lot: lot || '',
         block: block || '',
-
-        // ✅ Guardar URLs de Cloudinary en columnas correctas
-        permitPdfUrl: documentosGuardados.permit?.url || null,
-        permitPdfPublicId: documentosGuardados.permit?.publicId || null,
-        optionalDocsUrl: documentosGuardados.opcional?.url || null,
-        optionalDocsPublicId: documentosGuardados.opcional?.publicId || null,
-        
-        // Marcar como importado
         isLegacy: true
       }, { transaction });
-      console.log(`✅ Permit creado exitosamente: ${nuevoPermit.idPermit}`);
+      console.log(`✅ Permit de mantenimiento creado: ${nuevoPermit.idPermit}`);
     }
-
-    console.log("✅ Permit disponible:", nuevoPermit.idPermit);
 
     // 5️⃣ CREAR PRESUPUESTO
     // Parsear line items si vienen como JSON string
@@ -291,13 +301,14 @@ async function importExistingWork(req, res) {
       lineItems = req.body.lineItems || [];
     }
 
-    // Usar el total ya calculado arriba
-    const porcentajePago = parseFloat(req.body.initialPaymentPercentage || 60);
-    const descuento = parseFloat(req.body.discountAmount || 0);
-    const montoInicial = (finalTotal * porcentajePago) / 100;
+    // Para modo mantenimiento, forzar totales a 0
+    const porcentajePago = maintenanceOnly ? 0 : parseFloat(req.body.initialPaymentPercentage || 60);
+    const descuento = maintenanceOnly ? 0 : parseFloat(req.body.discountAmount || 0);
+    const effectiveTotal = maintenanceOnly ? 0 : (finalTotal || 0);
+    const montoInicial = maintenanceOnly ? 0 : (effectiveTotal * porcentajePago) / 100;
 
     console.log('🔍 DEBUG - Datos para crear presupuesto:', {
-      PermitIdPermit: nuevoPermit.idPermit,
+      PermitIdPermit: nuevoPermit?.idPermit,
       propertyAddress,
       applicantName,
       status: 'signed',
@@ -331,7 +342,7 @@ async function importExistingWork(req, res) {
     
     console.log(`🆕 Creando nuevo presupuesto para: ${propertyAddress}`);
     const nuevoPresupuesto = await Budget.create({
-      PermitIdPermit: nuevoPermit.idPermit,
+      PermitIdPermit: nuevoPermit ? nuevoPermit.idPermit : null,
       propertyAddress,
       applicantName,
       date: currentDate,
@@ -346,8 +357,8 @@ async function importExistingWork(req, res) {
       manualSignedPdfPublicId: hasSignedPdf ? documentosGuardados.presupuesto.publicId : null,
       
       // Montos
-      subtotalPrice: finalTotal,
-      totalPrice: finalTotal - descuento,
+      subtotalPrice: effectiveTotal,
+      totalPrice: effectiveTotal - descuento,
       discountAmount: descuento,
       initialPayment: montoInicial,
       initialPaymentPercentage: porcentajePago,
@@ -395,7 +406,7 @@ async function importExistingWork(req, res) {
     if (workStatus && workStatus !== '') {
       nuevoTrabajo = await Work.create({
         idBudget: nuevoPresupuesto.idBudget,
-        idPermit: nuevoPermit.idPermit,
+        idPermit: nuevoPermit ? nuevoPermit.idPermit : null,
         propertyAddress,
         county: county || null,
         status: workStatus === 'completed' ? 'paymentReceived' : workStatus,
@@ -417,13 +428,13 @@ async function importExistingWork(req, res) {
           idBudget: nuevoPresupuesto.idBudget,
           applicantName,
           propertyAddress,
-          totalPrice: finalTotal,
+          totalPrice: effectiveTotal,
           status: 'signed'
         },
-        permit: {
+        permit: nuevoPermit ? {
           idPermit: nuevoPermit.idPermit,
           permitNumber
-        },
+        } : null,
         work: nuevoTrabajo ? {
           idWork: nuevoTrabajo.idWork,
           status: workStatus

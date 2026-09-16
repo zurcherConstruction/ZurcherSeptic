@@ -9,6 +9,9 @@ const CreateLegacyBudget = () => {
   const { user } = useSelector(state => state.auth);
   
   const [formData, setFormData] = useState({
+    // Modo solo mantenimiento
+    maintenanceOnly: false,
+
     // Datos del Cliente/Permit
     permitNumber: '',
     applicantName: '',
@@ -20,18 +23,18 @@ const CreateLegacyBudget = () => {
     block: '',
     systemType: '',
     isPBTS: false,
-    
+
     // Datos del Budget
-    status: 'approved', // ✅ Legacy budgets ya tienen firma + pago completo del sistema anterior
+    status: 'approved',
     totalPrice: '',
     initialPayment: '',
     initialPaymentPercentage: 60,
     discountAmount: 0,
     discountDescription: '',
     generalNotes: '',
-    
+
     // Estado del trabajo (opcional)
-    workStatus: '', // vacío = no crear trabajo aún
+    workStatus: '',
     workStartDate: '',
     workEndDate: ''
   });
@@ -77,15 +80,26 @@ const CreateLegacyBudget = () => {
       [name]: type === 'checkbox' ? checked : value
     };
 
+    // Cuando se activa mantenimiento: forzar ATU y pre-seleccionar workStatus maintenance
+    if (name === 'maintenanceOnly' && checked) {
+      newFormData.workStatus = 'maintenance';
+      newFormData.systemType = 'ATU';
+    }
+    // Si se desactiva mantenimiento, limpiar systemType para que el usuario elija
+    if (name === 'maintenanceOnly' && !checked) {
+      newFormData.systemType = '';
+      newFormData.isPBTS = false;
+    }
+
     // Auto-calcular pago inicial cuando cambia el total, descuento o porcentaje
     if (name === 'totalPrice' || name === 'discountAmount' || name === 'initialPaymentPercentage') {
       const total = parseFloat(name === 'totalPrice' ? value : formData.totalPrice || 0);
       const discount = parseFloat(name === 'discountAmount' ? value : formData.discountAmount || 0);
       const percentage = parseFloat(name === 'initialPaymentPercentage' ? value : formData.initialPaymentPercentage || 60);
-      
+
       const finalTotal = Math.max(0, total - discount);
       const calculatedInitialPayment = (finalTotal * percentage) / 100;
-      
+
       newFormData.initialPayment = calculatedInitialPayment.toFixed(2);
     }
 
@@ -115,14 +129,18 @@ const CreateLegacyBudget = () => {
     setLoading(true);
     setMessage('');
 
-    // Validación de campos requeridos
+    const isMaintenanceOnly = formData.maintenanceOnly;
+
+    // Validación de campos requeridos (algunos se omiten en modo mantenimiento)
     const requiredFields = {
-      'Número de Permiso': formData.permitNumber,
       'Nombre del Solicitante': formData.applicantName,
       'Dirección de la Propiedad': formData.propertyAddress,
       'Tipo de Sistema': formData.systemType,
-      'Precio Total': formData.totalPrice
     };
+    if (!isMaintenanceOnly) {
+      requiredFields['Número de Permiso'] = formData.permitNumber;
+      requiredFields['Precio Total'] = formData.totalPrice;
+    }
 
     const emptyFields = Object.entries(requiredFields)
       .filter(([key, value]) => !value || value.toString().trim() === '')
@@ -134,8 +152,8 @@ const CreateLegacyBudget = () => {
       return;
     }
 
-    // Validación del presupuesto firmado (requerido)
-    if (!files.signedBudget) {
+    // Presupuesto firmado solo requerido si NO es modo mantenimiento
+    if (!isMaintenanceOnly && !files.signedBudget) {
       setMessage('❌ El archivo del presupuesto firmado es requerido.');
       setLoading(false);
       return;
@@ -143,6 +161,7 @@ const CreateLegacyBudget = () => {
 
     try {
       console.log('🔍 DEBUG Frontend enviando:', {
+        maintenanceOnly: isMaintenanceOnly,
         totalPrice: formData.totalPrice,
         initialPayment: formData.initialPayment,
         hasFiles: {
@@ -151,25 +170,26 @@ const CreateLegacyBudget = () => {
           optionalDocs: !!files.optionalDocs
         }
       });
-      
-      // Validar campos de precio
-      if (!formData.totalPrice || parseFloat(formData.totalPrice) <= 0) {
-        setMessage('❌ Error: El total del presupuesto debe ser mayor a 0');
-        setLoading(false);
-        return;
-      }
 
-      if (!formData.initialPayment || parseFloat(formData.initialPayment) <= 0) {
-        setMessage('❌ Error: El pago inicial debe ser mayor a 0');
-        setLoading(false);
-        return;
-      }
+      // Validar campos de precio solo si no es mantenimiento
+      if (!isMaintenanceOnly) {
+        if (!formData.totalPrice || parseFloat(formData.totalPrice) <= 0) {
+          setMessage('❌ Error: El total del presupuesto debe ser mayor a 0');
+          setLoading(false);
+          return;
+        }
 
-      // Validar campos requeridos
-      if (!formData.permitNumber.trim()) {
-        setMessage('❌ Error: Número de permit es requerido');
-        setLoading(false);
-        return;
+        if (!formData.initialPayment || parseFloat(formData.initialPayment) <= 0) {
+          setMessage('❌ Error: El pago inicial debe ser mayor a 0');
+          setLoading(false);
+          return;
+        }
+
+        if (!formData.permitNumber.trim()) {
+          setMessage('❌ Error: Número de permit es requerido');
+          setLoading(false);
+          return;
+        }
       }
 
       if (!formData.applicantName.trim()) {
@@ -186,7 +206,10 @@ const CreateLegacyBudget = () => {
       
       // Crear FormData para enviar archivos
       const formDataToSend = new FormData();
-      
+
+      // Flag de modo mantenimiento
+      formDataToSend.append('maintenanceOnly', isMaintenanceOnly ? 'true' : 'false');
+
       // Agregar todos los datos del formulario
       formDataToSend.append('permitNumber', formData.permitNumber);
       formDataToSend.append('applicantName', formData.applicantName);
@@ -262,6 +285,7 @@ const CreateLegacyBudget = () => {
         
         // Resetear formulario
         setFormData({
+          maintenanceOnly: false,
           permitNumber: '',
           applicantName: '',
           applicantEmail: '',
@@ -272,15 +296,15 @@ const CreateLegacyBudget = () => {
           block: '',
           systemType: '',
           isPBTS: false,
-          status: 'APPROVED',
+          status: 'approved',
           totalPrice: '',
           initialPayment: '',
           discountAmount: '',
           discountDescription: '',
           finalTotal: '',
-          initialPaymentPercentage: '30',
+          initialPaymentPercentage: '60',
           generalNotes: '',
-          workStatus: 'IN_PROGRESS',
+          workStatus: '',
           workStartDate: '',
           workEndDate: ''
         });
@@ -352,7 +376,9 @@ const CreateLegacyBudget = () => {
       
       // Crear FormData igual que en handleSubmit pero con el flag de confirmación
       const formDataToSend = new FormData();
-      
+
+      formDataToSend.append('maintenanceOnly', formData.maintenanceOnly ? 'true' : 'false');
+
       // Agregar todos los datos del formulario
       formDataToSend.append('permitNumber', formData.permitNumber);
       formDataToSend.append('applicantName', formData.applicantName);
@@ -392,6 +418,7 @@ const CreateLegacyBudget = () => {
         
         // Limpiar formulario
         setFormData({
+          maintenanceOnly: false,
           permitNumber: '',
           applicantName: '',
           applicantEmail: '',
@@ -498,9 +525,35 @@ const CreateLegacyBudget = () => {
       <h2 className="text-2xl font-bold mb-6 text-gray-800">
         📁 Importar Trabajo Legacy
       </h2>
-      
+
+      {/* Toggle: Solo Mantenimiento */}
+      <div className={`mb-6 p-4 rounded-lg border-2 cursor-pointer transition-colors ${
+        formData.maintenanceOnly
+          ? 'bg-orange-50 border-orange-400'
+          : 'bg-gray-50 border-gray-200 hover:border-orange-300'
+      }`}>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="maintenanceOnly"
+            checked={formData.maintenanceOnly}
+            onChange={handleInputChange}
+            className="h-5 w-5 text-orange-500 border-gray-300 rounded"
+          />
+          <div>
+            <span className="text-base font-semibold text-gray-800">
+              🔧 Solo Mantenimiento
+            </span>
+            <p className="text-sm text-gray-600 mt-0.5">
+              Activa esta opción si el trabajo es únicamente de mantenimiento.
+              No se requiere monto de presupuesto, permit ni documentos firmados.
+            </p>
+          </div>
+        </label>
+      </div>
+
       <p className="mb-6 text-gray-600 bg-blue-50 p-4 rounded-lg">
-        💡 <strong>Importante:</strong> Importa trabajos ya iniciados con todos sus documentos. 
+        💡 <strong>Importante:</strong> Importa trabajos ya iniciados con todos sus documentos.
         El sistema continuará el flujo desde el punto donde lo dejes.
       </p>
 
@@ -522,18 +575,19 @@ const CreateLegacyBudget = () => {
         <div className="bg-gray-50 p-4 rounded-lg">
           <h3 className="text-lg font-semibold mb-4">👤 Información del Cliente y Permit</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Número de Permit *</label>
-              <input
-                type="text"
-                name="permitNumber"
-                value={formData.permitNumber}
-                onChange={handleInputChange}
-                className="w-full p-2 border rounded-lg"
-                placeholder="P2024-001"
-                required
-              />
-            </div>
+            {!formData.maintenanceOnly && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Número de Permit *</label>
+                <input
+                  type="text"
+                  name="permitNumber"
+                  value={formData.permitNumber}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border rounded-lg"
+                  placeholder="P2024-001"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium mb-2">Nombre del Cliente *</label>
               <input
@@ -590,26 +644,32 @@ const CreateLegacyBudget = () => {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Tipo de Sistema *</label>
-              <select
-                name="systemType"
-                value={formData.systemType}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setFormData(prev => ({
-                    ...prev,
-                    systemType: val,
-                    isPBTS: val === 'ATU' ? prev.isPBTS : false
-                  }));
-                }}
-                className="w-full p-2 border rounded-lg"
-                required
-              >
-                <option value="">Seleccionar...</option>
-                <option value="REGULAR">REGULAR</option>
-                <option value="ATU">ATU</option>
-              </select>
+              {formData.maintenanceOnly ? (
+                <div className="w-full p-2 border rounded-lg bg-orange-50 border-orange-300 text-orange-800 font-medium text-sm">
+                  ATU <span className="text-orange-500 font-normal">(fijo para mantenimiento)</span>
+                </div>
+              ) : (
+                <select
+                  name="systemType"
+                  value={formData.systemType}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setFormData(prev => ({
+                      ...prev,
+                      systemType: val,
+                      isPBTS: val === 'ATU' ? prev.isPBTS : false
+                    }));
+                  }}
+                  className="w-full p-2 border rounded-lg"
+                  required
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="REGULAR">REGULAR</option>
+                  <option value="ATU">ATU</option>
+                </select>
+              )}
             </div>
-            {formData.systemType === 'ATU' && (
+            {(formData.systemType === 'ATU' || formData.maintenanceOnly) && (
               <div className="flex items-center gap-3 pt-6">
                 <input
                   type="checkbox"
@@ -652,53 +712,57 @@ const CreateLegacyBudget = () => {
         {/* Archivos de Documentos */}
         <div className="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400">
           <h3 className="text-lg font-semibold mb-4">📎 Cargar Documentos</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Presupuesto Firmado */}
-            <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
-              <h4 className="font-medium mb-2">📋 Presupuesto Firmado</h4>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => handleFileUpload('signedBudget', e)}
-                className="w-full p-2 text-sm border rounded-lg"
-              />
-              {filePreviews.signedBudget && (
-                <div className="mt-2 flex items-center justify-between bg-gray-100 p-2 rounded">
-                  <span className="text-sm truncate">{filePreviews.signedBudget}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile('signedBudget')}
-                    className="text-red-500 hover:text-red-700 ml-2"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
+          <div className={`grid gap-6 ${formData.maintenanceOnly ? 'grid-cols-1 md:grid-cols-1' : 'grid-cols-1 md:grid-cols-3'}`}>
 
-            {/* PDF del Permit */}
-            <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
-              <h4 className="font-medium mb-2">📜 PDF del Permit</h4>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => handleFileUpload('permitPdf', e)}
-                className="w-full p-2 text-sm border rounded-lg"
-              />
-              {filePreviews.permitPdf && (
-                <div className="mt-2 flex items-center justify-between bg-gray-100 p-2 rounded">
-                  <span className="text-sm truncate">{filePreviews.permitPdf}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeFile('permitPdf')}
-                    className="text-red-500 hover:text-red-700 ml-2"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-            </div>
+            {/* Presupuesto Firmado — ocultar en modo mantenimiento */}
+            {!formData.maintenanceOnly && (
+              <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
+                <h4 className="font-medium mb-2">📋 Presupuesto Firmado *</h4>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => handleFileUpload('signedBudget', e)}
+                  className="w-full p-2 text-sm border rounded-lg"
+                />
+                {filePreviews.signedBudget && (
+                  <div className="mt-2 flex items-center justify-between bg-gray-100 p-2 rounded">
+                    <span className="text-sm truncate">{filePreviews.signedBudget}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile('signedBudget')}
+                      className="text-red-500 hover:text-red-700 ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* PDF del Permit — ocultar en modo mantenimiento */}
+            {!formData.maintenanceOnly && (
+              <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
+                <h4 className="font-medium mb-2">📜 PDF del Permit</h4>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => handleFileUpload('permitPdf', e)}
+                  className="w-full p-2 text-sm border rounded-lg"
+                />
+                {filePreviews.permitPdf && (
+                  <div className="mt-2 flex items-center justify-between bg-gray-100 p-2 rounded">
+                    <span className="text-sm truncate">{filePreviews.permitPdf}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeFile('permitPdf')}
+                      className="text-red-500 hover:text-red-700 ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Documentos Opcionales */}
             <div className="bg-white p-4 rounded-lg border-2 border-dashed border-gray-300">
@@ -725,7 +789,8 @@ const CreateLegacyBudget = () => {
           </div>
         </div>
 
-        {/* Información del Presupuesto */}
+        {/* Información del Presupuesto — ocultar en modo mantenimiento */}
+        {!formData.maintenanceOnly && (
         <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-400">
           <h3 className="text-lg font-semibold mb-4">💰 Información del Presupuesto</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -831,6 +896,7 @@ const CreateLegacyBudget = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Estado del Trabajo (Opcional) */}
         <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-400">
