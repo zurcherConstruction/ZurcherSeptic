@@ -2773,7 +2773,10 @@ const getDocumentPreviewData = async (req, res) => {
           drainfieldType:     sp.drainfieldType     || 'standard_subsurface',
           drainfieldConfig:   sp.drainfieldConfig   || 'trenches',
           onsiteWell:         sp.onsiteWell         || 'no',
+          monitoringRequired: sp.monitoringRequired || 'no',
           additionalComments: sp.additionalComments || '',
+          permitRequest:      sp.permitRequest      || 'new',
+          permitType:         sp.permitType         || 'aerobic',
         },
       },
     });
@@ -2885,6 +2888,7 @@ const generateOperatingPermit = async (req, res) => {
       drainfieldType:     b.drainfieldType     || 'standard_subsurface',
       drainfieldConfig:   b.drainfieldConfig   || 'trenches',
       onsiteWell:         b.onsiteWell         || 'no',
+      monitoringRequired: b.monitoringRequired || 'no',
       additionalComments: b.additionalComments || '',
       permitRequest:      b.permitRequest      || 'new',
       permitType:         b.permitType         || 'aerobic',

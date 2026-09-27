@@ -40,11 +40,13 @@ async function handleSimpleWorkSendLogic(simpleWorkInstance, transaction, reqIO,
 
   console.log(`📧 Usando PDF en ${pdfPathForEmail} para enviar correo...`);
   
-  // Extraer datos del cliente
+  // Extraer datos del cliente (soporta clientData.{firstName,lastName} o clientData.name)
   const clientData = simpleWorkInstance.clientData || {};
   const clientEmail = clientData.email;
-  const clientName = `${clientData.firstName || ''} ${clientData.lastName || ''}`.trim() || 'Cliente';
-  const propertyAddress = simpleWorkInstance.propertyAddress;
+  const clientName = (clientData.firstName || clientData.lastName)
+    ? `${clientData.firstName || ''} ${clientData.lastName || ''}`.trim()
+    : (clientData.name || 'Cliente');
+  const propertyAddress = simpleWorkInstance.propertyAddress || 'Dirección pendiente de confirmar';
   const workNumber = simpleWorkInstance.workNumber;
 
   if (!clientEmail || !clientEmail.includes('@')) {
@@ -173,6 +175,7 @@ ZURCHER CONSTRUCTION`;
   await sendNotifications('simpleWorkSent', {
     propertyAddress: propertyAddress,
     clientEmail: clientEmail,
+    clientName: clientName,
     workNumber: workNumber,
   }, null, reqIO);
   console.log(`📱 Notificaciones internas 'simpleWorkSent' enviadas.`);
