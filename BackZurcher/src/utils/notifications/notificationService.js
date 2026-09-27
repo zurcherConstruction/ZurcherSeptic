@@ -505,11 +505,18 @@ const stateNotificationMap = {
   // 🆕 Configuración para SimpleWork enviado
   simpleWorkSent: {
     roles: ['owner', 'finance'],
-    subject: (work) => `SimpleWork Enviado: #${work?.workNumber || 'N/A'} - ${work?.clientData?.firstName || ''} ${work?.clientData?.lastName || ''}`,
+    subject: (work) => {
+      const clientName = work?.clientName || `${work?.clientData?.firstName || ''} ${work?.clientData?.lastName || ''}`.trim() || work?.clientData?.name || '';
+      return `SimpleWork Enviado: #${work?.workNumber || 'N/A'} - ${clientName}`;
+    },
     message: (work) => {
-      const clientName = work?.clientData ? `${work.clientData.firstName || ''} ${work.clientData.lastName || ''}`.trim() : 'Cliente desconocido';
-      const clientEmail = work?.clientData?.email || 'Email no especificado';
-      return `El SimpleWork #${work?.workNumber || 'N/A'} ha sido enviado por email al cliente ${clientName} (${clientEmail}). El presupuesto está disponible para revisión y aprobación del cliente.`;
+      const propertyAddress = work?.propertyAddress || 'Dirección no especificada';
+      const clientName = work?.clientName
+        || `${work?.clientData?.firstName || ''} ${work?.clientData?.lastName || ''}`.trim()
+        || work?.clientData?.name
+        || 'Cliente desconocido';
+      const clientEmail = work?.clientEmail || work?.clientData?.email || 'Email no especificado';
+      return `El SimpleWork #${work?.workNumber || 'N/A'} (${propertyAddress}) ha sido enviado por email al cliente ${clientName} (${clientEmail}). El presupuesto está disponible para revisión y aprobación del cliente.`;
     }
   },
 };

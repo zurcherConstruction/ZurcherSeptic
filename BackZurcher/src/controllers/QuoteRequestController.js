@@ -11,6 +11,7 @@ const QUOTE_TO_SW_WORK_TYPE = {
   inspeccion:  'other',
   culvert:     'culvert',
   drainfield:  'drainfield',
+  pumping:     'pumping',
   otro:        'other',
 };
 
@@ -22,6 +23,7 @@ const WORK_TYPE_LABELS = {
   inspeccion: 'Inspección',
   culvert: 'Culvert',
   drainfield: 'Drainfield',
+  pumping: 'Desagote',
   otro: 'Otro',
 };
 

@@ -45,6 +45,7 @@ const GenerateDocumentsModal = ({ idWork, work, onClose, onDocumentGenerated }) 
     drainfieldType: 'standard_subsurface',
     drainfieldConfig: 'trenches',
     onsiteWell: 'no',
+    monitoringRequired: 'no',
     additionalComments: '',
     permitRequest: 'new',
     permitType: 'aerobic',
@@ -386,6 +387,15 @@ const GenerateDocumentsModal = ({ idWork, work, onClose, onDocumentGenerated }) 
                     <div className="col-span-1">
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Onsite Well</label>
                       <select name="onsiteWell" value={permit.onsiteWell} onChange={handlePermitChange}
+                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                      </select>
+                    </div>
+                    {/* Monitoring Required */}
+                    <div className="col-span-1">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Monitoring Required</label>
+                      <select name="monitoringRequired" value={permit.monitoringRequired} onChange={handlePermitChange}
                         className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
                         <option value="no">No</option>
                         <option value="yes">Yes</option>
