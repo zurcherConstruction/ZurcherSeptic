@@ -81,12 +81,19 @@ export const deleteMaintenanceMediaFile = createAsyncThunk(
 );
 
 // 6. Obtener mantenimientos asignados al worker actual
+// Acepta: workerId (string/number, comportamiento anterior) o un objeto
+// { workerId, excludeCompleted, onlyCompleted } para pedir solo lo necesario
+// y evitar que el límite del backend se llene con visitas ya completadas.
 export const fetchAssignedMaintenances = createAsyncThunk(
   'maintenance/fetchAssignedMaintenances',
-  async (workerId, { rejectWithValue }) => {
+  async (args, { rejectWithValue }) => {
+    const isObj = args && typeof args === 'object';
+    const workerId = isObj ? args.workerId : args;
+    const excludeCompleted = isObj ? args.excludeCompleted : undefined;
+    const onlyCompleted = isObj ? args.onlyCompleted : undefined;
     try {
       const { data } = await api.get(`/maintenance/assigned`, {
-        params: { workerId }
+        params: { workerId, excludeCompleted, onlyCompleted }
       });
       return data.visits || [];
     } catch (error) {

@@ -1,4 +1,4 @@
-const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceExpense, Expense, FixedExpense, FixedExpensePayment, Work, SimpleWork, Staff, Receipt, Permit, sequelize } = require('../data');
+const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceExpense, Expense, FixedExpense, FixedExpensePayment, Work, SimpleWork, Staff, Receipt, Permit, FleetAsset, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { cloudinary } = require('../utils/cloudinaryConfig');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 🆕 Para subir receipts
@@ -1905,6 +1905,22 @@ const paySupplierInvoice = async (req, res) => {
       case 'create_general': {
         console.log('🌍 [PayInvoice] Creando expense general...');
 
+        // 🚗 Permitir marcar el gasto general como "Gasto Flota" y vincularlo
+        // opcionalmente a un vehículo/máquina específico, para que se refleje
+        // en el dashboard de Fleet en lugar de quedar solo como gasto de proveedor.
+        const isFleetExpense = String(req.body.isFleetExpense).toLowerCase() === 'true';
+        let fleetAssetId = req.body.fleetAssetId || null;
+
+        if (isFleetExpense && fleetAssetId) {
+          const fleetAsset = await FleetAsset.findByPk(fleetAssetId, { transaction });
+          if (!fleetAsset) {
+            await transaction.rollback();
+            return res.status(400).json({ error: 'El vehículo/máquina seleccionado no existe' });
+          }
+        } else if (!isFleetExpense) {
+          fleetAssetId = null;
+        }
+
         // Construir descripción: base + descripción personalizada (si existe)
         let expenseDescription = `${invoice.vendor} - Invoice #${invoice.invoiceNumber}`;
         if (generalDescription && generalDescription.trim()) {
@@ -1915,7 +1931,8 @@ const paySupplierInvoice = async (req, res) => {
           workId: null, // Sin work asociado
           date: finalPaymentDate,
           amount: parseFloat(invoice.totalAmount),
-          typeExpense: 'Gastos Generales',
+          typeExpense: isFleetExpense ? 'Gasto Flota' : 'Gastos Generales',
+          fleetAssetId: fleetAssetId,
           notes: expenseDescription,
           paymentStatus: 'paid',
           paidDate: finalPaymentDate,
@@ -1940,7 +1957,7 @@ const paySupplierInvoice = async (req, res) => {
           await Receipt.create({
             relatedModel: 'Expense',
             relatedId: expense.idExpense.toString(),
-            type: 'Gastos Generales',
+            type: isFleetExpense ? 'Gasto Flota' : 'Gastos Generales',
             notes: `Receipt de invoice #${invoice.invoiceNumber}`,
             fileUrl: uploadResult.secure_url,
             publicId: uploadResult.public_id,
@@ -1965,10 +1982,11 @@ const paySupplierInvoice = async (req, res) => {
           idExpense: expense.idExpense,
           workId: null,
           amount: invoice.totalAmount,
-          typeExpense: 'Gastos Generales'
+          typeExpense: isFleetExpense ? 'Gasto Flota' : 'Gastos Generales',
+          fleetAssetId: fleetAssetId
         });
 
-        console.log(`  ✅ Expense general creado: $${invoice.totalAmount}`);
+        console.log(`  ✅ Expense ${isFleetExpense ? 'de flota' : 'general'} creado: $${invoice.totalAmount}`);
 
         // 🆕 Enviar notificación del expense creado
         try {

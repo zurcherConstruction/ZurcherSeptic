@@ -167,6 +167,96 @@ const createInvoice = async (req, res) => {
   }
 };
 
+// 🚽 Métodos de pago permitidos para Pump-Out — DEBEN coincidir exactamente con los strings
+// usados en Expense.paymentMethod / Income.paymentMethod para que, al marcar el invoice como
+// pagado (markAsPaid → crea Income), el valor sea directamente compatible sin conversión.
+const PUMP_OUT_PAYMENT_METHODS = ['Efectivo', 'Zelle', 'Chase Bank', 'Cheque'];
+
+// POST /custom-invoices/pump-out — creado desde la app móvil (rol contractor)
+const createPumpOutInvoice = async (req, res) => {
+  try {
+    const staffId = req.staff?.id || req.staff?.idStaff;
+    const { clientName, clientAddress, tankGallons, price, paymentMethod, issueDate } = req.body;
+
+    if (!clientName) return res.status(400).json({ error: true, message: 'El nombre del cliente es requerido' });
+    if (!clientAddress) return res.status(400).json({ error: true, message: 'La dirección es requerida' });
+    const gallons = parseInt(tankGallons);
+    if (!gallons || gallons <= 0) return res.status(400).json({ error: true, message: 'Los galones del tanque son requeridos' });
+    const amount = parseFloat(price);
+    if (!amount || amount <= 0) return res.status(400).json({ error: true, message: 'El precio es requerido' });
+    if (!PUMP_OUT_PAYMENT_METHODS.includes(paymentMethod)) {
+      return res.status(400).json({ error: true, message: `Método de pago inválido. Use uno de: ${PUMP_OUT_PAYMENT_METHODS.join(', ')}` });
+    }
+
+    const finalIssueDate = issueDate || new Date().toISOString().split('T')[0];
+    const year = new Date(finalIssueDate).getFullYear();
+    const { invoiceNumber, sequenceNumber } = await _generateInvoiceNumber('PMP', year);
+
+    const items = [{
+      name: 'Desagote / Pump-Out',
+      description: `Tanque de ${gallons} galones`,
+      quantity: 1,
+      unitPrice: amount,
+      amount,
+    }];
+    const { subtotal, taxAmount, total } = _computeTotals(items, 0, 0);
+
+    // 💵 Efectivo: el empleado cobra en el momento y ese dinero NO ingresa a la
+    // caja/contabilidad de la empresa (no se registra Income). El invoice queda
+    // marcado como pagado directamente para reflejar que ya se cobró.
+    // Zelle/Chase Bank/Cheque: quedan en 'draft' y la oficina confirma el pago
+    // manualmente (eso sí genera un Income real vía markAsPaid).
+    const isCash = paymentMethod === 'Efectivo';
+
+    const invoice = await CustomInvoice.create({
+      invoiceType: 'PMP',
+      invoiceNumber,
+      sequenceNumber,
+      year,
+      clientName,
+      clientAddress,
+      companyName: 'ZURCHER CONSTRUCTION',
+      companyEmail: 'admin@zurcherseptic.com',
+      companyPhone: '+1 (954) 636-8200',
+      companyAddress: 'SEPTIC TANK DIVISION - CFC1433240',
+      items,
+      subtotal,
+      taxAmount,
+      total,
+      tankGallons: gallons,
+      paymentMethod,
+      issueDate: finalIssueDate,
+      status: isCash ? 'paid' : 'draft',
+      paidAmount: isCash ? total : 0,
+      paidAt: isCash ? new Date() : null,
+      notes: isCash ? 'Cobrado en efectivo por el empleado en campo. No ingresa a caja/contabilidad de la empresa.' : null,
+      publicToken: uuidv4(),
+      createdByStaffId: staffId,
+    });
+
+    res.status(201).json({ error: false, data: invoice });
+  } catch (err) {
+    console.error('❌ createPumpOutInvoice:', err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
+// GET /custom-invoices/pump-out/mine — invoices de desagote creados por el staff logueado (rol contractor)
+const listMyPumpOutInvoices = async (req, res) => {
+  try {
+    const staffId = req.staff?.id || req.staff?.idStaff;
+    const invoices = await CustomInvoice.findAll({
+      where: { invoiceType: 'PMP', createdByStaffId: staffId },
+      order: [['createdAt', 'DESC']],
+      attributes: { exclude: ['termsAndConditions', 'items'] },
+    });
+    res.json({ error: false, data: invoices });
+  } catch (err) {
+    console.error('❌ listMyPumpOutInvoices:', err);
+    res.status(500).json({ error: true, message: err.message });
+  }
+};
+
 // GET /custom-invoices
 const listInvoices = async (req, res) => {
   try {
@@ -567,13 +657,17 @@ const markAsPaid = async (req, res) => {
       return res.status(400).json({ error: true, message: 'No se puede marcar como pagado un invoice anulado' });
     }
 
-    const { paidAmount, paymentMethod = 'Otro', paymentDetails, notes: payNotes } = req.body;
+    const { paidAmount, paymentMethod, paymentDetails, notes: payNotes } = req.body;
     const amount = parseFloat(paidAmount) || parseFloat(invoice.paymentAmount) || parseFloat(invoice.total);
+    // Si no viene un paymentMethod explícito en el body, usar el que ya haya quedado
+    // registrado en el invoice (ej: cargado por el empleado en Pump-Out desde la app móvil).
+    const finalPaymentMethod = paymentMethod || invoice.paymentMethod || 'Otro';
 
     await invoice.update({
       status: 'paid',
       paidAmount: amount,
       paidAt: new Date(),
+      paymentMethod: finalPaymentMethod,
     });
 
     // Create Income record
@@ -588,7 +682,7 @@ const markAsPaid = async (req, res) => {
       simpleWorkId: invoice.simpleWorkId || null,
       customInvoiceId: invoice.id,
       staffId: req.staff?.id || req.staff?.idStaff || null,
-      paymentMethod,
+      paymentMethod: finalPaymentMethod,
       paymentDetails: paymentDetails || null,
       verified: false,
     });
@@ -704,6 +798,8 @@ const clearPaymentLink = async (req, res) => {
 
 module.exports = {
   createInvoice,
+  createPumpOutInvoice,
+  listMyPumpOutInvoices,
   listInvoices,
   getInvoice,
   updateInvoice,

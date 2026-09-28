@@ -9,6 +9,7 @@ const TYPE_OPTIONS = [
   { value: 'PRO', label: 'Proforma (PRO)' },
   { value: 'CRN', label: 'Credit Note (CRN)' },
   { value: 'REC', label: 'Receipt (REC)' },
+  { value: 'PMP', label: 'Pump-Out / Desagote (PMP)' },
 ];
 
 const EMPTY_ITEM = { name: '', description: '', quantity: 1, unitPrice: 0, amount: 0, amountDisplay: 'price' };
@@ -515,7 +516,7 @@ export default function CustomInvoiceBuilder() {
   const TabBtn = ({ tab, label }) => (
     <button
       onClick={() => setActiveTab(tab)}
-      className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition ${
+      className={`shrink-0 whitespace-nowrap px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition ${
         activeTab === tab
           ? 'border-blue-600 text-blue-700 bg-white'
           : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -526,18 +527,18 @@ export default function CustomInvoiceBuilder() {
   );
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <button onClick={() => navigate('/custom-invoices')} className="text-sm text-gray-400 hover:text-gray-600 mb-1">
             ← Volver a la lista
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             {isEdit ? 'Editar Documento' : 'Nuevo Documento'}
           </h1>
         </div>
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap sm:justify-end">
           <button
             onClick={handlePreview}
             className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -586,7 +587,7 @@ export default function CustomInvoiceBuilder() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-0">
+      <div className="flex gap-1 border-b border-gray-200 mb-0 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
         <TabBtn tab="basic" label="Básico" />
         <TabBtn tab="items" label="Items" />
         <TabBtn tab="totals" label="Totales" />
@@ -594,7 +595,7 @@ export default function CustomInvoiceBuilder() {
         <TabBtn tab="options" label="Opciones" />
       </div>
 
-      <div className="bg-white rounded-b-xl rounded-tr-xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-white rounded-b-xl rounded-tr-xl shadow-sm border border-gray-100 p-4 sm:p-6">
 
         {/* TAB: BASIC */}
         {activeTab === 'basic' && (
@@ -638,7 +639,7 @@ export default function CustomInvoiceBuilder() {
             </div>
 
             {/* Dates */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Fecha de emisión</label>
                 <input
@@ -1268,7 +1269,7 @@ export default function CustomInvoiceBuilder() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1">Descuento ($)</label>
                 <input
