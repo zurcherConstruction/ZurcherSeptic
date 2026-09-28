@@ -52,7 +52,10 @@ const CompletedMaintenanceListScreen = ({ navigation }) => {
     }
 
     try {
-      await dispatch(fetchAssignedMaintenances(isCapataz ? undefined : staffId)).unwrap();
+      await dispatch(fetchAssignedMaintenances({
+        workerId: isCapataz ? undefined : staffId,
+        onlyCompleted: true,
+      })).unwrap();
     } catch (err) {
       Alert.alert('Error', err || 'Error al cargar mantenimientos');
     }

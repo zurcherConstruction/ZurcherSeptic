@@ -18,8 +18,13 @@ const getMonthlyExpenses = async (req, res) => {
       typeExpense: {
         [Op.in]: ['Gastos Generales', 'Gasto Flota', 'Publicidad', 'Otro']
       },
-      supplierInvoiceItemId: null, // excluir gastos vinculados a invoices de proveedores
       workId: null,                // excluir gastos vinculados a works (se ven en el perfil del work)
+      // 🚗 Los gastos de flota SIEMPRE se incluyen aquí (aunque vengan de un pago de invoice de proveedor),
+      // el resto de tipos excluye los vinculados a invoices de proveedores para no duplicar con esa vista.
+      [Op.or]: [
+        { supplierInvoiceItemId: null },
+        { typeExpense: 'Gasto Flota' }
+      ],
       date: {
         [Op.gte]: `${currentYear}-01-01`,
         [Op.lte]: `${currentYear}-12-31`

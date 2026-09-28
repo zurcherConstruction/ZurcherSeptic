@@ -9,9 +9,10 @@ module.exports = (sequelize) => {
       primaryKey: true,
     },
     invoiceType: {
-      type: DataTypes.ENUM('INV', 'QUO', 'PRO', 'CRN', 'REC'),
+      type: DataTypes.ENUM('INV', 'QUO', 'PRO', 'CRN', 'REC', 'PMP'),
       allowNull: false,
       defaultValue: 'INV',
+      comment: 'PMP = Pump-Out / Desagote (creado típicamente desde la app móvil por contractor)',
     },
     invoiceNumber: {
       type: DataTypes.STRING(30),
@@ -243,6 +244,17 @@ module.exports = (sequelize) => {
     createdByStaffId: {
       type: DataTypes.UUID,
       allowNull: true,
+    },
+    // 🚽 Pump-Out / Desagote specific fields (invoiceType = 'PMP')
+    tankGallons: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'Galones del tanque desagotado (solo invoiceType = PMP)',
+    },
+    paymentMethod: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Método de pago informado por el empleado al momento de cobrar (Cash, Zelle, Chase Bank, Cheque, etc.)',
     },
   });
 };

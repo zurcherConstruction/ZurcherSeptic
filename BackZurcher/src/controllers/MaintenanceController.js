@@ -893,7 +893,7 @@ const createMaintenanceVisit = async (req, res) => {
 // --- Obtener mantenimientos asignados a un worker específico ---
 const getAssignedMaintenances = async (req, res) => {
   try {
-    const { workerId } = req.query;
+    const { workerId, onlyCompleted, excludeCompleted } = req.query;
     const userRole = req.user?.role;
     const isPrivileged = ['capataz', 'admin', 'owner'].includes(userRole);
 
@@ -904,6 +904,16 @@ const getAssignedMaintenances = async (req, res) => {
     console.log(`[getAssignedMaintenances] Fetching for workerId: ${workerId || 'ALL (capataz/admin/owner)'}`);
 
     const whereClause = workerId ? { staffId: workerId } : {};
+
+    // ⚠️ Filtrar por status según la pantalla que consulta, para que el
+    // límite de resultados no se llene de visitas "completed" (que suelen
+    // tener scheduledDate más antiguas y así desplazaban a las pendientes
+    // futuras fuera del límite cuando se ordena ASC por scheduledDate).
+    if (onlyCompleted === 'true') {
+      whereClause.status = 'completed';
+    } else if (excludeCompleted === 'true') {
+      whereClause.status = { [Op.ne]: 'completed' };
+    }
 
     // ✅ OPTIMIZACIÓN: Usar JOIN directo en lugar de query separada
     const visitsRaw = await MaintenanceVisit.findAll({
@@ -935,7 +945,7 @@ const getAssignedMaintenances = async (req, res) => {
         }
       ],
       order: [['scheduledDate', 'ASC']],
-      limit: 200 // Limitar resultados para evitar timeouts
+      limit: 500 // Limitar resultados para evitar timeouts (ya filtrado por status arriba)
     });
 
     console.log(`[getAssignedMaintenances] Found ${visitsRaw.length} visits`);

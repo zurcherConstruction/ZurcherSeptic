@@ -13,6 +13,12 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
   const [generalExpenseDescription, setGeneralExpenseDescription] = useState('');
   const [receiptFile, setReceiptFile] = useState(null);
   const [showInvoiceViewer, setShowInvoiceViewer] = useState(false);
+
+  // 🚗 Para marcar el Gasto General como Gasto de Flota (vehículo/máquina)
+  const [isFleetExpense, setIsFleetExpense] = useState(false);
+  const [fleetAssetId, setFleetAssetId] = useState('');
+  const [fleetAssets, setFleetAssets] = useState([]);
+  const [fleetAssetsLoading, setFleetAssetsLoading] = useState(false);
   
   // Para link_existing
   const [availableExpenses, setAvailableExpenses] = useState([]);
@@ -44,6 +50,8 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       fetchAvailableWorks();
     } else if (paymentType === 'create_with_simple_works') {
       fetchAvailableSimpleWorks();
+    } else if (paymentType === 'create_general') {
+      fetchFleetAssets();
     } else if (paymentType === 'create_fixed_once') {
       // Pre-llenar nombre desde vendor + invoice
       if (!fixedOnceName && invoice) {
@@ -121,6 +129,26 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       alert('Error al cargar expenses disponibles');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFleetAssets = async () => {
+    try {
+      setFleetAssetsLoading(true);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/fleet`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Error al cargar vehículos/máquinas');
+
+      const result = await response.json();
+      setFleetAssets(result.data || []);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setFleetAssetsLoading(false);
     }
   };
 
@@ -379,6 +407,10 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
         formData.append('distribution', JSON.stringify(simpleWorkDistribution));
       } else if (paymentType === 'create_general') {
         formData.append('generalDescription', generalExpenseDescription);
+        formData.append('isFleetExpense', isFleetExpense ? 'true' : 'false');
+        if (isFleetExpense && fleetAssetId) {
+          formData.append('fleetAssetId', fleetAssetId);
+        }
       } else if (paymentType === 'create_fixed_once') {
         formData.append('fixedOnceName', fixedOnceName);
         formData.append('fixedOnceCategory', fixedOnceCategory);
@@ -1097,6 +1129,50 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                     <p className="text-xs text-gray-500 mt-1">
                       Esta descripción se agregará a: {invoice.vendor} - Invoice #{invoice.invoiceNumber}
                     </p>
+                  </div>
+
+                  {/* 🚗 Gasto de Flota (vehículo/máquina) */}
+                  <div className="mt-4 pt-4 border-t border-green-200">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isFleetExpense}
+                        onChange={(e) => {
+                          setIsFleetExpense(e.target.checked);
+                          if (!e.target.checked) setFleetAssetId('');
+                        }}
+                        className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        🚗 Es un gasto de flota (vehículo/maquinaria)
+                      </span>
+                    </label>
+
+                    {isFleetExpense && (
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Vehículo/Máquina (opcional)
+                        </label>
+                        <select
+                          value={fleetAssetId}
+                          onChange={(e) => setFleetAssetId(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          disabled={fleetAssetsLoading}
+                        >
+                          <option value="">Sin vincular a vehículo específico</option>
+                          {fleetAssets.map(asset => (
+                            <option key={asset.id} value={asset.id}>
+                              {asset.name}
+                              {asset.licensePlate ? ` · ${asset.licensePlate}` : ''}
+                              {asset.serialNumber ? ` · ${asset.serialNumber}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Este gasto se registrará como "Gasto Flota" y aparecerá en el Fleet Dashboard.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

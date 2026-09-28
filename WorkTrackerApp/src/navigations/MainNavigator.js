@@ -21,6 +21,8 @@ import MyExpensesScreen from '../screens/MyExpensesScreen';
 import AssignedSimpleWorksScreen from '../screens/AssignedSimpleWorksScreen';
 import AssignedClaimsScreen from '../screens/AssignedClaimsScreen';
 import QuoteRequestScreen from '../screens/QuoteRequestScreen';
+import PumpOutInvoiceScreen from '../screens/PumpOutInvoiceScreen';
+import MyPumpOutInvoicesScreen from '../screens/MyPumpOutInvoicesScreen';
 import StaffAttendanceScreen from '../screens/StaffAttendanceScreen';
 import { logout } from '../Redux/features/authSlice';
 
@@ -83,7 +85,7 @@ const AppDrawerNavigator = () => {
 
   const initialRoute =
     staff.role === 'contractor'
-      ? 'QuoteRequest'
+      ? 'PumpOutInvoice'
       : staff.role === 'owner'
       ? 'StaffAttendance'
       : 'WorkZoneMap';
@@ -480,6 +482,26 @@ const AppDrawerNavigator = () => {
       {staff?.role === 'contractor' && (
         <>
           <Drawer.Screen
+            name="PumpOutInvoice"
+            component={PumpOutInvoiceScreen}
+            options={{
+              title: 'Invoice de Desagote',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="water-outline" color={color} size={size} />
+              ),
+            }}
+          />
+          <Drawer.Screen
+            name="MyPumpOutInvoices"
+            component={MyPumpOutInvoicesScreen}
+            options={{
+              title: 'Mis Invoices de Desagote',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="receipt-outline" color={color} size={size} />
+              ),
+            }}
+          />
+          <Drawer.Screen
             name="QuoteRequest"
             component={QuoteRequestScreen}
             options={{
@@ -502,6 +524,7 @@ const AppDrawerNavigator = () => {
           />
         </>
       )}
+
 
     </Drawer.Navigator>
   );

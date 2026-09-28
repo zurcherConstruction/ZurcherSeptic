@@ -3,6 +3,8 @@ import {
   View,
   Text,
   SectionList,
+  ScrollView,
+  TextInput,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
@@ -29,7 +31,10 @@ const MaintenanceListScreen = ({ navigation }) => {
   const { staff } = useSelector(state => state.auth);
   
   const [refreshing, setRefreshing] = useState(false);
-  
+  const [filterMode, setFilterMode] = useState('all'); // 'all' | 'overdue'
+  const [selectedZone, setSelectedZone] = useState(null); // null = todas las zonas
+  const [addressQuery, setAddressQuery] = useState('');
+
   const staffId = staff?.id;
   const isCapataz = staff?.role === 'capataz';
 
@@ -53,7 +58,10 @@ const MaintenanceListScreen = ({ navigation }) => {
       return;
     }
     try {
-      await dispatch(fetchAssignedMaintenances(isCapataz ? undefined : staffId)).unwrap();
+      await dispatch(fetchAssignedMaintenances({
+        workerId: isCapataz ? undefined : staffId,
+        excludeCompleted: true,
+      })).unwrap();
     } catch (err) {
       Alert.alert('Error', err || 'Error al cargar mantenimientos');
     }
@@ -79,45 +87,68 @@ const MaintenanceListScreen = ({ navigation }) => {
     });
   };
 
-  // ── Agrupar por zona y ordenar por más vencido ──
-  const sections = useMemo(() => {
+  // ── Filtrar, agrupar por zona y ordenar por más vencido ──
+  const { sections, zoneStats, totalPending, totalOverdue } = useMemo(() => {
     const pendingVisits = assignedMaintenances.filter(v =>
       v.status !== 'completed' && (isCapataz || v.staffId === staffId)
     );
 
-    if (pendingVisits.length === 0) return [];
+    if (pendingVisits.length === 0) {
+      return { sections: [], zoneStats: [], totalPending: 0, totalOverdue: 0 };
+    }
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Calcular días para cada visita
+    // Calcular días, dirección y zona para cada visita
     const withDays = pendingVisits.map(v => {
       const scheduled = new Date(v.scheduledDate);
       scheduled.setHours(0, 0, 0, 0);
       const days = Math.floor((scheduled - today) / (1000 * 60 * 60 * 24));
-      return { ...v, _days: days, _isOverdue: days < 0 };
+      const permitData = v.work?.Permit;
+      const address = permitData?.propertyAddress || v.fullAddress || '';
+      const zone = v.extractedCity
+        ? v.extractedCity.replace(/\b\w/g, c => c.toUpperCase())
+        : 'Sin Zona';
+      return { ...v, _days: days, _isOverdue: days < 0, _address: address, _zone: zone };
     });
 
     // Ordenar: más vencido primero (menor _days primero)
     withDays.sort((a, b) => a._days - b._days);
 
-    // Agrupar por zona (ciudad extraída del backend)
+    // Filtro por dirección (aplica siempre, independiente de zona/vencidas)
+    const addressFiltered = addressQuery.trim()
+      ? withDays.filter(v => v._address.toLowerCase().includes(addressQuery.trim().toLowerCase()))
+      : withDays;
+
+    // Stats por zona (para los chips), calculadas sobre el filtro de dirección
     const zoneMap = {};
-    withDays.forEach(v => {
-      const zone = v.extractedCity 
-        ? v.extractedCity.replace(/\b\w/g, c => c.toUpperCase()) 
-        : 'Sin Zona';
-      if (!zoneMap[zone]) {
-        zoneMap[zone] = { visits: [], overdueCount: 0, totalDays: 0 };
-      }
-      zoneMap[zone].visits.push(v);
-      if (v._isOverdue) zoneMap[zone].overdueCount++;
-      zoneMap[zone].totalDays += v._days;
+    addressFiltered.forEach(v => {
+      if (!zoneMap[v._zone]) zoneMap[v._zone] = { count: 0, overdueCount: 0 };
+      zoneMap[v._zone].count++;
+      if (v._isOverdue) zoneMap[v._zone].overdueCount++;
+    });
+    const zoneStats = Object.entries(zoneMap)
+      .map(([zone, data]) => ({ zone, ...data }))
+      .sort((a, b) => b.overdueCount - a.overdueCount || b.count - a.count);
+
+    // Aplicar filtro de "vencidas" y de zona seleccionada
+    let filtered = addressFiltered;
+    if (filterMode === 'overdue') filtered = filtered.filter(v => v._isOverdue);
+    if (selectedZone) filtered = filtered.filter(v => v._zone === selectedZone);
+
+    // Agrupar en secciones por zona
+    const sectionMap = {};
+    filtered.forEach(v => {
+      if (!sectionMap[v._zone]) sectionMap[v._zone] = { visits: [], overdueCount: 0, totalDays: 0 };
+      sectionMap[v._zone].visits.push(v);
+      if (v._isOverdue) sectionMap[v._zone].overdueCount++;
+      sectionMap[v._zone].totalDays += v._days;
     });
 
-    // Convertir a secciones y ordenar zonas: 
+    // Convertir a secciones y ordenar zonas:
     // primero las que tienen más vencidos, luego por promedio de días
-    const sectionList = Object.entries(zoneMap).map(([zone, data]) => ({
+    const sectionList = Object.entries(sectionMap).map(([zone, data]) => ({
       title: zone,
       data: data.visits,
       overdueCount: data.overdueCount,
@@ -132,17 +163,31 @@ const MaintenanceListScreen = ({ navigation }) => {
       return a.avgDays - b.avgDays;
     });
 
-    return sectionList;
-  }, [assignedMaintenances, staffId]);
+    return {
+      sections: sectionList,
+      zoneStats,
+      totalPending: addressFiltered.length,
+      totalOverdue: addressFiltered.filter(v => v._isOverdue).length,
+    };
+  }, [assignedMaintenances, staffId, isCapataz, filterMode, selectedZone, addressQuery]);
 
-  const totalPending = sections.reduce((sum, s) => sum + s.count, 0);
-  const totalOverdue = sections.reduce((sum, s) => sum + s.overdueCount, 0);
+  const hasActiveFilters = filterMode !== 'all' || !!selectedZone || !!addressQuery.trim();
+
+  const clearFilters = () => {
+    setFilterMode('all');
+    setSelectedZone(null);
+    setAddressQuery('');
+  };
 
   const renderSectionHeader = ({ section }) => (
-    <View style={styles.sectionHeader}>
+    <TouchableOpacity
+      style={styles.sectionHeader}
+      activeOpacity={0.7}
+      onPress={() => setSelectedZone(prev => (prev === section.title ? null : section.title))}
+    >
       <View style={styles.sectionHeaderLeft}>
         <Ionicons name="location" size={18} color="#1e3a8a" />
-        <Text style={styles.sectionTitle}>{section.title}</Text>
+        <Text style={styles.sectionTitle} numberOfLines={1}>{section.title}</Text>
       </View>
       <View style={styles.sectionBadges}>
         {section.overdueCount > 0 && (
@@ -156,7 +201,7 @@ const MaintenanceListScreen = ({ navigation }) => {
           <Text style={styles.countBadgeText}>{section.count}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderVisitCard = ({ item: visit }) => {
@@ -242,12 +287,21 @@ const MaintenanceListScreen = ({ navigation }) => {
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Ionicons name="checkmark-done-circle-outline" size={64} color="#10B981" />
-      <Text style={styles.emptyTitle}>No hay mantenimientos pendientes</Text>
-      <Text style={styles.emptyText}>
-        Todas tus visitas asignadas han sido completadas
+      <Text style={styles.emptyTitle}>
+        {hasActiveFilters ? 'Sin resultados para estos filtros' : 'No hay mantenimientos pendientes'}
       </Text>
-      <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
-        <Text style={styles.refreshButtonText}>Actualizar</Text>
+      <Text style={styles.emptyText}>
+        {hasActiveFilters
+          ? 'Probá cambiar la zona, el estado o el texto de búsqueda'
+          : 'Todas tus visitas asignadas han sido completadas'}
+      </Text>
+      <TouchableOpacity
+        style={styles.refreshButton}
+        onPress={hasActiveFilters ? clearFilters : onRefresh}
+      >
+        <Text style={styles.refreshButtonText}>
+          {hasActiveFilters ? 'Limpiar filtros' : 'Actualizar'}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -263,23 +317,94 @@ const MaintenanceListScreen = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* Summary bar */}
-      {totalPending > 0 && (
-        <View style={styles.summaryBar}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryNumber}>{totalPending}</Text>
-            <Text style={styles.summaryLabel}>Pendientes</Text>
-          </View>
-          {totalOverdue > 0 && (
-            <View style={[styles.summaryItem, styles.summaryOverdue]}>
+      {/* Bloque de filtros: resumen, búsqueda y zonas, unificado en un solo panel */}
+      {assignedMaintenances.length > 0 && (
+        <View style={styles.filtersWrapper}>
+          <View style={styles.summaryBar}>
+            <TouchableOpacity
+              style={[styles.summaryCell, filterMode === 'all' && styles.summaryCellActive]}
+              activeOpacity={0.7}
+              onPress={() => setFilterMode('all')}
+            >
+              <Text style={styles.summaryNumber}>{totalPending}</Text>
+              <Text style={styles.summaryLabel} numberOfLines={1}>Pendientes</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.summaryCell,
+                styles.summaryCellDanger,
+                filterMode === 'overdue' && styles.summaryCellDangerActive,
+              ]}
+              activeOpacity={0.7}
+              onPress={() => setFilterMode(prev => (prev === 'overdue' ? 'all' : 'overdue'))}
+            >
               <Text style={[styles.summaryNumber, { color: '#DC2626' }]}>{totalOverdue}</Text>
-              <Text style={[styles.summaryLabel, { color: '#DC2626' }]}>Vencidas</Text>
+              <Text style={[styles.summaryLabel, { color: '#DC2626' }]} numberOfLines={1}>Vencidas</Text>
+            </TouchableOpacity>
+            <View style={styles.summaryCell}>
+              <Text style={styles.summaryNumber}>{zoneStats.length}</Text>
+              <Text style={styles.summaryLabel} numberOfLines={1}>Zonas</Text>
             </View>
-          )}
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryNumber}>{sections.length}</Text>
-            <Text style={styles.summaryLabel}>Zonas</Text>
           </View>
+
+          {/* Filtro por dirección */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={16} color="#9CA3AF" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar por dirección..."
+              placeholderTextColor="#9CA3AF"
+              value={addressQuery}
+              onChangeText={setAddressQuery}
+              autoCorrect={false}
+            />
+            {addressQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setAddressQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Chips de zona */}
+          {zoneStats.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.zoneChipsScroll}
+              contentContainerStyle={styles.zoneChipsContainer}
+            >
+              <TouchableOpacity
+                style={[styles.zoneChip, !selectedZone && styles.zoneChipActive]}
+                onPress={() => setSelectedZone(null)}
+              >
+                <Text style={[styles.zoneChipText, !selectedZone && styles.zoneChipTextActive]}>
+                  Todas
+                </Text>
+              </TouchableOpacity>
+              {zoneStats.map(z => (
+                <TouchableOpacity
+                  key={z.zone}
+                  style={[styles.zoneChip, selectedZone === z.zone && styles.zoneChipActive]}
+                  onPress={() => setSelectedZone(prev => (prev === z.zone ? null : z.zone))}
+                >
+                  <Text
+                    style={[styles.zoneChipText, selectedZone === z.zone && styles.zoneChipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {z.zone} ({z.count})
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Botón limpiar filtros */}
+          {hasActiveFilters && (
+            <TouchableOpacity style={styles.clearFiltersButton} onPress={clearFilters}>
+              <Ionicons name="close-circle-outline" size={14} color="#3B82F6" />
+              <Text style={styles.clearFiltersText}>Limpiar filtros</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -309,34 +434,110 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F3F4F6',
   },
-  summaryBar: {
-    flexDirection: 'row',
+  filtersWrapper: {
     backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    justifyContent: 'space-around',
   },
-  summaryItem: {
+  summaryBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    gap: 8,
+  },
+  summaryCell: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+  },
+  summaryCellDanger: {
+    backgroundColor: '#FEF2F2',
+  },
+  summaryCellActive: {
+    backgroundColor: '#DBEAFE',
+  },
+  summaryCellDangerActive: {
+    backgroundColor: '#FECACA',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F9FAFB',
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1F2937',
+    padding: 0,
+  },
+  zoneChipsScroll: {
+    flexGrow: 0,
+    height: 44,
+    marginTop: 8,
+  },
+  zoneChipsContainer: {
+    paddingHorizontal: 12,
+    gap: 8,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  summaryOverdue: {
-    backgroundColor: '#FEF2F2',
+  zoneChip: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingVertical: 6,
+    borderRadius: 16,
+    justifyContent: 'center',
+    maxWidth: 160,
+  },
+  zoneChipActive: {
+    backgroundColor: '#1e3a8a',
+    borderColor: '#1e3a8a',
+  },
+  zoneChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  zoneChipTextActive: {
+    color: '#FFFFFF',
+  },
+  clearFiltersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginHorizontal: 12,
+    marginTop: 8,
+  },
+  clearFiltersText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
   summaryNumber: {
-    fontSize: 22,
+    fontSize: 17,
     fontWeight: '800',
     color: '#1F2937',
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#6B7280',
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -352,6 +553,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   sectionTitle: {
     fontSize: 15,
@@ -363,6 +567,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexShrink: 0,
   },
   overdueBadge: {
     backgroundColor: '#FEE2E2',
@@ -534,7 +739,7 @@ const MaintenanceList = () => {
       <Stack.Screen
         name="MaintenanceListScreen"
         component={MaintenanceListScreen}
-        options={{ title: 'Mantenimientos Pendientes' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="MaintenanceFormScreen"

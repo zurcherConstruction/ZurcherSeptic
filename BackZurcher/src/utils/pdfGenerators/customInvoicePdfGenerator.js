@@ -21,6 +21,7 @@ const TYPE_LABELS = {
   PRO: 'PROFORMA',
   CRN: 'CREDIT NOTE',
   REC: 'RECEIPT',
+  PMP: 'PUMP-OUT INVOICE',
 };
 
 // ============================================================
