@@ -1432,6 +1432,14 @@ const getMonthlyChecklist = async (req, res) => {
         [Op.or]: [
           // Gastos activos que ya comenzaron
           { isActive: true, startDate: { [Op.lte]: monthEnd } },
+          // Gastos desactivados (eliminados "de hoy en adelante") pero que seguían vigentes
+          // durante este mes: su endDate cae en este mes o después de su inicio.
+          // Esto conserva el histórico — no ocultar meses anteriores al desactivar el gasto.
+          {
+            isActive: false,
+            startDate: { [Op.lte]: monthEnd },
+            endDate: { [Op.ne]: null, [Op.gte]: monthStart }
+          },
           // Gastos one_time inactivos (pagados) cuyo startDate es este mes — mostrarlos como pagados
           {
             isActive: false,
@@ -1495,6 +1503,11 @@ const getMonthlyChecklist = async (req, res) => {
 
       // Gastos únicos (one_time) sin ningún pago y con estado pendiente: no ocultar, mostrar como pendiente
       // Los one_time pagados siempre se muestran (startDate fue validado en el query)
+
+      // 🔴 Gastos desactivados (eliminados) sin pago en este mes: ocultar siempre.
+      // Un gasto fijo desactivado solo debe reaparecer en meses donde efectivamente se pagó
+      // (histórico), nunca como "pendiente" — ya que el usuario decidió no pagarlo más.
+      if (!expense.isActive && monthPaidAmount <= 0) return null;
 
       // Solo ocultar expenses no-periódicos que aún no vencen este mes y sin pago
       const showInChecklist = monthPaidAmount > 0 || isDueThisMonthOrBefore;
