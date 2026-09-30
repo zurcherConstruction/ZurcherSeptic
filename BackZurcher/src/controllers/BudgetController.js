@@ -7000,6 +7000,7 @@ async optionalDocs(req, res) {
 
       const workRecord = await Work.create({
         propertyAddress: budget.propertyAddress || budget.Permit?.propertyAddress,
+        idPermit: budget.PermitIdPermit, // ✅ Vincular Permit igual que el flujo normal (evita Work sin Permit)
         status: 'pending',
         idBudget: budget.idBudget,
         notes: `Obra creada sin pago inicial. Pago diferido aprobado por ${approvedByStaff?.name || 'admin'}. Budget #${invoiceNumber || idBudget}`,
