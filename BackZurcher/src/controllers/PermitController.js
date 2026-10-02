@@ -688,6 +688,21 @@ const updatePermit = async (req, res) => {
       console.log(`✅ Email actualizado en ${idPermit} Permit y sus Budgets asociados`);
     }
 
+    // 🔄 Si cambió la dirección, propagar a Budgets y Works relacionados
+    // (propertyAddress está desnormalizado en ambas tablas, no se recalcula solo)
+    if (addressChanged) {
+      const { Budget, Work } = require('../data');
+      await Budget.update(
+        { propertyAddress: updates.propertyAddress },
+        { where: { PermitIdPermit: idPermit } }
+      );
+      await Work.update(
+        { propertyAddress: updates.propertyAddress },
+        { where: { idPermit } }
+      );
+      console.log(`✅ Dirección actualizada en ${idPermit} Permit y sus Budgets/Works asociados`);
+    }
+
     res.status(200).json(permit);
   } catch (error) {
     console.error('Error al actualizar el permiso:', error);
