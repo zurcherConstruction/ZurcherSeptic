@@ -2707,6 +2707,18 @@ async optionalDocs(req, res) {
         }
       }
 
+      // 🔄 Sincronizar Work asociado (propertyAddress está denormalizado ahí también)
+      if (propertyAddress) {
+        const { Work } = require('../data');
+        const [updatedWorksCount] = await Work.update(
+          { propertyAddress },
+          { where: { idBudget }, transaction }
+        );
+        if (updatedWorksCount > 0) {
+          budgetDebugLog(`✅ ${updatedWorksCount} Work(s) sincronizados con la nueva dirección desde updateBudget`);
+        }
+      }
+
       // --- 5. Sincronizar BudgetLineItems (Eliminar y Recrear si se enviaron nuevos) ---
       let calculatedSubtotal = 0;
       let finalLineItemsForPdf = []; // Array para guardar los items que irán al PDF
@@ -4228,6 +4240,18 @@ async optionalDocs(req, res) {
       if (budget.Permit && Object.keys(permitUpdateData).length > 0) {
         await budget.Permit.update(permitUpdateData, { transaction });
         console.log(`✅ Permit ${budget.Permit.idPermit} actualizado:`, permitUpdateData);
+      }
+
+      // 🔄 Sincronizar Work asociado (propertyAddress está denormalizado ahí también)
+      if (propertyAddress) {
+        const { Work } = require('../data');
+        const [updatedWorksCount] = await Work.update(
+          { propertyAddress },
+          { where: { idBudget: budget.idBudget }, transaction }
+        );
+        if (updatedWorksCount > 0) {
+          console.log(`✅ ${updatedWorksCount} Work(s) sincronizados con la nueva dirección`);
+        }
       }
 
       await transaction.commit();
