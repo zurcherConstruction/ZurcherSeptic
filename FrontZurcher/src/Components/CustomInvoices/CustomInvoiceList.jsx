@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../utils/axios';
 import { toast } from 'react-toastify';
+import { parseDateOnly } from '../../utils/dateHelpers';
 
 const TYPE_LABELS = { INV: 'Invoice', QUO: 'Quote', PRO: 'Proforma', CRN: 'Credit Note', REC: 'Receipt', PMP: 'Pump-Out' };
 const STATUS_COLORS = {
@@ -341,7 +342,7 @@ export default function CustomInvoiceList() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                      {new Date(inv.issueDate).toLocaleDateString('en-US')}
+                      {parseDateOnly(inv.issueDate)?.toLocaleDateString('en-US') || '-'}
                     </td>
                     {view === 'pumpout' && (
                       <>

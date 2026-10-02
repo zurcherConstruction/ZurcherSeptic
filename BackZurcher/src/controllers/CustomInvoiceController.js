@@ -229,7 +229,7 @@ const createPumpOutInvoice = async (req, res) => {
       status: isCash ? 'paid' : 'draft',
       paidAmount: isCash ? total : 0,
       paidAt: isCash ? new Date() : null,
-      notes: isCash ? 'Cobrado en efectivo por el empleado en campo. No ingresa a caja/contabilidad de la empresa.' : null,
+      notes: isCash ? 'Paid in cash.' : null,
       publicToken: uuidv4(),
       createdByStaffId: staffId,
     });
