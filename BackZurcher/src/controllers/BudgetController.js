@@ -60,10 +60,10 @@ function buildBudgetActionDateExpression(statusFilter) {
   }
 
   if (normalizedStatus === 'en_revision' || normalizedStatus === 'en_seguimiento') {
-    return 'CASE WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForSignatureAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."updatedAt", "Budget"."createdAt") END';
+    return 'CASE WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."updatedAt", "Budget"."createdAt") END';
   }
 
-  return 'CASE WHEN "Budget"."status" IN (\'draft\', \'created\') THEN COALESCE("Budget"."createdAt", "Budget"."updatedAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForSignatureAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'signed\', \'approved\', \'rejected\') THEN COALESCE("Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."date"::date, "Budget"."updatedAt", "Budget"."createdAt") END';
+  return 'CASE WHEN "Budget"."status" IN (\'draft\', \'created\') THEN COALESCE("Budget"."createdAt", "Budget"."updatedAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'signed\', \'approved\', \'rejected\') THEN COALESCE("Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."date"::date, "Budget"."updatedAt", "Budget"."createdAt") END';
 }
 
 function applyBudgetRealDateFilters(whereClause, statusFilter, month, year) {
@@ -1269,31 +1269,36 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       console.log(`📧 Cliente: ${budget.Permit?.applicantEmail} - ${budget.Permit?.applicantName}`);
       console.log(`📋 Envelope ID: ${envelopeId || documentId}`);
 
-      // Inicializar servicio DocuSign
+      // ✅ Validar que el envelope soporte firma embebida (clientUserId) ANTES de
+      // entregar el enlace estable, para avisar temprano si es un envelope legacy
+      // enviado por email tradicional de DocuSign (en ese caso el link de /sign fallará).
       const docuSignService = new DocuSignService();
-
-      // Regenerar enlace de firma
-      const result = await docuSignService.regenerateSigningLink(
+      await docuSignService.regenerateSigningLink(
         envelopeId || documentId,
         budget.Permit?.applicantEmail,
         budget.Permit?.applicantName || 'Valued Client'
       );
 
-      console.log('✅ Enlace regenerado exitosamente');
+      // ✅ ENLACE ESTABLE: mismo redirect público usado en el email automático al cliente.
+      // No expira en minutos: genera una URL de firma fresca de DocuSign en cada clic.
+      const baseApiUrl = process.env.API_URL || 'https://zurcherapi.up.railway.app';
+      const signingUrl = `${baseApiUrl}/budgets/${idBudget}/sign`;
+
+      console.log('✅ Enlace estable confirmado y listo para compartir');
 
       res.status(200).json({
         error: false,
-        message: 'Enlace de firma regenerado exitosamente. El nuevo enlace es válido por 5-15 minutos desde el primer acceso.',
+        message: 'Enlace de firma generado exitosamente. Es un enlace estable que no expira en minutos.',
         data: {
           budgetId: budget.idBudget,
-          envelopeId: result.envelopeId,
-          status: result.status,
-          signingUrl: result.signingUrl,
+          envelopeId: envelopeId || documentId,
+          status: 'sent',
+          signingUrl: signingUrl,
           signerEmail: budget.Permit?.applicantEmail,
           signerName: budget.Permit?.applicantName,
-          expiresIn: result.expiresIn,
-          regeneratedAt: result.regeneratedAt,
-          note: 'Este enlace expirará después de 5-15 minutos de inactividad una vez abierto. Si expira nuevamente, puede regenerar el enlace cuantas veces sea necesario.'
+          expiresIn: 'No expira mientras el documento siga pendiente de firma',
+          regeneratedAt: new Date().toISOString(),
+          note: 'Este enlace es estable: cada vez que se abre, se genera una URL de firma fresca automáticamente. Puedes compartirlo por WhatsApp/SMS sin preocuparte por el tiempo.'
         }
       });
 
@@ -2052,6 +2057,16 @@ async getBudgets(req, res) {
           console.warn(`⚠️ Status inválido recibido: "${status}". Ignorando filtro.`);
         }
       }
+    }
+
+    // ✅ EXCLUIR budgets LEGACY de la lista normal por defecto.
+    // Solo deben aparecer si el usuario los pide explícitamente (status=legacy o signatureMethod=legacy).
+    // Antes, con el filtro "All Statuses" (el único disponible en el dropdown), los legacy
+    // (isLegacy=true, status normalmente 'approved'/'signed') se colaban en el listado.
+    const wantsLegacyExplicitly = status === 'legacy' || signatureMethod === 'legacy';
+    if (!wantsLegacyExplicitly) {
+      whereClause[Op.and] = whereClause[Op.and] || [];
+      whereClause[Op.and].push({ isLegacy: { [Op.or]: [false, null] } });
     }
 
     // 🆕 Filtro por método de firma
@@ -7116,16 +7131,14 @@ async optionalDocs(req, res) {
         });
       }
 
-      // Generar URL de firma embebida usando DocuSignService
-      const docuSignService = new DocuSignService();
-      const signingUrl = await docuSignService.getRecipientViewUrl(
-        budget.docusignEnvelopeId,
-        clientEmail,
-        clientName,
-        process.env.FRONTEND_URL || 'https://zurcher-construction.vercel.app'
-      );
+      // ✅ ENLACE ESTABLE: apunta a nuestro propio redirect público, que genera
+      // una URL de firma embebida FRESCA de DocuSign recién al momento del clic.
+      // Así el enlace que se comparte por WhatsApp/SMS/email nunca expira en minutos:
+      // sigue funcionando mientras el envelope siga activo (sent/delivered).
+      const baseApiUrl = process.env.API_URL || 'https://zurcherapi.up.railway.app';
+      const signingUrl = `${baseApiUrl}/budgets/${idBudget}/sign`;
 
-      console.log(`✅ Enlace de firma generado exitosamente para presupuesto ${idBudget}`);
+      console.log(`✅ Enlace estable de firma generado exitosamente para presupuesto ${idBudget}`);
 
       res.status(200).json({
         success: true,
@@ -7133,8 +7146,8 @@ async optionalDocs(req, res) {
         envelopeId: budget.docusignEnvelopeId,
         clientName: clientName,
         clientEmail: clientEmail,
-        expiresIn: '5-15 minutes of inactivity',
-        note: 'Este enlace es válido por 5-15 minutos después de inactividad. Puedes regenerarlo cuantas veces necesites.'
+        expiresIn: 'No expira mientras el documento siga pendiente de firma',
+        note: 'Este enlace es estable y no expira: cada vez que se abre, se genera una URL de firma fresca automáticamente. Puedes compartirlo por WhatsApp/SMS sin preocuparte por el tiempo.'
       });
 
     } catch (error) {

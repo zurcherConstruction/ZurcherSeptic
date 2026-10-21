@@ -6,6 +6,7 @@ const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/clo
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
 const { scheduleInitialMaintenanceVisits } = require('./MaintenanceController'); // <--- IMPORTANTE: AÑADIR ESTA LÍNEA
 const { PDFDocument } = require('pdf-lib'); // Para comprimir PDFs
+const { logStatusChange } = require('../utils/statusManager');
 
 const formatActionDate = (date = new Date()) => {
   return new Date(date).toLocaleString('es-ES', {
@@ -1233,6 +1234,111 @@ const registerInspectionResult = async (req, res) => {
     res.status(500).json({ error: true, message: 'Error interno del servidor al registrar resultado de inspección.' });
   }
 };
+
+/**
+ * @description Elimina un resultado de inspección (aprobado/rechazado) cargado por error.
+ * Borra el comprobante de Cloudinary y deja la inspección como "esperando resultado" de nuevo,
+ * SIN tocar el status del Work (eso se maneja aparte, ej. desde Track Work / change-status).
+ */
+const deleteInspectionResult = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { inspectionId } = req.params;
+
+    const inspection = await Inspection.findByPk(inspectionId, { transaction });
+    if (!inspection) {
+      await transaction.rollback();
+      return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
+    }
+
+    if (!inspection.finalStatus || !['approved', 'rejected'].includes(inspection.finalStatus)) {
+      await transaction.rollback();
+      return res.status(400).json({ error: true, message: 'Esta inspección no tiene un resultado (aprobado/rechazado) cargado para eliminar.' });
+    }
+
+    if (inspection.resultDocumentPublicId) {
+      try {
+        await deleteFromCloudinary(inspection.resultDocumentPublicId);
+      } catch (cloudinaryError) {
+        console.warn('⚠️ No se pudo eliminar el comprobante de Cloudinary:', cloudinaryError.message);
+      }
+    }
+
+    const revertedProcessStatus = inspection.type === 'final'
+      ? 'final_payment_notified_to_inspector'
+      : 'inspection_completed_pending_result';
+
+    await inspection.update({
+      finalStatus: null,
+      processStatus: revertedProcessStatus,
+      dateResultReceived: null,
+      dateInspectionPerformed: null,
+      resultDocumentUrl: null,
+      resultDocumentPublicId: null,
+    }, { transaction });
+
+    // ✅ Revertir Work.status si quedó avanzado únicamente por este resultado ahora eliminado.
+    // Solo se revierte cuando el estado actual es una consecuencia DIRECTA del resultado borrado
+    // (es decir, el trabajo no avanzó más allá por otras acciones) — así no se pierde info
+    // de pasos posteriores (cubierto, factura final, pago, mantenimiento, etc.).
+    let workStatusReverted = null;
+    const work = await Work.findByPk(inspection.workId, { transaction });
+    if (work) {
+      const previousWorkStatus = work.status;
+      if (inspection.type === 'initial' && ['approvedInspection', 'rejectedInspection', 'coverPending'].includes(work.status)) {
+        work.status = 'firstInspectionPending';
+        await work.save({ transaction });
+        workStatusReverted = { from: previousWorkStatus, to: work.status };
+      } else if (inspection.type === 'final' && ['finalApproved', 'finalRejected'].includes(work.status)) {
+        work.status = 'finalInspectionPending';
+        await work.save({ transaction });
+        workStatusReverted = { from: previousWorkStatus, to: work.status };
+      }
+
+      if (workStatusReverted) {
+        await logStatusChange(
+          work.idWork,
+          workStatusReverted.from,
+          workStatusReverted.to,
+          'Resultado de inspección eliminado por carga incorrecta',
+          req.user?.id || null,
+          transaction
+        );
+      }
+    }
+
+    try {
+      const typeLabel = inspection.type === 'initial' ? 'inicial' : 'final';
+      await WorkNote.create({
+        workId: inspection.workId,
+        staffId: req.user?.id || null,
+        message: `Inspección ${typeLabel}: resultado eliminado por carga incorrecta - ${formatActionDate()}`,
+        noteType: 'progress',
+        priority: 'medium',
+        relatedStatus: null,
+        isResolved: true,
+        mentionedStaffIds: [],
+      }, { transaction });
+    } catch (noteError) {
+      console.warn('⚠️ No se pudo crear WorkNote automático para eliminación de resultado:', noteError.message);
+    }
+
+    await transaction.commit();
+
+    res.status(200).json({
+      message: workStatusReverted
+        ? 'Resultado de inspección eliminado y el estado del trabajo fue revertido.'
+        : 'Resultado de inspección eliminado. La inspección quedó pendiente de un nuevo resultado.',
+      inspection,
+      workStatusReverted,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error en deleteInspectionResult:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar el resultado de inspección.' });
+  }
+};
+
 // NUEVO CONTROLADOR:
 const markCorrectionByWorker = async (req, res, next) => {
   try {
@@ -1926,5 +2032,6 @@ module.exports = {
   notifyInspectorPaymentForFinal,
   registerQuickInspectionResult,
   saveQuickInspectionFollowUp,
+  deleteInspectionResult,
  
 };

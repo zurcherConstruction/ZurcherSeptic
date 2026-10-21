@@ -295,11 +295,37 @@ const BudgetList = () => {
       return;
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
+    const button = event.currentTarget;
+    const rect = button.getBoundingClientRect();
     const estimatedMenuHeight = window.innerWidth < 768 ? 230 : 190;
-    const spaceBelow = window.innerHeight - rect.bottom;
 
-    setSignatureMenuDropUp(spaceBelow < estimatedMenuHeight);
+    // ✅ No alcanza con mirar el espacio libre de la ventana: la tabla de desktop
+    // tiene "overflow-hidden" (para los bordes redondeados), así que si el botón
+    // está en la última fila visible (típico cuando hay un filtro aplicado y
+    // quedan pocos resultados), el menú se corta aunque la ventana tenga lugar
+    // debajo. Buscamos el límite real recorriendo los ancestros con overflow
+    // recortado (hidden/auto/scroll) o la propia tabla.
+    let lowerBoundary = window.innerHeight;
+    let upperBoundary = 0;
+    let ancestor = button.parentElement;
+    while (ancestor) {
+      const style = window.getComputedStyle(ancestor);
+      const clipsOverflow =
+        ['hidden', 'auto', 'scroll'].includes(style.overflowY) ||
+        ancestor.tagName === 'TABLE';
+      if (clipsOverflow) {
+        const ancestorRect = ancestor.getBoundingClientRect();
+        lowerBoundary = Math.min(lowerBoundary, ancestorRect.bottom);
+        upperBoundary = Math.max(upperBoundary, ancestorRect.top);
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    const spaceBelow = lowerBoundary - rect.bottom;
+    const spaceAbove = rect.top - upperBoundary;
+
+    // Abrir hacia arriba solo si abajo no alcanza Y arriba hay realmente más lugar
+    setSignatureMenuDropUp(spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow);
     setSignatureMenuOpen(budgetId);
   };
 
@@ -1077,8 +1103,9 @@ const BudgetList = () => {
           `✅ Enlace de firma copiado al portapapeles\n\n` +
           `Cliente: ${response.data.clientName}\n` +
           `Email: ${response.data.clientEmail}\n\n` +
-          `⚠️  El enlace expira en 5-15 minutos de inactividad.\n` +
-          `Puedes regenerarlo cuantas veces necesites.\n\n` +
+          `♾️ Enlace estable: no expira en minutos. Se regenera solo\n` +
+          `cada vez que el cliente lo abre, mientras el documento\n` +
+          `siga pendiente de firma.\n\n` +
           `Envíalo al cliente por WhatsApp, SMS u otro medio.`
         );
       }
@@ -1113,10 +1140,10 @@ const BudgetList = () => {
     }
 
     if (!window.confirm(
-      `¿Regenerar enlace de firma?\n\n` +
+      `¿Generar enlace de firma?\n\n` +
       `Cliente: ${budget.Permit?.applicantName || budget.applicantName}\n` +
       `Email: ${budget.Permit?.applicantEmail || budget.applicantEmail}\n\n` +
-      `Se generará un nuevo enlace válido por 5-15 minutos.`
+      `Se generará un enlace estable que no expira en minutos.`
     )) {
       return;
     }
@@ -1131,10 +1158,10 @@ const BudgetList = () => {
         await navigator.clipboard.writeText(response.data.data.signingUrl);
         
         alert(
-          `✅ Enlace regenerado y copiado al portapapeles\n\n` +
+          `✅ Enlace generado y copiado al portapapeles\n\n` +
           `Cliente: ${response.data.data.signerName}\n` +
           `Email: ${response.data.data.signerEmail}\n\n` +
-          `⏰ El enlace expira en 5-15 minutos de inactividad.\n\n` +
+          `♾️ Enlace estable: no expira en minutos.\n\n` +
           `Envíalo al cliente por WhatsApp, SMS u otro medio.`
         );
       }
