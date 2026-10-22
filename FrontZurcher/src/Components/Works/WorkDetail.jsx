@@ -18,7 +18,7 @@ import ManualApprovalModal from './ManualApprovalModal'; // 🆕 Modal de aproba
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
 import PdfModal from "../Budget/PdfModal"; 
-import { fetchInspectionsByWork, registerQuickInspectionResult, saveQuickInspectionFollowUp } from '../../Redux/Actions/inspectionActions';
+import { fetchInspectionsByWork, registerQuickInspectionResult, saveQuickInspectionFollowUp, deleteInspectionResult } from '../../Redux/Actions/inspectionActions';
 import WorkNotesModal from './WorkNotesModal';
 import NoticeToOwnerCard from './NoticeToOwnerCard';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
@@ -511,6 +511,7 @@ const WorkDetail = () => {
   const [pdfError, setPdfError] = useState('');
   const [finalInspectionImageFile, setFinalInspectionImageFile] = useState(null);
   const [uploadingFinalImage, setUploadingFinalImage] = useState(false);
+  const [deletingInspectionResultId, setDeletingInspectionResultId] = useState(null);
   const [showUploadInstalledImage, setShowUploadInstalledImage] = useState(false);
   const [installedImageFile, setInstalledImageFile] = useState(null);
   const [uploadingInstalledImage, setUploadingInstalledImage] = useState(false);
@@ -842,6 +843,21 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
       alert(`Error al subir la imagen: ${error.message}`);
     } finally {
       setUploadingFinalImage(false);
+    }
+  };
+
+  const handleDeleteInspectionResult = async (inspectionId) => {
+    if (!window.confirm('¿Eliminar este resultado de inspección? Se borrará el comprobante cargado y la inspección quedará pendiente de un nuevo resultado. Esta acción no se puede deshacer.')) {
+      return;
+    }
+    setDeletingInspectionResultId(inspectionId);
+    try {
+      await dispatch(deleteInspectionResult(inspectionId, work?.idWork));
+      alert('Resultado de inspección eliminado correctamente.');
+    } catch (error) {
+      alert(`Error al eliminar el resultado: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setDeletingInspectionResultId(null);
     }
   };
 
@@ -2514,6 +2530,16 @@ const handleUploadInstalledImage = async () => {
                                       Ver Comprobante
                                     </button>
                                   )}
+                                  {['owner', 'admin'].includes(userRole) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteInspectionResult(insp.idInspection)}
+                                      disabled={deletingInspectionResultId === insp.idInspection}
+                                      className="ml-2 inline-flex items-center gap-2 px-3 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                    >
+                                      {deletingInspectionResultId === insp.idInspection ? 'Eliminando...' : '🗑️ Eliminar resultado'}
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -2566,6 +2592,16 @@ const handleUploadInstalledImage = async () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                       </svg>
                                       Ver Comprobante
+                                    </button>
+                                  )}
+                                  {['owner', 'admin'].includes(userRole) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteInspectionResult(insp.idInspection)}
+                                      disabled={deletingInspectionResultId === insp.idInspection}
+                                      className="ml-2 inline-flex items-center gap-2 px-3 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors disabled:opacity-50"
+                                    >
+                                      {deletingInspectionResultId === insp.idInspection ? 'Eliminando...' : '🗑️ Eliminar resultado (se cargó mal)'}
                                     </button>
                                   )}
                                 </div>
@@ -2812,6 +2848,16 @@ const handleUploadInstalledImage = async () => {
                                   />
                                 </div>
                               )}
+                              {['owner', 'admin'].includes(userRole) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInspectionResult(insp.idInspection)}
+                                  disabled={deletingInspectionResultId === insp.idInspection}
+                                  className="mt-2 text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  {deletingInspectionResultId === insp.idInspection ? 'Eliminando...' : '🗑️ Eliminar resultado (se cargó mal)'}
+                                </button>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -2862,6 +2908,16 @@ const handleUploadInstalledImage = async () => {
                                     }}
                                   />
                                 </div>
+                              )}
+                              {['owner', 'admin'].includes(userRole) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteInspectionResult(insp.idInspection)}
+                                  disabled={deletingInspectionResultId === insp.idInspection}
+                                  className="mt-2 text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                                >
+                                  {deletingInspectionResultId === insp.idInspection ? 'Eliminando...' : '🗑️ Eliminar resultado (se cargó mal)'}
+                                </button>
                               )}
                             </div>
                           ))}

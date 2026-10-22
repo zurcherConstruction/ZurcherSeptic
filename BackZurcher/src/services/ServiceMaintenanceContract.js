@@ -7,6 +7,7 @@
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
+const { sanitizePdfText } = require('../utils/pdfTextSanitizer');
 
 const FIRMA_EMPRESA_PATH = path.join(__dirname, '../assets/firma_empresa.png');
 
@@ -76,7 +77,7 @@ class ServiceMaintenanceContract {
       const font = opts.bold ? helveticaBold : helvetica;
       const size = opts.size || 9;
       const color = opts.color || rgb(0, 0, 0);
-      page.drawText(String(text || ''), { x, y: yPos, size, font, color });
+      page.drawText(sanitizePdfText(text), { x, y: yPos, size, font, color });
     };
 
     const drawLine = (x1, yPos, x2) => {
@@ -262,7 +263,7 @@ class ServiceMaintenanceContract {
     const draw2 = (text, x, yPos, opts = {}) => {
       const font = opts.bold ? helveticaBold : helvetica;
       const size = opts.size || 9;
-      page2.drawText(String(text || ''), { x, y: yPos, size, font, color: rgb(0, 0, 0) });
+      page2.drawText(sanitizePdfText(text), { x, y: yPos, size, font, color: rgb(0, 0, 0) });
     };
     const line2 = (x1, yPos, x2) => {
       page2.drawLine({ start: { x: x1, y: yPos }, end: { x: x2, y: yPos }, thickness: 0.5, color: rgb(0, 0, 0) });

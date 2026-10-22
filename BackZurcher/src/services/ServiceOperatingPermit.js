@@ -7,6 +7,7 @@
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 const fs   = require('fs');
 const path = require('path');
+const { sanitizePdfText } = require('../utils/pdfTextSanitizer');
 
 const TEMPLATE_PATH = path.join(__dirname, '../assets/operating_permit_template.pdf');
 const FIRMA_EMPRESA_PATH = path.join(__dirname, '../assets/firma_empresa.png');
@@ -57,7 +58,7 @@ class ServiceOperatingPermit {
       block              = '',
       subdivision        = '',
       applicationNumber  = '',
-      systemManufacturer = 'Gorman (Delta)',
+      systemManufacturer = '',
       systemModel        = '',
       septicTankGallons  = '',
       drainfieldSqFt     = '',
@@ -85,7 +86,7 @@ class ServiceOperatingPermit {
 
     const draw = (text, x, y) => {
       if (text === null || text === undefined || text === '') return;
-      page.drawText(String(text), { x, y, size: sz, font, color: BLACK });
+      page.drawText(sanitizePdfText(text), { x, y, size: sz, font, color: BLACK });
     };
 
     // El template es un AcroForm real: los checkboxes son widgets con su propia

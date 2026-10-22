@@ -2,6 +2,53 @@ const { Image, InstallationDetail, Inspection, FinalInvoice, WorkExtraItem, Main
 const { deleteFromCloudinary } = require('./cloudinaryUploader');
 const { Op } = require('sequelize');
 
+// 🧹 Borra de Cloudinary el comprobante (resultDocumentUrl/PublicId) de las inspecciones dadas.
+// Se usa SIEMPRE que se revierte/limpia el resultado de una inspección (finalStatus -> null),
+// para que el comprobante cargado por error no quede huérfano en Cloudinary ni reaparezca
+// en la UI (que lee resultDocumentUrl directamente de esas filas).
+const clearInspectionResultDocuments = async (inspections = []) => {
+  for (const insp of inspections) {
+    if (insp.resultDocumentPublicId) {
+      try {
+        await deleteFromCloudinary(insp.resultDocumentPublicId);
+        console.log(`✅ Comprobante de inspección eliminado de Cloudinary: ${insp.resultDocumentPublicId}`);
+      } catch (cloudinaryError) {
+        console.error(`❌ Error eliminando comprobante de inspección de Cloudinary: ${insp.resultDocumentPublicId}`, cloudinaryError);
+      }
+    }
+  }
+};
+
+// 🔁 Revierte CUALQUIER resultado (approved/rejected) ya cargado en la inspección final de un work,
+// borrando el comprobante y dejándola de nuevo "esperando resultado". Se reusa tanto en los rollbacks
+// normales (finalApproved/finalRejected/maintenance) como en el caso especial de WorkController donde
+// el cambio paymentReceived → (ya tenía resultado final) se clasifica como "forward" por el orden de
+// STATUS_ORDER y por lo tanto no pasa por rollbackSpecificStatus.
+const revertFinalInspectionResults = async (workId, transaction) => {
+  const finalInspectionsWithResult = await Inspection.findAll({
+    where: { workId, type: 'final', finalStatus: { [Op.in]: ['approved', 'rejected'] } },
+    transaction
+  });
+  if (finalInspectionsWithResult.length === 0) return 0;
+
+  await clearInspectionResultDocuments(finalInspectionsWithResult);
+  await Inspection.update(
+    {
+      finalStatus: null,
+      processStatus: 'final_payment_notified_to_inspector',
+      dateResultReceived: null,
+      resultDocumentUrl: null,
+      resultDocumentPublicId: null
+    },
+    {
+      where: { workId, type: 'final', finalStatus: { [Op.in]: ['approved', 'rejected'] } },
+      transaction
+    }
+  );
+  console.log(`✅ ${finalInspectionsWithResult.length} inspección(es) final(es) revertida(s) a estado pendiente para work ${workId}`);
+  return finalInspectionsWithResult.length;
+};
+
 // Orden de los estados del workflow
 const STATUS_ORDER = [
   'pending', 
@@ -460,12 +507,19 @@ const rollbackSpecificStatus = async (work, status, transaction, reason, targetS
     console.log(`✅ TODAS las inspecciones eliminadas para work ${work.idWork} - reinicio completo`);
   } else if (targetStatus === 'firstInspectionPending') {
     // ✅ Rollback a firstInspectionPending = CAMBIAR a estado pending (sin resultado)
+    const approvedInitialInspections = await Inspection.findAll({
+      where: { workId: work.idWork, type: 'initial', finalStatus: 'approved' },
+      transaction
+    });
+    await clearInspectionResultDocuments(approvedInitialInspections);
     await Inspection.update(
       { 
         finalStatus: null,  // ✅ CORRECTO - sin resultado final
         processStatus: 'initial_scheduled',  // ✅ Vuelve a estado programada
         notes: `${reason ? reason + ' - ' : ''}Estado revertido de aprobado a pendiente para re-evaluación`,
-        dateResultReceived: null  // ✅ Sin fecha de resultado
+        dateResultReceived: null,  // ✅ Sin fecha de resultado
+        resultDocumentUrl: null,
+        resultDocumentPublicId: null
       },
       { 
         where: { 
@@ -516,12 +570,19 @@ const rollbackSpecificStatus = async (work, status, transaction, reason, targetS
         console.log(`✅ TODAS las inspecciones eliminadas para work ${work.idWork} - reinicio completo`);
       } else {
         // ✅ Rollback de un paso = CAMBIAR estado de la inspección
+        const rejectedInitialInspections = await Inspection.findAll({
+          where: { workId: work.idWork, type: 'initial', finalStatus: 'rejected' },
+          transaction
+        });
+        await clearInspectionResultDocuments(rejectedInitialInspections);
         await Inspection.update(
           { 
             finalStatus: null,
             processStatus: 'initial_scheduled',
             notes: `${reason ? reason + ' - ' : ''}Estado revertido a pendiente para re-evaluación`,
-            dateResultReceived: null
+            dateResultReceived: null,
+            resultDocumentUrl: null,
+            resultDocumentPublicId: null
           },
           { 
             where: { 
@@ -549,43 +610,9 @@ const rollbackSpecificStatus = async (work, status, transaction, reason, targetS
       break;
 
     case 'finalApproved':
-      // Revertir inspección final aprobada a estado pendiente
-      await Inspection.update(
-        { 
-          finalStatus: null,
-          processStatus: 'final_payment_notified_to_inspector',
-          dateResultReceived: null
-        },
-        { 
-          where: { 
-            workId: work.idWork,
-            type: 'final',
-            finalStatus: 'approved'
-          },
-          transaction 
-        }
-      );
-      console.log(`✅ Inspección final aprobada revertida a pendiente para work ${work.idWork}`);
-      break;
-
     case 'finalRejected':
-      // Revertir inspección final rechazada a estado pendiente
-      await Inspection.update(
-        { 
-          finalStatus: null,
-          processStatus: 'final_payment_notified_to_inspector',
-          dateResultReceived: null
-        },
-        { 
-          where: { 
-            workId: work.idWork,
-            type: 'final',
-            finalStatus: 'rejected'
-          },
-          transaction 
-        }
-      );
-      console.log(`✅ Inspección final rechazada revertida a pendiente para work ${work.idWork}`);
+      // Revertir resultado de inspección final (aprobada o rechazada) a estado pendiente
+      await revertFinalInspectionResults(work.idWork, transaction);
       break;
 
     case 'invoiceFinal':
@@ -614,34 +641,8 @@ const rollbackSpecificStatus = async (work, status, transaction, reason, targetS
       // Limpiar fecha de inicio de mantenimiento
       work.maintenanceStartDate = null;
       
-      // ✅ CORREGIR: Solo revertir si existe inspección final aprobada
-      const finalInspections = await Inspection.findAll({
-        where: { 
-          workId: work.idWork,
-          type: 'final',
-          finalStatus: 'approved'
-        },
-        transaction
-      });
-      
-      if (finalInspections.length > 0) {
-        await Inspection.update(
-          { 
-            finalStatus: null,
-            processStatus: 'final_payment_notified_to_inspector',
-            dateResultReceived: null
-          },
-          { 
-            where: { 
-              workId: work.idWork,
-              type: 'final',
-              finalStatus: 'approved'
-            },
-            transaction 
-          }
-        );
-        console.log(`✅ ${finalInspections.length} inspección(es) final(es) revertida(s) a estado pendiente para work ${work.idWork}`);
-      }
+      // ✅ Revertir resultado de inspección final (aprobada o rechazada) si existe
+      await revertFinalInspectionResults(work.idWork, transaction);
       break;
 
     case 'assigned':
@@ -770,5 +771,6 @@ module.exports = {
   deleteImagesByStage,
   deleteReceiptsByWorkAndType,
   advanceToStatus,
-  logStatusChange
+  logStatusChange,
+  revertFinalInspectionResults
 };

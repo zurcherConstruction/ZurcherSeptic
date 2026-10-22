@@ -125,6 +125,51 @@ const applyCreditCardPayment = async ({
   }
 };
 
+// 🔗 Intentar vincular automáticamente un Income de tipo 'Factura Custom Invoice'
+// con el CustomInvoice pendiente que coincida por monto, y marcarlo como pagado.
+// Se limita a invoiceType 'PMP' (Pump-Out/Desagote, el flujo automático desde la
+// app móvil) porque es donde el monto suele ser suficiente para identificar sin
+// ambigüedad la factura; para otros tipos (INV, QUO, etc.) es común que haya
+// varias facturas con el mismo monto, así que esos quedan para vinculación manual
+// desde el botón "Marcar como pagado" en la lista de Custom Invoices.
+// Si hay 0 o más de 1 candidato (ambiguo), NO se vincula automáticamente.
+const tryAutoLinkCustomInvoice = async (income, transaction) => {
+  if (income.typeIncome !== 'Factura Custom Invoice' || income.customInvoiceId) {
+    return null;
+  }
+
+  const { CustomInvoice } = require('../data');
+  const amount = parseFloat(income.amount);
+  if (!amount || amount <= 0) return null;
+
+  const candidates = await CustomInvoice.findAll({
+    where: {
+      status: { [Op.notIn]: ['paid', 'void'] },
+      total: amount,
+      invoiceType: 'PMP',
+    },
+    transaction,
+  });
+
+  if (candidates.length !== 1) {
+    console.log(`ℹ️ [AUTO-LINK Custom Invoice] Income ${income.idIncome}: ${candidates.length} candidato(s) PMP por monto $${amount}. Requiere vinculación manual.`);
+    return null;
+  }
+
+  const invoice = candidates[0];
+  await invoice.update({
+    status: 'paid',
+    paidAmount: amount,
+    paidAt: income.createdAt || new Date(),
+    paymentMethod: income.paymentMethod || invoice.paymentMethod,
+  }, { transaction });
+
+  await income.update({ customInvoiceId: invoice.id }, { transaction });
+
+  console.log(`✅ [AUTO-LINK Custom Invoice] Income ${income.idIncome} vinculado automáticamente a ${invoice.invoiceNumber} y marcado como pagado.`);
+  return invoice;
+};
+
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
   let { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified, simpleWorkId } = req.body;
@@ -166,6 +211,16 @@ const createIncome = async (req, res) => {
       simpleWorkId: simpleWorkId || 'N/A',
       paymentMethod
     });
+
+    // 🔗 Si es un pago de Custom Invoice, intentar vincularlo y marcarlo pagado
+    // automáticamente (por coincidencia de monto). Si es ambiguo, queda manual.
+    if (typeIncome === 'Factura Custom Invoice') {
+      try {
+        await tryAutoLinkCustomInvoice(newIncome, transaction);
+      } catch (autoLinkError) {
+        console.error('⚠️ Error en auto-vinculación de Custom Invoice (no crítico):', autoLinkError.message);
+      }
+    }
 
     // � AUTO-APLICAR COMO PAGO A TARJETA DE CRÉDITO SI CORRESPONDE
     // Cuando el ingreso es recibido por tarjeta de crédito (ej: devoluciones),
@@ -435,6 +490,16 @@ const updateIncome = async (req, res) => {
 
     // Actualizar el ingreso
     await income.update(next, { transaction: dbTransaction });
+
+    // 🔗 Si quedó (o pasó a ser) tipo 'Factura Custom Invoice' sin vincular,
+    // intentar vinculación automática por monto (ver tryAutoLinkCustomInvoice).
+    if (next.typeIncome === 'Factura Custom Invoice' && !income.customInvoiceId) {
+      try {
+        await tryAutoLinkCustomInvoice(income, dbTransaction);
+      } catch (autoLinkError) {
+        console.error('⚠️ Error en auto-vinculación de Custom Invoice (no crítico):', autoLinkError.message);
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────
     // Sincronizar BankTransaction + balances al editar

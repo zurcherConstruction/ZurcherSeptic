@@ -111,6 +111,23 @@ export const registerInspectionResult = (inspectionId, formData) => async (dispa
   }
 };
 
+// 5b. Eliminar un resultado (aprobado/rechazado) cargado por error - deja la inspección pendiente de nuevo
+export const deleteInspectionResult = (inspectionId, workId) => async (dispatch) => {
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.delete(`/inspection/${inspectionId}/result`);
+    dispatch(upsertInspectionSuccess(response.data)); // response.data = { message, inspection }
+    if (workId) {
+      dispatch(fetchWorkById(workId));
+    }
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al eliminar el resultado de la inspección.';
+    dispatch(inspectionFailure(errorMessage));
+    throw error;
+  }
+};
+
 // Obtener Inspecciones por Work ID
 export const fetchInspectionsByWork = (workId) => async (dispatch) => {
   dispatch(inspectionRequest());

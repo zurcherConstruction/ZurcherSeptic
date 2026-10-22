@@ -39,7 +39,7 @@ const GenerateDocumentsModal = ({ idWork, work, onClose, onDocumentGenerated }) 
     ownerAddress: '', ownerCity: '', ownerZip: '',
     lot: '', block: '', subdivision: '',
     section: '', township: '', range: '', parcelNo: '',
-    applicationNumber: '', systemManufacturer: 'Gorman (delta)',
+    applicationNumber: '', systemManufacturer: '',
     systemModel: '', septicTankGallons: '', drainfieldSqFt: '',
     installationDate: '',
     drainfieldType: 'standard_subsurface',

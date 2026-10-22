@@ -42,6 +42,13 @@ router.post(
     upload.array('resultDocumentFiles', 3), // 'resultDocumentFile' es el name del input file
     InspectionController.registerInspectionResult
   );
+
+  // 5b. Eliminar un resultado (aprobado/rechazado) cargado por error - deja la inspección pendiente de nuevo
+  router.delete(
+    '/:inspectionId/result',
+    verifyToken, allowRoles(['admin', 'owner']),
+    InspectionController.deleteInspectionResult
+  );
   router.post(
     '/reinspection/:workId',
     verifyToken, allowRoles(['owner', 'admin', 'staff', 'maintenance']), upload.array('attachments', 5), InspectionController.requestReinspection

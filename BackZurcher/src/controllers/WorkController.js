@@ -37,6 +37,7 @@ const {
   advanceToStatus,
   logStatusChange,
   deleteReceiptsByWorkAndType,
+  revertFinalInspectionResults,
 } = require('../utils/statusManager');
 
 // 🔄 Helper: Reintentar queries que fallan con ECONNRESET
@@ -1634,7 +1635,20 @@ const changeWorkStatus = async (req, res) => {
       await rollbackToStatus(work, targetStatus, transaction, reason);
     } else if (isMovingForward) {
       await advanceToStatus(work, targetStatus, transaction);
+
+      // ⚠️ CASO ESPECIAL: en STATUS_ORDER, 'paymentReceived' queda posicionado DESPUÉS de
+      // 'finalApproved'/'finalRejected', por lo que pasar de uno de esos estados de vuelta a
+      // 'paymentReceived' se clasifica como "avance" y NO pasa por rollbackToStatus. Si la obra
+      // tenía un resultado de inspección final ya cargado (aprobado/rechazado), hay que revertirlo
+      // igualmente para no dejar un comprobante erróneo "huérfano" (ver statusManager.js).
+      if (
+        targetStatus === 'paymentReceived' &&
+        ['finalApproved', 'finalRejected', 'maintenance'].includes(currentStatus)
+      ) {
+        await revertFinalInspectionResults(work.idWork, transaction);
+      }
     }
+    
 
     // Actualizar el trabajo
     work.status = targetStatus;
@@ -2763,7 +2777,7 @@ const getDocumentPreviewData = async (req, res) => {
           range:              sp.range              || p?.range || '',
           parcelNo:           sp.parcelNo           || p?.parcelNo || '',
           applicationNumber:  sp.applicationNumber  || p?.applicationNo || p?.permitNumber || '',
-          systemManufacturer: sp.systemManufacturer || 'Gorman (delta)',
+          systemManufacturer: sp.systemManufacturer || '',
           systemModel:        sp.systemModel        || sc.systemModel    || p?.systemType || '',
           septicTankGallons:  sp.septicTankGallons  || p?.gpdCapacity || '',
           drainfieldSqFt:     sp.drainfieldSqFt     || p?.squareFeetSystem || '',
@@ -2880,7 +2894,7 @@ const generateOperatingPermit = async (req, res) => {
       range:              b.range              || p?.range || '',
       parcelNo:           b.parcelNo           || p?.parcelNo || '',
       applicationNumber:  b.applicationNumber  || p?.applicationNo || p?.permitNumber || '',
-      systemManufacturer: b.systemManufacturer || 'Gorman (delta)',
+      systemManufacturer: b.systemManufacturer || '',
       systemModel:        b.systemModel        || p?.systemType || '',
       septicTankGallons:  b.septicTankGallons  || p?.gpdCapacity || '',
       drainfieldSqFt:     b.drainfieldSqFt     || p?.squareFeetSystem || '',
