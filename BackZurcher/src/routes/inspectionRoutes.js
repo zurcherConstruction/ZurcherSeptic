@@ -46,7 +46,7 @@ router.post(
   // 5b. Eliminar un resultado (aprobado/rechazado) cargado por error - deja la inspección pendiente de nuevo
   router.delete(
     '/:inspectionId/result',
-    verifyToken, allowRoles(['admin', 'owner']),
+    verifyToken, allowRoles(['owner']),
     InspectionController.deleteInspectionResult
   );
   router.post(

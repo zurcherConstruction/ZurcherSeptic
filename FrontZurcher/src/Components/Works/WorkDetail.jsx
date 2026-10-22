@@ -2530,7 +2530,7 @@ const handleUploadInstalledImage = async () => {
                                       Ver Comprobante
                                     </button>
                                   )}
-                                  {['owner', 'admin'].includes(userRole) && (
+                                  {userRole === 'owner' && (
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteInspectionResult(insp.idInspection)}
@@ -2594,7 +2594,7 @@ const handleUploadInstalledImage = async () => {
                                       Ver Comprobante
                                     </button>
                                   )}
-                                  {['owner', 'admin'].includes(userRole) && (
+                                  {['owner'].includes(userRole) && (
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteInspectionResult(insp.idInspection)}
@@ -2848,7 +2848,7 @@ const handleUploadInstalledImage = async () => {
                                   />
                                 </div>
                               )}
-                              {['owner', 'admin'].includes(userRole) && (
+                              {userRole === 'owner' && (
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteInspectionResult(insp.idInspection)}
@@ -2909,7 +2909,7 @@ const handleUploadInstalledImage = async () => {
                                   />
                                 </div>
                               )}
-                              {['owner', 'admin'].includes(userRole) && (
+                              {userRole === 'owner' && (
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteInspectionResult(insp.idInspection)}

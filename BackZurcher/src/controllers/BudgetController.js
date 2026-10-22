@@ -45,26 +45,16 @@ function getPublicPdfUrl(localPath, req) {
 }
 
 function buildBudgetActionDateExpression(statusFilter) {
-  const normalizedStatus = statusFilter && statusFilter !== 'all' ? statusFilter : null;
-
-  if (normalizedStatus === 'draft' || normalizedStatus === 'created') {
-    return 'COALESCE("Budget"."createdAt", "Budget"."updatedAt")';
-  }
-
-  if (normalizedStatus === 'signed') {
-    return 'COALESCE("Budget"."signedAt", "Budget"."updatedAt", "Budget"."createdAt")';
-  }
-
-  if (normalizedStatus === 'approved') {
-    return 'COALESCE("Budget"."updatedAt", "Budget"."createdAt")';
-  }
-
-  if (normalizedStatus === 'en_revision' || normalizedStatus === 'en_seguimiento') {
-    return 'CASE WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."updatedAt", "Budget"."createdAt") END';
-  }
-
-  return 'CASE WHEN "Budget"."status" IN (\'draft\', \'created\') THEN COALESCE("Budget"."createdAt", "Budget"."updatedAt") WHEN "Budget"."status" IN (\'send\', \'pending_review\', \'client_approved\', \'notResponded\') THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" = \'sent_for_signature\' THEN COALESCE("Budget"."sentForReviewAt", "Budget"."updatedAt", "Budget"."createdAt") WHEN "Budget"."status" IN (\'signed\', \'approved\', \'rejected\') THEN COALESCE("Budget"."updatedAt", "Budget"."createdAt") ELSE COALESCE("Budget"."date"::date, "Budget"."updatedAt", "Budget"."createdAt") END';
+  // ✅ Se filtra SIEMPRE por "Budget"."date" (la fecha que se muestra en la columna
+  // "Fecha" de Gestión de Presupuestos / BudgetList), sin importar el status.
+  // Antes se usaba una fecha "real de la acción" distinta según el status
+  // (createdAt/updatedAt/sentForReviewAt) que NO coincidía con la fecha mostrada
+  // en pantalla — esto hacía que el filtro por mes/año devolviera un total correcto
+  // según esa fecha interna, pero mostrara filas cuyo campo "Fecha" visible
+  // pertenecía a otro mes, dando la falsa impresión de que el filtro no funcionaba.
+  return '"Budget"."date"::date';
 }
+
 
 function applyBudgetRealDateFilters(whereClause, statusFilter, month, year) {
   const actionDateExpression = buildBudgetActionDateExpression(statusFilter);
