@@ -59,7 +59,10 @@ function buildBudgetActionDateExpression(statusFilter) {
 function applyBudgetRealDateFilters(whereClause, statusFilter, month, year) {
   const actionDateExpression = buildBudgetActionDateExpression(statusFilter);
 
-  if (month && month !== 'all') {
+  const hasMonth = month && month !== 'all';
+  const hasYear = year && year !== 'all';
+
+  if (hasMonth) {
     const monthNum = parseInt(month, 10);
     if (!Number.isNaN(monthNum) && monthNum >= 0 && monthNum <= 11) {
       const monthCondition = literal(`EXTRACT(MONTH FROM ${actionDateExpression}) = ${monthNum + 1}`);
@@ -68,13 +71,20 @@ function applyBudgetRealDateFilters(whereClause, statusFilter, month, year) {
     }
   }
 
-  if (year && year !== 'all') {
+  if (hasYear) {
     const yearNum = parseInt(year, 10);
     if (!Number.isNaN(yearNum) && yearNum > 2020 && yearNum <= new Date().getFullYear() + 1) {
       const yearCondition = literal(`EXTRACT(YEAR FROM ${actionDateExpression}) = ${yearNum}`);
       whereClause[Op.and] = whereClause[Op.and] || [];
       whereClause[Op.and].push(yearCondition);
     }
+  } else if (hasMonth) {
+    // ✅ Si se eligió un mes pero no un año específico, asumimos el año actual
+    // (en vez de traer ese mes combinando todos los años, lo que inflaba el total).
+    const currentYear = new Date().getFullYear();
+    const yearCondition = literal(`EXTRACT(YEAR FROM ${actionDateExpression}) = ${currentYear}`);
+    whereClause[Op.and] = whereClause[Op.and] || [];
+    whereClause[Op.and].push(yearCondition);
   }
 }
 
