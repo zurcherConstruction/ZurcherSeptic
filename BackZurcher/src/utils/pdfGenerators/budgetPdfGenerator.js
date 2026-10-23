@@ -373,8 +373,14 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   // ======================================================================
 
   // ✅ 1. MOSTRAR EL ITEM PRINCIPAL CON EL PRECIO TOTAL
-  const mainItemName = "SEPTIC SYSTEM INSTALLATION";
-  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
+  // Permite override por presupuesto (budgetData.mainItemName / mainItemDescription);
+  // si no se personalizó, usa el texto por defecto.
+  const mainItemName = (budgetData.mainItemName && budgetData.mainItemName.trim())
+    ? budgetData.mainItemName.trim()
+    : "SEPTIC SYSTEM INSTALLATION";
+  const mainItemDesc = (budgetData.mainItemDescription && budgetData.mainItemDescription.trim())
+    ? budgetData.mainItemDescription.trim()
+    : "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
   const mainItemQty = 1;
   const mainItemRate = parseFloat(totalPrice);
 

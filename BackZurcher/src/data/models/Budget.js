@@ -127,6 +127,18 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
   },
+  // 🆕 Nombre/descripción del item principal del PDF (override por presupuesto).
+  // Si es null, el PDF usa el texto por defecto ("SEPTIC SYSTEM INSTALLATION" / "COMPLETE INSTALLATION...").
+  mainItemName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: null,
+  },
+  mainItemDescription: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null,
+  },
   customTerms: {
     type: DataTypes.JSONB,
     allowNull: true,

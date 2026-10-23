@@ -370,7 +370,9 @@ const BudgetController = {
         externalReferralName, externalReferralEmail, externalReferralPhone, // 🆕 Campos de referido externo
         externalReferralCompany, customCommissionAmount, // 🆕 Empresa y comisión personalizada
         customTerms, // T&C personalizados por presupuesto
-        deferredPayment // Cobro diferido: crear obra sin esperar pago inicial
+        deferredPayment, // Cobro diferido: crear obra sin esperar pago inicial
+        mainItemName, // 🆕 Override por presupuesto del nombre del item principal del PDF
+        mainItemDescription // 🆕 Override por presupuesto de la descripción del item principal del PDF
       } = req.body;
 
       if (!permitId) throw new Error('permitId es requerido.');
@@ -504,6 +506,8 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         commissionPaid: false,
         customTerms: Array.isArray(customTerms) && customTerms.length > 0 ? customTerms : null,
         deferredPayment: deferredPayment === true || deferredPayment === 'true',
+        mainItemName: mainItemName && mainItemName.trim() ? mainItemName.trim() : null,
+        mainItemDescription: mainItemDescription && mainItemDescription.trim() ? mainItemDescription.trim() : null,
       }, { transaction });
       newBudgetId = newBudget.idBudget;
       console.log(`Budget base creado con ID: ${newBudgetId}. Estado: ${status}`);
@@ -562,7 +566,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               'initialPayment', 'status', 'paymentInvoice', 'paymentProofType',
               'discountDescription', 'discountAmount', 'subtotalPrice', 'totalPrice',
               'generalNotes', 'pdfPath', 'PermitIdPermit', 'createdAt', 'updatedAt',
-              'initialPaymentPercentage', 'customTerms'
+              'initialPaymentPercentage', 'customTerms', 'mainItemName', 'mainItemDescription'
             ],
             include: [
               { 
@@ -2594,11 +2598,13 @@ async optionalDocs(req, res) {
         externalReferralCompany,
         salesCommissionAmount,
         customTerms,
-        deferredPayment
+        deferredPayment,
+        mainItemName, // 🆕 Override por presupuesto del nombre del item principal del PDF
+        mainItemDescription // 🆕 Override por presupuesto de la descripción del item principal del PDF
       } = req.body;
 
       // --- 3. Validaciones Preliminares ---
-      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || applicantEmail || applicantPhone || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentageInput !== undefined || customTerms !== undefined || deferredPayment !== undefined;
+      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || applicantEmail || applicantPhone || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentageInput !== undefined || customTerms !== undefined || deferredPayment !== undefined || mainItemName !== undefined || mainItemDescription !== undefined;
       const hasLineItemUpdates = lineItems && Array.isArray(lineItems);
 
       if (!hasGeneralUpdates && !hasLineItemUpdates) {
@@ -2637,6 +2643,12 @@ async optionalDocs(req, res) {
       }
       if (deferredPayment !== undefined) {
         generalUpdateData.deferredPayment = deferredPayment === true || deferredPayment === 'true';
+      }
+      if (mainItemName !== undefined) {
+        generalUpdateData.mainItemName = mainItemName && mainItemName.trim() ? mainItemName.trim() : null;
+      }
+      if (mainItemDescription !== undefined) {
+        generalUpdateData.mainItemDescription = mainItemDescription && mainItemDescription.trim() ? mainItemDescription.trim() : null;
       }
 
       // 🆕 Actualizar campos de comisiones

@@ -234,6 +234,8 @@ const CreateBudget = () => {
     discountDescription: "",
     discountAmount: "", // Cambiar de 0 a string vacío
     generalNotes: "",
+    mainItemName: "", // 🆕 Override opcional del item principal del PDF (vacío = usar texto por defecto)
+    mainItemDescription: "", // 🆕 Override opcional de la descripción del item principal del PDF
     customTerms: null,
     lineItems: [],
     subtotalPrice: 0,
@@ -1125,6 +1127,8 @@ const customCategoryOrder = [
         discountDescription: formData.discountDescription,
         discountAmount: parseFloat(formData.discountAmount) || 0,
         generalNotes: formData.generalNotes,
+        mainItemName: formData.mainItemName?.trim() || null,
+        mainItemDescription: formData.mainItemDescription?.trim() || null,
         customTerms: formData.customTerms || null,
         deferredPayment: String(formData.initialPaymentPercentage) === '0' ? false : !!formData.deferredPayment,
         initialPaymentPercentage: formData.initialPaymentPercentage,
@@ -1963,6 +1967,22 @@ const customCategoryOrder = [
             <div className="pt-4">
               <label htmlFor="general_notes" className="block text-sm font-medium text-gray-700 mb-2">Notas Generales</label>
               <textarea id="general_notes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="4" className={`${standardInputClasses} w-full`}></textarea>
+            </div>
+
+            {/* --- Item Principal del PDF (editable por presupuesto) --- */}
+            <div className="pt-4 border-t border-gray-200 mt-4">
+              <p className="text-sm font-medium text-gray-700 mb-1">Item Principal del PDF (opcional)</p>
+              <p className="text-xs text-gray-500 mb-2">Dejá estos campos vacíos para usar el texto por defecto ("SEPTIC SYSTEM INSTALLATION"). Si completás algo, solo aplica a este presupuesto.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="mainItemName" className="block text-xs font-medium text-gray-600 mb-1">Nombre del item</label>
+                  <input type="text" id="mainItemName" name="mainItemName" value={formData.mainItemName} onChange={handleGeneralInputChange} placeholder="SEPTIC SYSTEM INSTALLATION" className={`${standardInputClasses} w-full`} />
+                </div>
+                <div>
+                  <label htmlFor="mainItemDescription" className="block text-xs font-medium text-gray-600 mb-1">Descripción del item</label>
+                  <input type="text" id="mainItemDescription" name="mainItemDescription" value={formData.mainItemDescription} onChange={handleGeneralInputChange} placeholder="COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)" className={`${standardInputClasses} w-full`} />
+                </div>
+              </div>
             </div>
 
             {/* --- Términos y Condiciones --- */}
