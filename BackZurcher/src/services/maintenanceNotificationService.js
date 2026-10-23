@@ -33,16 +33,35 @@ async function getClientEmail(visit) {
   return { email: email.trim(), name, address: work.propertyAddress };
 }
 
-function buildEmailHtml({ name, address, visitNumber, scheduledDate, attempt, confirmUrl, rejectUrl, rescheduleUrl }) {
-  const attemptLabels = ['primer', 'segundo', 'tercer'];
-  const attemptLabel = attemptLabels[attempt - 1] || 'siguiente';
-  const formattedDate = new Date(scheduledDate + 'T12:00:00').toLocaleDateString('es-US', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-  });
+// 🆕 Calcula el rango de la semana SIGUIENTE a la fecha actual (lunes a viernes),
+// sin importar cuál sea la fecha real programada de la visita. Esto evita mostrar
+// una fecha exacta al cliente y también evita mostrar una fecha vencida/errónea
+// cuando la visita ya pasó su fecha original.
+function getNextWeekRange(fromDate = new Date()) {
+  const base = new Date(fromDate);
+  base.setHours(0, 0, 0, 0);
+  const dayOfWeek = base.getDay(); // 0=Sun..6=Sat
+  const diffToMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek; // siempre cae en la semana siguiente
+  const monday = new Date(base);
+  monday.setDate(base.getDate() + diffToMonday);
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+  return { start: monday, end: friday };
+}
+
+function formatWeekRange(start, end) {
+  const startStr = start.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  const endStr = end.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return `${startStr} - ${endStr}`;
+}
+
+function buildEmailHtml({ name, address, visitNumber, weekRangeText, attempt, confirmUrl, rejectUrl, rescheduleUrl }) {
+  const attemptLabels = ['first', 'second', 'third'];
+  const attemptLabel = attemptLabels[attempt - 1] || 'next';
 
   return `
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:30px 0;">
@@ -52,45 +71,45 @@ function buildEmailHtml({ name, address, visitNumber, scheduledDate, attempt, co
         <tr>
           <td style="background:#1e3a8a;padding:28px 40px;text-align:center;">
             <img src="https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751206826/logo_zlxdhw.png" alt="Zurcher Septic" style="height:52px;margin-bottom:10px;" />
-            <p style="color:#93c5fd;margin:0;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Mantenimiento de Sistema Séptico</p>
+            <p style="color:#93c5fd;margin:0;font-size:13px;letter-spacing:1px;text-transform:uppercase;">Septic System Maintenance</p>
           </td>
         </tr>
         <!-- Body -->
         <tr>
           <td style="padding:36px 40px;">
-            <h2 style="color:#1e293b;margin:0 0 8px;">Hola, ${name}</h2>
+            <h2 style="color:#1e293b;margin:0 0 8px;">Hello, ${name}</h2>
             <p style="color:#475569;font-size:15px;line-height:1.6;margin:0 0 20px;">
-              Le enviamos este ${attemptLabel} aviso para recordarle que su visita de mantenimiento <strong>#${visitNumber}</strong> está programada para:
+              This is your ${attemptLabel} reminder that we will be stopping by to perform your maintenance visit <strong>#${visitNumber}</strong> during the week of:
             </p>
             <div style="background:#eff6ff;border-left:4px solid #1e3a8a;border-radius:6px;padding:16px 20px;margin:0 0 24px;">
-              <p style="margin:0;font-size:16px;font-weight:700;color:#1e3a8a;">${formattedDate}</p>
+              <p style="margin:0;font-size:16px;font-weight:700;color:#1e3a8a;">${weekRangeText}</p>
               <p style="margin:6px 0 0;font-size:13px;color:#475569;">📍 ${address}</p>
             </div>
             <p style="color:#475569;font-size:14px;margin:0 0 28px;">
-              Por favor, confirme su disponibilidad usando uno de los botones a continuación:
+              Please confirm your availability using one of the buttons below:
             </p>
             <!-- Buttons -->
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td align="center" style="padding:0 4px 12px;">
                   <a href="${confirmUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:15px;font-weight:700;width:160px;text-align:center;">
-                    ✅ Confirmar
+                    ✅ Confirm
                   </a>
                 </td>
                 <td align="center" style="padding:0 4px 12px;">
                   <a href="${rejectUrl}" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:15px;font-weight:700;width:160px;text-align:center;">
-                    ❌ Rechazar
+                    ❌ Decline
                   </a>
                 </td>
                 <td align="center" style="padding:0 4px 12px;">
                   <a href="${rescheduleUrl}" style="display:inline-block;background:#d97706;color:#ffffff;text-decoration:none;padding:13px 28px;border-radius:8px;font-size:15px;font-weight:700;width:160px;text-align:center;">
-                    📅 Reprogramar
+                    📅 Reschedule
                   </a>
                 </td>
               </tr>
             </table>
             <p style="color:#94a3b8;font-size:12px;margin:20px 0 0;line-height:1.5;">
-              Si tiene alguna pregunta, puede responder a este email o contactarnos al
+              If you have any questions, you can reply to this email or contact us at
               <a href="mailto:admin@zurcherseptic.com" style="color:#1e3a8a;">admin@zurcherseptic.com</a>.
             </p>
           </td>
@@ -124,11 +143,17 @@ async function sendMaintenanceNotification(visit) {
   const rejectUrl     = `${FRONTEND_URL}/maintenance-reject/${token}`;
   const rescheduleUrl = `${FRONTEND_URL}/maintenance-reschedule?token=${token}`;
 
+  // 🆕 Mostrar siempre la semana SIGUIENTE a hoy (no la fecha exacta programada),
+  // así evitamos dar una fecha exacta y evitamos mostrar una fecha vencida/errónea
+  // cuando la visita ya pasó su fecha original.
+  const { start, end } = getNextWeekRange();
+  const weekRangeText = formatWeekRange(start, end);
+
   const html = buildEmailHtml({
     name: clientInfo.name,
     address: clientInfo.address,
     visitNumber: visit.visitNumber,
-    scheduledDate: visit.scheduledDate,
+    weekRangeText,
     attempt,
     confirmUrl,
     rejectUrl,
@@ -138,7 +163,7 @@ async function sendMaintenanceNotification(visit) {
   await sendEmail({
     to: clientInfo.email,
     replyTo: 'admin@zurcherseptic.com',
-    subject: `[Aviso #${attempt}] Visita de Mantenimiento Séptico — ${new Date(visit.scheduledDate + 'T12:00:00').toLocaleDateString('es-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+    subject: `[Notice #${attempt}] Septic Maintenance Visit — Week of ${weekRangeText}`,
     html,
   });
 
