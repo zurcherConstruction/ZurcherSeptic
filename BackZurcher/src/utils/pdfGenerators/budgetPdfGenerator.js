@@ -374,7 +374,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   // ✅ 1. MOSTRAR EL ITEM PRINCIPAL CON EL PRECIO TOTAL
   const mainItemName = "SEPTIC SYSTEM INSTALLATION";
-  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (ONLY LABOR)";
+  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
   const mainItemQty = 1;
   const mainItemRate = parseFloat(totalPrice);
 
