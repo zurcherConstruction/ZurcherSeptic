@@ -314,6 +314,8 @@ const editableBudgets = useMemo(() => {
           discountDescription: currentBudget.discountDescription || "",
           discountAmount: parseFloat(currentBudget.discountAmount) || 0,
           generalNotes: currentBudget.generalNotes || "",
+          mainItemName: currentBudget.mainItemName || "", // 🆕 Override opcional del item principal del PDF
+          mainItemDescription: currentBudget.mainItemDescription || "", // 🆕 Override opcional de la descripción
           customTerms: currentBudget.customTerms || null,
           deferredPayment: !!currentBudget.deferredPayment,
           initialPaymentPercentage: (currentBudget.initialPaymentPercentage != null)
@@ -685,6 +687,8 @@ const editableBudgets = useMemo(() => {
       discountDescription: formData.discountDescription,
       discountAmount: parseFloat(formData.discountAmount) || 0,
       generalNotes: formData.generalNotes,
+      mainItemName: formData.mainItemName?.trim() || null,
+      mainItemDescription: formData.mainItemDescription?.trim() || null,
       customTerms: formData.customTerms || null,
       deferredPayment: String(formData.initialPaymentPercentage) === '0' ? false : !!formData.deferredPayment,
       initialPaymentPercentage: (() => { const p = parseFloat(formData.initialPaymentPercentage); return isNaN(p) ? 60 : p; })(),
@@ -1490,6 +1494,22 @@ const editableBudgets = useMemo(() => {
                 <div className="mt-4">
                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales del Presupuesto</label>
                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1" placeholder="Notas generales que aplican a todo el presupuesto..."></textarea>
+                </div>
+
+                {/* --- Item Principal del PDF (editable por presupuesto) --- */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Item Principal del PDF (opcional)</p>
+                  <p className="text-xs text-gray-500 mb-2">Dejá estos campos vacíos para usar el texto por defecto ("SEPTIC SYSTEM INSTALLATION"). Si completás algo, solo aplica a este presupuesto.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="mainItemName" className="block text-xs font-medium text-gray-600 mb-1">Nombre del item</label>
+                      <input type="text" id="mainItemName" name="mainItemName" value={formData.mainItemName} onChange={handleGeneralInputChange} placeholder="SEPTIC SYSTEM INSTALLATION" className="input-style" disabled={isBudgetLocked} />
+                    </div>
+                    <div>
+                      <label htmlFor="mainItemDescription" className="block text-xs font-medium text-gray-600 mb-1">Descripción del item</label>
+                      <input type="text" id="mainItemDescription" name="mainItemDescription" value={formData.mainItemDescription} onChange={handleGeneralInputChange} placeholder="COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)" className="input-style" disabled={isBudgetLocked} />
+                    </div>
+                  </div>
                 </div>
 
                 {/* --- Términos y Condiciones --- */}
