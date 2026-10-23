@@ -3521,9 +3521,14 @@ async optionalDocs(req, res) {
       // Guardar URL, TIPO y MONTO DEL COMPROBANTE
       budget.paymentInvoice = uploadResult.secure_url;
       budget.paymentProofType = proofType;
-      if (parsedUploadedAmount !== null) {
-        budget.paymentProofAmount = parsedUploadedAmount;
-        console.log(`Budget #${budget.idBudget}: Comprobante guardado - Monto: $${parsedUploadedAmount}`);
+      // ✅ Si no se especificó un monto, usar initialPayment como fallback (igual que se hace
+      // más abajo para crear el Work/Income) — de lo contrario paymentProofAmount queda null
+      // y el presupuesto nunca pasa de 'signed' a 'approved', aunque el Work ya tenga el pago
+      // registrado (bug detectado: presupuestos "Firmados Sin Pago" con obra ya cobrada).
+      const amountToStoreOnBudget = parsedUploadedAmount !== null ? parsedUploadedAmount : parseFloat(budget.initialPayment) || null;
+      if (amountToStoreOnBudget !== null) {
+        budget.paymentProofAmount = amountToStoreOnBudget;
+        console.log(`Budget #${budget.idBudget}: Comprobante guardado - Monto: $${amountToStoreOnBudget}`);
       }
       // 🆕 GUARDAR MÉTODO DE PAGO
       if (paymentMethod) {
