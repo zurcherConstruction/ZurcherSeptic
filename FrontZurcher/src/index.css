@@ -143,3 +143,23 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(96, 165, 250, 0.5) rgba(255, 255, 255, 0.05);
 }
+
+/* 🤖 Zurcher AI: con el panel abierto en pantallas grandes, el contenido se corre en vez de quedar tapado */
+#app-main {
+  transition: padding-right 300ms ease-out;
+}
+@media (min-width: 1024px) {
+  html.ai-panel-open #app-main {
+    padding-right: 420px;
+  }
+}
+@media (min-width: 1280px) {
+  html.ai-panel-open #app-main {
+    padding-right: 460px;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}

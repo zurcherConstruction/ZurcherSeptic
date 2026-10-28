@@ -765,12 +765,14 @@ const AccountsReceivable = () => {
                   Final Invoices Pendientes ({data.details.pendingFinalInvoices.length})
                 </h2>
                 <div className="text-right">
-                  <p className="text-sm text-gray-600">Total por Cobrar:</p>
+                  <p className="text-sm text-gray-600">Total por Cobrar (saldo real):</p>
                   <p className="text-2xl font-bold text-red-600">
                     {formatCurrency(
                       data.details.pendingFinalInvoices.reduce(
                         (sum, invoice) => {
-                          const amount = parseFloat(invoice.finalAmountDue || 0);
+                          const amount = invoice.remainingAmount !== undefined
+                            ? parseFloat(invoice.remainingAmount || 0)
+                            : parseFloat(invoice.finalAmountDue || 0);
                           return sum + Math.abs(amount); // Usar valor absoluto para evitar negativos
                         },
                         0
@@ -794,6 +796,12 @@ const AccountsReceivable = () => {
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Monto Total
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Pagado
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Resto por Cobrar
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Extras
@@ -827,8 +835,18 @@ const AccountsReceivable = () => {
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {invoice.clientName}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-700">
                           {formatCurrency(invoice.finalAmountDue)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-700">
+                          {formatCurrency(invoice.totalAmountPaid || 0)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">
+                          {formatCurrency(
+                            invoice.remainingAmount !== undefined
+                              ? invoice.remainingAmount
+                              : invoice.finalAmountDue
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                           {formatCurrency(invoice.subtotalExtras)}
@@ -840,7 +858,7 @@ const AccountsReceivable = () => {
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                             invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'
                           }`}>
-                            {invoice.status}
+                            {invoice.status === 'partially_paid' ? 'Parcial' : invoice.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

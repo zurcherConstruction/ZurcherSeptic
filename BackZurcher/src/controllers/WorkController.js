@@ -1594,7 +1594,8 @@ const changeWorkStatus = async (req, res) => {
         { model: InstallationDetail, as: 'installationDetails' },
         { model: Image, as: 'images' },
         { model: FinalInvoice, as: 'finalInvoice' },
-        { model: MaintenanceVisit, as: 'maintenanceVisits' }
+        { model: MaintenanceVisit, as: 'maintenanceVisits' },
+        { model: Permit, attributes: ['idPermit', 'systemType'] }
       ],
       transaction
     });
@@ -1613,6 +1614,21 @@ const changeWorkStatus = async (req, res) => {
         error: true, 
         message: `La obra ya está en estado '${targetStatus}'` 
       });
+    }
+
+    // 🛡️ Bloquear el pase manual a 'maintenance' si el sistema NO es ATU.
+    // Solo los sistemas ATU requieren visitas de mantenimiento; un sistema REGULAR
+    // nunca debería terminar en este estado (ver InspectionController para el flujo automático).
+    if (targetStatus === 'maintenance') {
+      const rawSystemType = work.Permit?.systemType || work.systemType || null;
+      const isATUSystem = rawSystemType ? String(rawSystemType).toLowerCase().includes('atu') : false;
+      if (!isATUSystem) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: true,
+          message: `No se puede pasar a 'maintenance': el sistema de esta obra es "${rawSystemType || 'desconocido'}" (no ATU). Solo los sistemas ATU requieren mantenimiento.`
+        });
+      }
     }
 
     const isMovingBackward = isStatusBackward(currentStatus, targetStatus);

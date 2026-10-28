@@ -117,6 +117,7 @@ import KnowledgeBase from './Components/KnowledgeBase/KnowledgeBase'; // 🆕 Ba
 import FleetDashboard from './Components/Fleet/FleetDashboard'; // 🆕 Flota y Maquinaria
 import FleetAssetDetail from './Components/Fleet/FleetAssetDetail'; // 🆕 Detalle de activo de flota
 import AIAssistant from './Components/AIAssistant'; // 🆕 Asistente de IA
+import AIPanel from './Components/AI/AIPanel'; // 🤖 Panel lateral de Zurcher AI (Ctrl+K)
 import CustomInvoiceList from './Components/CustomInvoices/CustomInvoiceList'; // 🆕 Custom Invoices
 import CustomInvoiceBuilder from './Components/CustomInvoices/CustomInvoiceBuilder'; // 🆕 Custom Invoice Builder
 import CustomInvoicePublicView from './Components/CustomInvoices/CustomInvoicePublicView'; // 🆕 Public invoice view
@@ -202,10 +203,11 @@ function App() {
       {shouldShowLayout && <Header />}
       {shouldShowLayout && <ReminderPopup />}
       {shouldShowLayout && <FloatingMyOrders />}
+      {shouldShowLayout && ['owner', 'admin'].includes(currentStaff?.role) && location.pathname !== '/ai-assistant' && <AIPanel />}
       <LoadingSpinner />
       <div className={`flex ${shouldShowLayout ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
         {shouldShowLayout && <BarraLateral />}
-        <div className="flex-1 w-full overflow-x-hidden">
+        <div id="app-main" className="flex-1 w-full overflow-x-hidden">
           <div className={`w-full max-w-none ${shouldShowLayout ? "px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-6" : ""}`}>
             <Routes>
               {/* Rutas públicas */}
@@ -878,7 +880,7 @@ function App() {
               <Route
                 path="/ai-assistant"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "owner", "finance", "finance-viewer"]}>
+                  <PrivateRoute allowedRoles={["admin", "owner"]}>
                     <AIAssistant />
                   </PrivateRoute>
                 }

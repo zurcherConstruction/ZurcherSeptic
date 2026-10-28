@@ -484,8 +484,22 @@ const handleGeneratePdf = () => {
             )}
           </div>
 
-          <span className="text-gray-800 font-bold text-base border-t pt-1 mt-1">Monto Final Pendiente:</span>
+          <span className="text-gray-800 font-bold text-base border-t pt-1 mt-1">Monto Final Factura:</span>
           <span className="text-right font-bold text-base border-t pt-1 mt-1">${parseFloat(currentInvoice.finalAmountDue || 0).toFixed(2)}</span>
+
+          {parseFloat(currentInvoice.totalAmountPaid || 0) > 0 && (
+            <>
+              <span className="text-gray-600">Pagado:</span>
+              <span className="text-right text-green-700 font-semibold">
+                ${parseFloat(currentInvoice.totalAmountPaid || 0).toFixed(2)}
+              </span>
+            </>
+          )}
+
+          <span className="text-gray-800 font-bold">Resto Pendiente:</span>
+          <span className="text-right font-bold text-red-600">
+            ${Math.max(0, parseFloat(currentInvoice.finalAmountDue || 0) - parseFloat(currentInvoice.totalAmountPaid || 0)).toFixed(2)}
+          </span>
 
           <span className="text-gray-600 mt-2">State:</span>
           <span className={`text-right font-semibold mt-2 ${
