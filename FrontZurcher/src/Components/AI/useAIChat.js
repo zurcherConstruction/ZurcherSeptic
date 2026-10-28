@@ -1,6 +1,8 @@
 // 🤖 ZurcherAI — estado y acciones del chat (compartido por la página y el panel lateral)
 import { useState, useRef, useEffect, useCallback } from 'react';
 import api from '../../utils/axios';
+import { store } from '../../Redux/Store/Store';
+import { logout } from '../../Redux/Reducer/authReducer';
 import { SpeechRecognitionAPI, speak, stopSpeaking } from '../../utils/aiAnswerTools';
 
 export default function useAIChat({ enabled = true, initialConversationId = null } = {}) {
@@ -99,34 +101,118 @@ export default function useAIChat({ enabled = true, initialConversationId = null
     }
   };
 
-  // --- Envío ---
+  // --- Envío (respuesta en vivo por Server-Sent Events) ---
 
-  const sendMessage = async (question) => {
+  // Actualiza la respuesta que se está escribiendo (siempre el último mensaje)
+  const updateDraft = (fn) => setMessages(prev => {
+    const last = prev[prev.length - 1];
+    return last?.streaming ? [...prev.slice(0, -1), { ...last, ...fn(last) }] : prev;
+  });
+
+  // context: registro que el usuario tiene abierto ({ entity, id }), opcional
+  const sendMessage = async (question, { context } = {}) => {
     const q = (question || input).trim();
     if (!q || loading) return;
     if (listening) recognitionRef.current?.stop();
 
-    setMessages(prev => [...prev, { role: 'user', content: q }]);
+    setMessages(prev => [
+      ...prev,
+      { role: 'user', content: q },
+      { role: 'assistant', content: '', streaming: true, status: '🤔 Pensando…' },
+    ]);
     setInput('');
     setLoading(true);
     setError(null);
 
-    try {
-      const { data } = await api.post('/ai/chat', { question: q, conversationId: activeId });
-      setMessages(prev => [...prev, { role: 'assistant', content: data.answer }]);
-      if (!activeId) {
-        setActiveId(data.conversationId);
-        setConversations(prev => [{ id: data.conversationId, title: data.title, lastMessageAt: new Date().toISOString() }, ...prev]);
-      } else {
-        setConversations(prev => {
-          const current = prev.find(c => c.id === activeId);
-          return current ? [current, ...prev.filter(c => c.id !== activeId)] : prev;
-        });
+    const startConversationId = activeId;
+    let finished = false;
+    let createdConversationId = null;
+    let serverError = false;
+
+    const handleEvent = (event, data) => {
+      switch (event) {
+        case 'meta':
+          if (!startConversationId) {
+            createdConversationId = data.conversationId;
+            setActiveId(data.conversationId);
+            setConversations(prev => [{ id: data.conversationId, title: data.title, lastMessageAt: new Date().toISOString() }, ...prev]);
+          } else {
+            setConversations(prev => {
+              const current = prev.find(c => c.id === startConversationId);
+              return current ? [current, ...prev.filter(c => c.id !== startConversationId)] : prev;
+            });
+          }
+          break;
+        case 'status':
+          updateDraft(() => ({ status: data.label }));
+          break;
+        case 'delta':
+          updateDraft(last => ({ content: last.content + data.text, status: null }));
+          break;
+        case 'reset':
+          updateDraft(() => ({ content: '' }));
+          break;
+        case 'done':
+          finished = true;
+          updateDraft(() => ({ content: data.answer, streaming: false, status: null }));
+          break;
+        case 'error':
+          serverError = true;
+          throw new Error(data.error || 'Error del servicio de IA');
+        default:
       }
+    };
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(new URL('ai/chat', api.defaults.baseURL), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          question: q,
+          conversationId: startConversationId,
+          stream: true,
+          context: context ? { entity: context.entity, id: context.id } : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) store.dispatch(logout());
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || 'Error de conexión con el servicio de IA. Intenta de nuevo.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let separator;
+        while ((separator = buffer.indexOf('\n\n')) !== -1) {
+          const raw = buffer.slice(0, separator);
+          buffer = buffer.slice(separator + 2);
+          let event = 'message';
+          let data = '';
+          for (const line of raw.split('\n')) {
+            if (line.startsWith('event: ')) event = line.slice(7).trim();
+            else if (line.startsWith('data: ')) data += line.slice(6);
+          }
+          if (data) handleEvent(event, JSON.parse(data));
+        }
+      }
+      if (!finished) throw new Error('La conexión se cortó antes de terminar la respuesta. Vuelve a abrir la conversación en unos segundos.');
     } catch (err) {
-      setError(err.response?.data?.error || 'Error de conexión con el servicio de IA. Intenta de nuevo.');
-      setMessages(prev => prev.slice(0, -1));
+      setError(err.message || 'Error de conexión con el servicio de IA. Intenta de nuevo.');
+      // Se quita la pregunta y la respuesta incompleta; la pregunta vuelve a la caja para reintentar
+      setMessages(prev => (prev[prev.length - 1]?.streaming ? prev.slice(0, -2) : prev));
       setInput(q);
+      // Si falló la primera pregunta, el servidor borra la conversación nueva
+      if (serverError && createdConversationId) {
+        setConversations(prev => prev.filter(c => c.id !== createdConversationId));
+        setActiveId(null);
+      }
     } finally {
       setLoading(false);
       focusInput(100);

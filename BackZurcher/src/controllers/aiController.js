@@ -11,6 +11,10 @@ const MODEL = process.env.AI_MODEL || 'claude-opus-5-5';
 const MAX_ITERATIONS = 10;
 const MAX_TOOL_RESULT_CHARS = 100000;
 
+// Nivel de detalle de los logs: "full" (pregunta + parámetros de cada herramienta) o
+// "reduced" (solo usuario, herramientas usadas y duración). Por defecto reducido en producción.
+const LOG_FULL = (process.env.AI_LOG_DETAIL || (process.env.NODE_ENV === 'production' ? 'reduced' : 'full')) === 'full';
+
 // Evita dos preguntas simultáneas en la misma conversación (el historial quedaría intercalado)
 const busyConversations = new Set();
 
@@ -68,10 +72,11 @@ function textOf(content) {
   return (content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
 }
 
-async function runToolCalls(role, staffEmail, content) {
+async function runToolCalls(role, staffEmail, content, usedTools) {
   const calls = content.filter(b => b.type === 'tool_use');
   return Promise.all(calls.map(async block => {
-    console.log(`  🔧 [AI] ${staffEmail} → ${block.name}`, JSON.stringify(block.input).slice(0, 200));
+    usedTools.push(block.name);
+    if (LOG_FULL) console.log(`  🔧 [AI] ${staffEmail} → ${block.name}`, JSON.stringify(block.input).slice(0, 200));
     try {
       const result = await executeTool(role, block.name, block.input, { toolUseId: block.id });
       if (result?.contentBlocks) {
@@ -164,8 +169,64 @@ const deleteConversation = async (req, res) => {
 // Chat
 // ---------------------------------------------------------------------------
 
+// Etiquetas en español para mostrar en vivo qué está consultando la IA
+const ENTITY_LABELS = {
+  Work: 'obras', Permit: 'permisos', Budget: 'presupuestos', BudgetLineItem: 'ítems de presupuestos', Inspection: 'inspecciones',
+  FinalInvoice: 'invoices finales', CustomInvoice: 'custom invoices', ChangeOrder: 'change orders', MaintenanceVisit: 'visitas de mantenimiento',
+  SimpleWork: 'simple works', SalesLead: 'leads', Claim: 'reclamos', Income: 'ingresos', Expense: 'gastos', FixedExpense: 'gastos fijos',
+  FixedExpensePayment: 'pagos de gastos fijos', SupplierInvoice: 'facturas de proveedores', BankAccount: 'cuentas bancarias',
+  BankTransaction: 'movimientos bancarios', Receipt: 'comprobantes', Image: 'fotos de obras', WorkNote: 'notas de obras',
+  Staff: 'empleados', FleetAsset: 'flota', FleetMaintenance: 'mantenimiento de flota', Reminder: 'tareas', Material: 'materiales',
+  MaterialSet: 'compras de materiales', InstallationDetail: 'detalles de instalación', WorkExtraItem: 'ítems extra de invoices',
+  WorkStateHistory: 'historial de estados', SupplierInvoiceItem: 'ítems de facturas de proveedores', SimpleWorkPayment: 'pagos de simple works',
+  SimpleWorkExpense: 'gastos de simple works', LeadNote: 'notas de leads', BudgetNote: 'notas de presupuestos', MaintenanceMedia: 'fotos de mantenimiento',
+  KnowledgeContact: 'contactos', KnowledgeCounty: 'requisitos de condados', StaffAttendance: 'asistencia', Notification: 'notificaciones',
+};
+
+function describeToolCall(name, input = {}) {
+  const entity = ENTITY_LABELS[input.entity] || input.entity;
+  switch (name) {
+    case 'get_work_details': return `🏗️ Revisando la obra ${input.address || ''}`.trim();
+    case 'get_works_summary': return '📊 Resumiendo obras por estado';
+    case 'get_works_by_location': return '📍 Buscando obras por ubicación';
+    case 'get_installed_works': return '🔧 Revisando instalaciones';
+    case 'get_backlog': return '📋 Revisando obras pendientes';
+    case 'get_revenue_summary': return '💰 Calculando ingresos';
+    case 'get_maintenance_summary': return '🛠️ Revisando mantenimientos';
+    case 'describe_entity': return `🔎 Revisando ${entity}`;
+    case 'query_records': return `🔎 Consultando ${entity}`;
+    case 'aggregate_records': return `📊 Calculando totales de ${entity}`;
+    case 'export_to_excel': return '📥 Preparando Excel';
+    case 'read_file': return '📄 Abriendo archivo';
+    case 'search_emails': return `📧 Buscando correos${input.query ? `: ${String(input.query).slice(0, 40)}` : ''}`;
+    case 'read_email': return '📧 Leyendo correo';
+    case 'read_email_thread': return '📧 Leyendo conversación de correo';
+    case 'read_email_attachment': return `📎 Abriendo adjunto ${input.filename || ''}`.trim();
+    default: return '⚙️ Consultando el sistema';
+  }
+}
+
+function mapChatError(error) {
+  if (error instanceof Anthropic.RateLimitError) {
+    return { status: 429, body: { error: 'El servicio de IA está ocupado. Intenta de nuevo en un minuto.' } };
+  }
+  if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
+    return { status: 503, body: { error: 'AI service not configured correctly (API key)' } };
+  }
+  if (error instanceof Anthropic.APIError) {
+    return { status: 502, body: { error: 'Error del servicio de IA', details: error.message } };
+  }
+  return { status: 500, body: { error: 'Error processing AI query', details: error.message } };
+}
+
+/**
+ * POST /ai/chat  { question, conversationId?, stream? }
+ * Con stream: true responde como Server-Sent Events:
+ *   meta {conversationId,title} · status {label} · delta {text} · reset · done {conversationId,title,answer} · error {error}
+ * Sin stream responde un JSON con la respuesta completa.
+ */
 const chat = async (req, res) => {
-  const { question, conversationId } = req.body;
+  const { question, conversationId, stream: wantsStream, context: screenContext } = req.body;
 
   if (!question || typeof question !== 'string' || !question.trim()) {
     return res.status(400).json({ error: 'question is required' });
@@ -199,8 +260,31 @@ const chat = async (req, res) => {
   }
   busyConversations.add(conversation.id);
 
+  // --- Streaming (SSE) ---
+  let clientGone = false;
+  let heartbeat = null;
+  const emit = (event, data = {}) => {
+    if (!wantsStream || clientGone || res.writableEnded) return;
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
+  if (wantsStream) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.flushHeaders?.();
+    // Si el usuario cierra la pestaña, la respuesta igual se termina y se guarda en la conversación
+    res.on('close', () => { clientGone = true; });
+    heartbeat = setInterval(() => !clientGone && !res.writableEnded && res.write(': ping\n\n'), 15000);
+    emit('meta', { conversationId: conversation.id, title: conversation.title });
+  }
+
   try {
-    console.log(`🤖 [AI] ${staff.email} (${staff.role}) conv=${conversation.id}: "${question.slice(0, 80)}"`);
+    const startedAt = Date.now();
+    const usedTools = [];
+    if (LOG_FULL) console.log(`🤖 [AI] ${staff.email} (${staff.role}) conv=${conversation.id}: "${question.slice(0, 80)}"`);
 
     // Historial completo tal como se envió/recibió (append-only)
     const history = await AIMessage.findAll({
@@ -210,9 +294,19 @@ const chat = async (req, res) => {
       raw: true,
     });
 
+    // Registro que el usuario tiene abierto en pantalla (se valida y se resuelve en el servidor)
+    const context = screenContext ? await resolveContext(staff.role, screenContext) : null;
+    const contextNote = context
+      ? `[The user is currently viewing this record in the system: ${context.entity} id=${context.id} (${context.label}). If the question refers to "this", "esta obra", "este presupuesto", "acá", etc., it means this record.]`
+      : null;
+
     const newMessages = [{
       role: 'user',
-      content: [{ type: 'text', text: currentDateNote() }, { type: 'text', text: question.trim() }],
+      content: [
+        { type: 'text', text: currentDateNote() },
+        ...(contextNote ? [{ type: 'text', text: contextNote }] : []),
+        { type: 'text', text: question.trim() },
+      ],
       displayText: question.trim(),
     }];
     const system = buildSystemPrompt(staff);
@@ -241,8 +335,19 @@ const chat = async (req, res) => {
         ],
       });
 
+      let streamedText = false;
+      if (wantsStream) {
+        stream.on('text', (delta) => {
+          streamedText = true;
+          emit('delta', { text: delta });
+        });
+      }
+
       const response = await stream.finalMessage();
       newMessages.push({ role: 'assistant', content: response.content, displayText: null });
+
+      // El texto previo a consultar herramientas ("voy a revisar…") no es la respuesta final
+      if (response.stop_reason === 'tool_use' && streamedText) emit('reset');
 
       if (response.stop_reason === 'refusal') {
         finalText = textOf(response.content) || 'Lo siento, no puedo ayudar con esa solicitud.';
@@ -255,7 +360,10 @@ const chat = async (req, res) => {
         break;
       }
 
-      const toolResults = await runToolCalls(staff.role, staff.email, response.content);
+      const labels = [...new Set(response.content.filter(b => b.type === 'tool_use').map(b => describeToolCall(b.name, b.input)))];
+      emit('status', { label: labels.join(' · ') });
+      const toolResults = await runToolCalls(staff.role, staff.email, response.content, usedTools);
+      emit('status', { label: '✍️ Preparando la respuesta' });
       newMessages.push({ role: 'user', content: toolResults, displayText: null });
     }
 
@@ -274,23 +382,72 @@ const chat = async (req, res) => {
       });
     }
 
-    res.json({ conversationId: conversation.id, title: conversation.title, answer: finalText });
+    if (!LOG_FULL) {
+      const toolCounts = Object.entries(usedTools.reduce((acc, t) => ({ ...acc, [t]: (acc[t] || 0) + 1 }), {}))
+        .map(([t, n]) => (n > 1 ? `${t}×${n}` : t)).join(', ');
+      console.log(`🤖 [AI] ${staff.email} (${staff.role}) — ${usedTools.length} consultas [${toolCounts || 'ninguna'}] — ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
+    }
+    const result = { conversationId: conversation.id, title: conversation.title, answer: finalText };
+    if (wantsStream) {
+      emit('done', result);
+      res.end();
+    } else {
+      res.json(result);
+    }
   } catch (error) {
     console.error('❌ [AI] chat:', error.message);
     // No dejar conversaciones vacías si la primera pregunta falló
     if (isNewConversation) await conversation.destroy().catch(() => {});
-    if (error instanceof Anthropic.RateLimitError) {
-      return res.status(429).json({ error: 'El servicio de IA está ocupado. Intenta de nuevo en un minuto.' });
+    const { status, body } = mapChatError(error);
+    if (wantsStream) {
+      emit('error', body);
+      res.end();
+    } else {
+      res.status(status).json(body);
     }
-    if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
-      return res.status(503).json({ error: 'AI service not configured correctly (API key)' });
-    }
-    if (error instanceof Anthropic.APIError) {
-      return res.status(502).json({ error: 'Error del servicio de IA', details: error.message });
-    }
-    res.status(500).json({ error: 'Error processing AI query', details: error.message });
   } finally {
+    clearInterval(heartbeat);
     busyConversations.delete(conversation.id);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Contexto de pantalla: qué registro está viendo el usuario al abrir el panel
+// ---------------------------------------------------------------------------
+
+const CONTEXT_ENTITIES = {
+  Work: { label: w => w.propertyAddress, attributes: ['propertyAddress'] },
+  SimpleWork: { label: s => [s.workNumber, s.propertyAddress].filter(Boolean).join(' · '), attributes: ['workNumber', 'propertyAddress'] },
+  CustomInvoice: { label: c => [c.invoiceNumber, c.clientName].filter(Boolean).join(' · '), attributes: ['invoiceNumber', 'clientName'] },
+  Budget: { label: b => [b.propertyAddress, b.applicantName].filter(Boolean).join(' · '), attributes: ['propertyAddress', 'applicantName'] },
+  MaintenanceVisit: { label: v => `Visita #${v.visitNumber}${v.work?.propertyAddress ? ` · ${v.work.propertyAddress}` : ''}`, attributes: ['visitNumber'], include: 'work' },
+  FleetAsset: { label: a => [a.name, a.licensePlate].filter(Boolean).join(' · '), attributes: ['name', 'licensePlate'] },
+  BankAccount: { label: a => [a.accountName, a.bankName].filter(Boolean).join(' · '), attributes: ['accountName', 'bankName'] },
+};
+
+const ENTITY_NAMES_ES = {
+  Work: 'Obra', SimpleWork: 'Simple work', CustomInvoice: 'Factura', Budget: 'Presupuesto',
+  MaintenanceVisit: 'Mantenimiento', FleetAsset: 'Vehículo', BankAccount: 'Cuenta bancaria',
+};
+
+async function resolveContext(role, { entity, id } = {}) {
+  const def = CONTEXT_ENTITIES[entity];
+  if (!def || !id || typeof id !== 'string' || id.length > 64 || !isEntityAllowed(role, entity)) return null;
+  const { models } = sequelize;
+  const options = { attributes: [models[entity].primaryKeyAttribute, ...def.attributes] };
+  if (def.include) options.include = [{ association: def.include, attributes: ['idWork', 'propertyAddress'] }];
+  const record = await models[entity].findByPk(id, options).catch(() => null);
+  if (!record) return null;
+  return { entity, id, label: def.label(record.get({ plain: true })) || id, typeLabel: ENTITY_NAMES_ES[entity] };
+}
+
+// GET /ai/context/:entity/:id → { context: { entity, id, label, typeLabel } | null }
+const getContext = async (req, res) => {
+  try {
+    res.json({ context: await resolveContext(req.staff.role, req.params) });
+  } catch (error) {
+    console.error('❌ [AI] getContext:', error);
+    res.json({ context: null });
   }
 };
 
@@ -326,6 +483,7 @@ const downloadExport = async (req, res) => {
 
 module.exports = {
   chat,
+  getContext,
   downloadExport,
   listConversations,
   getConversationMessages,

@@ -103,6 +103,10 @@ app.use(compression({
     if (req.headers['x-no-compression']) {
       return false;
     }
+    // Las respuestas en vivo (Server-Sent Events, p. ej. Zurcher AI) no se comprimen: se envían por partes
+    if (String(res.getHeader('Content-Type') || '').startsWith('text/event-stream')) {
+      return false;
+    }
     return compression.filter(req, res);
   },
   level: 6,       // Balance entre velocidad y compresión (1-9)

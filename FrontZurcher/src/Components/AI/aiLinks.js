@@ -36,6 +36,39 @@ const LIST_ROUTES = {
   FleetMaintenance: '/fleet',
 };
 
+// Pantallas de detalle → registro que el usuario está viendo (contexto para la IA)
+const SCREEN_PATTERNS = [
+  [/^\/work\/([^/]+)$/, 'Work'],
+  [/^\/worker\/work\/([^/]+)$/, 'Work'],
+  [/^\/ver-imagenes\/([^/]+)$/, 'Work'],
+  [/^\/simple-works\/(?!tracker$)([^/]+)$/, 'SimpleWork'],
+  [/^\/custom-invoices\/(?!new$)([^/]+)$/, 'CustomInvoice'],
+  [/^\/budgets\/edit\/([^/]+)$/, 'Budget'],
+  [/^\/maintenance\/(?!works$|calendar$|zones$)([^/]+)$/, 'MaintenanceVisit'],
+  [/^\/worker\/maintenance\/([^/]+)$/, 'MaintenanceVisit'],
+  [/^\/fleet\/([^/]+)$/, 'FleetAsset'],
+  [/^\/bank-accounts\/(?!new-transaction$|monthly-report$)([^/]+)$/, 'BankAccount'],
+];
+
+export function getScreenContext(pathname) {
+  for (const [pattern, entity] of SCREEN_PATTERNS) {
+    const match = pathname.match(pattern);
+    if (match) return { entity, id: decodeURIComponent(match[1]) };
+  }
+  return null;
+}
+
+// Preguntas rápidas según lo que se está viendo
+export const CONTEXT_ACTIONS = {
+  Work: ['Resumime esta obra', '¿Qué falta para cerrarla?', '¿Hay correos sobre esta dirección?', 'Mostrame fotos y documentos', 'Gastos e ingresos con comprobantes'],
+  SimpleWork: ['Resumime este trabajo', '¿Está pagado?', '¿Hay correos sobre esta dirección?', 'Mostrame fotos y adjuntos'],
+  CustomInvoice: ['Resumime esta factura', '¿Ya se cobró?', '¿Se envió por correo? ¿Cuándo?'],
+  Budget: ['Resumime este presupuesto', '¿Qué seguimiento tuvo?', '¿Hay correos con este cliente?'],
+  MaintenanceVisit: ['Resumime esta visita', 'Historial de mantenimiento de esta obra', '¿El cliente confirmó?'],
+  FleetAsset: ['Estado y mantenimientos de este vehículo', '¿Qué vence pronto?'],
+  BankAccount: ['Movimientos de este mes', 'Resumen de esta cuenta'],
+};
+
 export const OPEN_LINK_PREFIX = '#open/';
 export const EXPORT_LINK_PREFIX = '#ai-export/';
 

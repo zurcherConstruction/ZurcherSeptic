@@ -8,7 +8,12 @@ import {
 } from 'react-icons/fa';
 import logo from '../../../public/logo.png';
 import { exportAnswerToPdf, exportAnswerToExcel, answerHasTables, canSpeak } from '../../utils/aiAnswerTools';
-import { OPEN_LINK_PREFIX, EXPORT_LINK_PREFIX, resolveOpenLink, isCompanyImage, thumbnailUrl } from './aiLinks';
+import {
+  OPEN_LINK_PREFIX, EXPORT_LINK_PREFIX, CONTEXT_ACTIONS, resolveOpenLink, isCompanyImage, thumbnailUrl,
+} from './aiLinks';
+
+// Preguntas rápidas que requieren acceso a finanzas internas
+const OWNER_ONLY_ACTIONS = ['Gastos e ingresos con comprobantes', 'Movimientos de este mes', 'Resumen de esta cuenta'];
 
 const SUGGESTIONS = {
   common: [
@@ -137,18 +142,21 @@ function Message({ msg, question, isSpeaking, onToggleSpeak, onDownloadExport, o
     );
   }
 
+  if (msg.streaming && !msg.content) return <TypingIndicator status={msg.status} />;
+
   return (
     <div className="flex justify-start mb-4 gap-2">
-      <AIAvatar />
+      <AIAvatar pulse={msg.streaming} />
       <div className="min-w-0 max-w-[92%]">
         <div className="bg-white text-gray-700 border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed shadow-sm">
           <div ref={contentRef}>
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
               {msg.content}
             </ReactMarkdown>
+            {msg.streaming && <span className="inline-block w-2 h-4 bg-[#f6d02c] align-text-bottom animate-pulse ml-0.5" />}
           </div>
         </div>
-        <div className="flex flex-wrap gap-0.5 mt-1 ml-1">
+        {!msg.streaming && <div className="flex flex-wrap gap-0.5 mt-1 ml-1">
           {canSpeak && (
             <ToolbarButton onClick={onToggleSpeak} title={isSpeaking ? 'Detener' : 'Escuchar'} active={isSpeaking}>
               {isSpeaking ? <FaStop className="w-3 h-3" /> : <FaVolumeUp className="w-3 h-3" />}
@@ -167,21 +175,26 @@ function Message({ msg, question, isSpeaking, onToggleSpeak, onDownloadExport, o
               <FaFileExcel className="w-3 h-3" /> <span>Excel</span>
             </ToolbarButton>
           )}
-        </div>
+        </div>}
       </div>
     </div>
   );
 }
 
-function TypingIndicator() {
+// Estado en vivo mientras la IA consulta el sistema ("Revisando la obra…", "Buscando correos…")
+function TypingIndicator({ status }) {
   return (
     <div className="flex justify-start mb-4 gap-2">
       <AIAvatar pulse />
-      <div className="bg-white border border-gray-200 shadow-sm rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1 items-center">
-        <span className="w-2 h-2 bg-[#f6d02c] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-        <span className="w-2 h-2 bg-[#f6d02c] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-        <span className="w-2 h-2 bg-[#f6d02c] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-        <span className="text-xs text-gray-500 ml-2">Consultando el sistema…</span>
+      <div className="bg-white border border-gray-200 shadow-sm rounded-2xl rounded-tl-sm px-4 py-3 flex gap-2 items-center min-w-0">
+        <span className="flex gap-1 shrink-0">
+          <span className="w-2 h-2 bg-[#f6d02c] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+          <span className="w-2 h-2 bg-[#f6d02c] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+          <span className="w-2 h-2 bg-[#f6d02c] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        </span>
+        <span key={status} className="text-xs text-gray-600 truncate animate-[fadeIn_300ms_ease-out]">
+          {status || 'Consultando el sistema…'}
+        </span>
       </div>
     </div>
   );
@@ -215,19 +228,26 @@ function ImageLightbox({ image, onClose }) {
   );
 }
 
-export default function AIChatView({ chat, staff, onNavigate, compact = false }) {
+export default function AIChatView({ chat, staff, onNavigate, compact = false, screenContext = null, onDismissContext }) {
   const bottomRef = useRef(null);
   const [image, setImage] = useState(null);
   const {
-    messages, input, setInput, loading, loadingMessages, error, setError, inputRef, sendMessage, downloadExport,
+    messages, input, setInput, loading, loadingMessages, error, setError, inputRef, sendMessage: rawSend, downloadExport,
     speakingIndex, toggleSpeak, canDictate, listening, toggleListening, voiceLang, changeVoiceLang,
   } = chat;
 
-  const suggestions = staff?.role === 'owner' ? [...SUGGESTIONS.owner, ...SUGGESTIONS.common] : SUGGESTIONS.common;
+  // Cada pregunta lleva el registro que el usuario está viendo (si hay)
+  const sendMessage = (question) => rawSend(question, { context: screenContext });
+
+  const isOwner = staff?.role === 'owner';
+  const suggestions = isOwner ? [...SUGGESTIONS.owner, ...SUGGESTIONS.common] : SUGGESTIONS.common;
+  const contextActions = (screenContext ? CONTEXT_ACTIONS[screenContext.entity] || [] : [])
+    .filter(a => isOwner || !OWNER_ONLY_ACTIONS.includes(a));
   const firstName = (staff?.name || staff?.username || '').split(' ')[0];
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    // Mientras se escribe la respuesta el scroll sigue al texto sin animación (evita saltos)
+    bottomRef.current?.scrollIntoView({ behavior: loading ? 'auto' : 'smooth', block: 'end' });
   }, [messages, loading]);
 
   const handleKeyDown = (e) => {
@@ -267,6 +287,24 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false })
                 Escribe o dicta tu pregunta. Te dejo enlaces directos a cada obra, invoice o documento. Tus conversaciones son privadas.
               </p>
             </div>
+            {contextActions.length > 0 && (
+              <>
+                <p className="text-[11px] text-gray-500 mt-5 mb-2 font-semibold tracking-wide">
+                  SOBRE {screenContext.typeLabel?.toUpperCase()}: <span className="text-gray-800">{screenContext.label}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {contextActions.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => sendMessage(s)}
+                      className="text-xs bg-gray-900 hover:bg-gray-800 text-white rounded-full px-3 py-1.5 transition-colors shadow-sm"
+                    >
+                      <span className="text-[#f6d02c] mr-1">✦</span>{s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <p className="text-[11px] text-gray-500 mt-5 mb-2 font-semibold tracking-wide">PRUEBA CON</p>
             <div className="flex flex-wrap gap-2">
               {suggestions.map(s => (
@@ -294,7 +332,6 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false })
             onOpenImage={setImage}
           />
         ))}
-        {loading && <TypingIndicator />}
         <div ref={bottomRef} />
       </div>
 
@@ -308,6 +345,39 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false })
 
       {/* Caja de texto */}
       <div className={`${compact ? 'p-3' : 'p-4'} bg-white border-t border-gray-200`}>
+        {/* Contexto: registro que se está viendo en pantalla */}
+        {screenContext && (
+          <div className="mb-2">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="flex items-center gap-1.5 bg-yellow-50 border border-[#f6d02c] text-gray-800 rounded-full pl-2.5 pr-1 py-0.5 min-w-0">
+                <span className="shrink-0">📍</span>
+                <span className="font-semibold shrink-0">{screenContext.typeLabel}:</span>
+                <span className="truncate" title={screenContext.label}>{screenContext.label}</span>
+                <button
+                  onClick={onDismissContext}
+                  title="No usar esta pantalla como contexto"
+                  className="shrink-0 text-gray-400 hover:text-gray-800 p-1"
+                >
+                  <FaTimes className="w-2.5 h-2.5" />
+                </button>
+              </span>
+            </div>
+            {messages.length > 0 && contextActions.length > 0 && (
+              <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-0.5">
+                {contextActions.slice(0, 3).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => sendMessage(s)}
+                    disabled={loading}
+                    className="shrink-0 text-[11px] bg-white border border-gray-200 hover:border-[#f6d02c] hover:bg-yellow-50 text-gray-600 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className={`flex items-end gap-2 rounded-2xl border bg-white px-2 py-1.5 transition-all ${
           listening ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-300 focus-within:border-gray-900 focus-within:ring-2 focus-within:ring-[#f6d02c]/40'
         }`}>

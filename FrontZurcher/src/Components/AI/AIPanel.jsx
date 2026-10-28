@@ -1,10 +1,12 @@
 // 🤖 ZurcherAI — panel lateral disponible en todas las pantallas internas (owner / admin)
 // Se abre con el botón del header o con Ctrl+K, y mantiene la conversación al navegar.
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { FaTimes, FaExpand, FaHistory, FaPlus, FaArrowLeft } from 'react-icons/fa';
+import api from '../../utils/axios';
 import useAIChat from './useAIChat';
+import { getScreenContext } from './aiLinks';
 import AIChatView, { AIAvatar } from './AIChatView';
 import ConversationList from './ConversationList';
 
@@ -21,7 +23,31 @@ export default function AIPanel() {
   const [everOpened, setEverOpened] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(80);
+  const [screenContext, setScreenContext] = useState(null);
+  const [contextDismissed, setContextDismissed] = useState(false);
+  const location = useLocation();
   const chat = useAIChat({ enabled: everOpened });
+
+  // Registro que el usuario está viendo (obra, simple work, invoice…): se resuelve su nombre al abrir el panel
+  const screenKey = (() => {
+    const ctx = getScreenContext(location.pathname);
+    return ctx ? `${ctx.entity}/${ctx.id}` : null;
+  })();
+
+  useEffect(() => {
+    setContextDismissed(false);
+    setScreenContext(prev => (prev && `${prev.entity}/${prev.id}` === screenKey ? prev : null));
+    if (!screenKey) {
+      setScreenContext(null);
+      return undefined;
+    }
+    if (!open) return undefined;
+    let cancelled = false;
+    api.get(`/ai/context/${screenKey.split('/').map(encodeURIComponent).join('/')}`)
+      .then(({ data }) => { if (!cancelled) setScreenContext(data.context); })
+      .catch(() => { if (!cancelled) setScreenContext(null); });
+    return () => { cancelled = true; };
+  }, [screenKey, open]);
 
   // El panel empieza justo debajo del header (su alto cambia según el tamaño de pantalla)
   useEffect(() => {
@@ -140,7 +166,14 @@ export default function AIPanel() {
               <ConversationList chat={chat} onAfterSelect={() => setShowHistory(false)} />
             </div>
           ) : (
-            <AIChatView chat={chat} staff={currentStaff} onNavigate={handleNavigate} compact />
+            <AIChatView
+              chat={chat}
+              staff={currentStaff}
+              onNavigate={handleNavigate}
+              compact
+              screenContext={contextDismissed ? null : screenContext}
+              onDismissContext={() => setContextDismissed(true)}
+            />
           ))}
         </div>
       </aside>
