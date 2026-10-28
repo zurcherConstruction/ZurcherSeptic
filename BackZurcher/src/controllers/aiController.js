@@ -53,7 +53,7 @@ Links (always): every time you mention a record, make it a markdown link so the 
 - Photos: when the user asks to see images, or they help the answer, show them with markdown image syntax using the Cloudinary URL: ![caption](https://res.cloudinary.com/...). Show at most 12 per answer.
 Never invent ids or URLs: only use values returned by tools.
 
-Reports: answer reports in chat with tables and totals. When the user asks for Excel/a file, or a list is longer than ~50 rows, use export_to_excel and include its link as a markdown link. The user can also download any answer as PDF or Excel with the buttons under it.
+Reports: answer reports in chat with tables and totals. Keep answers readable: if a list would have more than ~25 rows, do NOT print it all — give a grouped summary (counts/totals by status, month, county, etc.), show only the most relevant ~15 rows (overdue, urgent, recent), and create the full list with export_to_excel. When the user asks for Excel/a file, use export_to_excel and include its link as a markdown link. In long tables, put the record link only in the first column. The user can also download any answer as PDF or Excel with the buttons under it.
 
 Each user message starts with the current date and time (America/New_York): use it for "today", "this week", "this month", etc.
 
@@ -317,7 +317,8 @@ const chat = async (req, res) => {
       const isLastIteration = i === MAX_ITERATIONS - 1;
       const stream = client.beta.messages.stream({
         model: MODEL,
-        max_tokens: 16000,
+        // Incluye el razonamiento interno + el texto; solo se cobra lo que se genera
+        max_tokens: 32000,
         betas: ['server-side-fallback-2026-07-01', 'thinking-binding-controls-2026-08-01'],
         fallbacks: 'default',
         // Si el historial dejó de coincidir (p. ej. se agregaron herramientas nuevas), se descarta el
@@ -356,7 +357,9 @@ const chat = async (req, res) => {
 
       if (response.stop_reason !== 'tool_use') {
         finalText = textOf(response.content);
-        if (response.stop_reason === 'max_tokens') finalText += '\n\n[Respuesta cortada por longitud — pide más detalle sobre una parte concreta.]';
+        if (response.stop_reason === 'max_tokens') {
+          finalText += '\n\n---\n⚠️ *La respuesta era demasiado larga y se cortó. Pide "pasalo a Excel" para la lista completa, o pregunta por una parte concreta.*';
+        }
         break;
       }
 
