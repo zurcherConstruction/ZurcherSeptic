@@ -180,7 +180,10 @@ function describeEntity(role, { entity }) {
 }
 
 // Valida entidad, filtros, campos y orden (compartido por query_records y export_to_excel)
-function buildFindOptions(role, { entity, filters, fields: selected, orderBy }) {
+// Campos que permiten armar el enlace al registro en el sistema
+const LINK_KEYS = ['workId', 'idWork', 'simpleWorkId', 'budgetId', 'maintenanceVisitId', 'assetId'];
+
+function buildFindOptions(role, { entity, filters, fields: selected, orderBy }, { includeLinkKeys = false } = {}) {
   assertEntity(role, entity);
   const fields = getEntityFields(entity);
   const where = buildWhere(entity, fields, filters);
@@ -189,6 +192,10 @@ function buildFindOptions(role, { entity, filters, fields: selected, orderBy }) 
   if (Array.isArray(selected) && selected.length) {
     selected.forEach(f => assertField(fields, f, entity));
     attributes = selected;
+    if (includeLinkKeys) {
+      const extra = [models[entity].primaryKeyAttribute, ...LINK_KEYS].filter(k => fields[k] && !attributes.includes(k));
+      attributes = [...extra, ...attributes];
+    }
   }
 
   const order = [];
@@ -202,20 +209,43 @@ function buildFindOptions(role, { entity, filters, fields: selected, orderBy }) 
   return { model: models[entity], where, attributes, order, fieldDefs: fields };
 }
 
+// Entidades cuyos comprobantes (tabla Receipt, polimórfica por relatedModel/relatedId) se adjuntan automáticamente
+const RECEIPT_ENTITIES = ['Income', 'Expense', 'FixedExpensePayment', 'SupplierInvoice', 'Inspection', 'MaterialSet', 'Work'];
+
+/**
+ * Agrega a cada fila sus comprobantes: receipts: [{ fileUrl, originalName, type, notes }]
+ */
+async function attachReceipts(role, entity, rows) {
+  if (!RECEIPT_ENTITIES.includes(entity) || !rows.length || !models.Receipt || !isEntityAllowed(role, 'Receipt')) return rows;
+  const pk = models[entity].primaryKeyAttribute;
+  const ids = rows.map(r => r[pk]).filter(Boolean).map(String);
+  if (!ids.length) return rows;
+  const receipts = await models.Receipt.findAll({
+    where: { relatedModel: entity, relatedId: { [Op.in]: ids } },
+    attributes: ['relatedId', 'fileUrl', 'originalName', 'type', 'notes'],
+    raw: true,
+  });
+  if (!receipts.length) return rows;
+  const byId = {};
+  for (const { relatedId, ...rest } of receipts) (byId[relatedId] ||= []).push(rest);
+  return rows.map(r => (byId[String(r[pk])] ? { ...r, receipts: byId[String(r[pk])] } : r));
+}
+
 async function queryRecords(role, { entity, filters, fields: selected, orderBy, limit = 25 }) {
-  const { model, where, attributes, order } = buildFindOptions(role, { entity, filters, fields: selected, orderBy });
+  const { model, where, attributes, order } = buildFindOptions(role, { entity, filters, fields: selected, orderBy }, { includeLinkKeys: true });
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), MAX_ROWS);
   const [rows, total] = await Promise.all([
     model.findAll({ where, attributes, order, limit: safeLimit, raw: true }),
     model.count({ where }),
   ]);
+  const compacted = rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, compactValue(v)])));
 
   return {
     entity,
     totalMatching: total,
     returned: rows.length,
     truncated: total > rows.length,
-    rows: rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, compactValue(v)]))),
+    rows: await attachReceipts(role, entity, compacted),
   };
 }
 
@@ -368,6 +398,7 @@ function buildEntityToolDefinitions(role) {
 module.exports = {
   FILTER_SCHEMA,
   buildFindOptions,
+  attachReceipts,
   listEntities,
   buildEntityToolDefinitions,
   describeEntity,

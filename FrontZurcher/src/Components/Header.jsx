@@ -4,6 +4,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { logoutStaff } from "../Redux/Actions/authActions";
 import Notifications from "./Notifications";
+import { toggleAIPanel } from "./AI/AIPanel";
+import { HiSparkles } from "react-icons/hi";
 import { 
   FaBell, 
   FaSignOutAlt, 
@@ -18,6 +20,7 @@ const Header = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isAuthenticated, currentStaff } = useSelector((state) => state.auth);
+  const hasAI = ['owner', 'admin'].includes(currentStaff?.role);
   const { notifications } = useSelector((state) => state.notifications);
   const { reminders } = useSelector((state) => state.reminders || { reminders: [] });
 
@@ -110,8 +113,19 @@ const Header = () => {
               </button>
             </div>
 
-            {/* Notificaciones */}
-            <div className="relative">
+            {/* 🤖 Zurcher AI (owner / admin): reemplaza a la campanita, que casi no se usa */}
+            {hasAI && (
+              <button
+                onClick={() => (window.location.pathname === '/ai-assistant' ? null : toggleAIPanel())}
+                title="Zurcher AI (Ctrl+K)"
+                className="relative p-2 md:p-3 rounded-xl bg-gray-700 hover:bg-gray-600 transition-all duration-300 group border border-[#f6d02c]/70 hover:border-[#f6d02c] hover:shadow-[0_0_12px_rgba(246,208,44,0.35)] focus:outline-none focus:ring-2 focus:ring-[#f6d02c]/50"
+              >
+                <HiSparkles className="w-5 h-5 text-[#f6d02c] group-hover:scale-110 transition-transform duration-300" />
+              </button>
+            )}
+
+            {/* Notificaciones (oculta para quienes tienen Zurcher AI) */}
+            <div className={`relative ${hasAI ? 'hidden' : ''}`}>
               <button
                 onClick={(e) => {
                   e.preventDefault();

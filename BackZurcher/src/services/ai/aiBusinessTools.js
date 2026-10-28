@@ -5,9 +5,10 @@
 const { Op, fn, col } = require('sequelize');
 const {
   Work, Permit, Income, Expense, Budget, Inspection, FinalInvoice, ChangeOrder,
-  MaintenanceVisit, WorkNote, WorkStateHistory, Staff,
+  MaintenanceVisit, WorkNote, WorkStateHistory, Staff, Image,
 } = require('../../data/index');
 const { isEntityAllowed } = require('./aiPermissions');
+const { attachReceipts } = require('./aiEntityCatalog');
 
 const BUSINESS_TOOLS = [
   {
@@ -245,9 +246,9 @@ async function getWorkDetails(role, { idWork, address } = {}) {
   const id = work.idWork;
   const canSeeFinance = isEntityAllowed(role, 'Income');
 
-  const [permit, budget, inspections, finalInvoice, changeOrders, visits, notes, history, staff, incomes, expenses] = await Promise.all([
+  const [permit, budget, inspections, finalInvoice, changeOrders, visits, notes, history, staff, incomes, expenses, photos] = await Promise.all([
     work.idPermit ? Permit.findByPk(work.idPermit, {
-      attributes: ['permitNumber', 'applicant', 'applicantName', 'applicantEmail', 'applicantPhone', 'systemType', 'isPBTS', 'county', 'city', 'expirationDate', 'gpdCapacity'],
+      attributes: ['idPermit', 'permitNumber', 'applicant', 'applicantName', 'applicantEmail', 'applicantPhone', 'systemType', 'isPBTS', 'county', 'city', 'expirationDate', 'gpdCapacity', 'permitPdfUrl', 'optionalDocsUrl', 'ppiCloudinaryUrl'],
       raw: true,
     }) : null,
     work.idBudget ? Budget.findByPk(work.idBudget, {
@@ -256,18 +257,18 @@ async function getWorkDetails(role, { idWork, address } = {}) {
     }) : null,
     Inspection.findAll({
       where: { workId: id },
-      attributes: ['type', 'processStatus', 'finalStatus', 'inspectorScheduledDate', 'dateInspectionPerformed', 'notes'],
+      attributes: ['type', 'processStatus', 'finalStatus', 'inspectorScheduledDate', 'dateInspectionPerformed', 'notes', 'resultDocumentUrl'],
       raw: true,
     }),
     FinalInvoice.findOne({
       where: { workId: id },
-      attributes: ['invoiceNumber', 'invoiceDate', 'finalAmountDue', 'totalAmountPaid', 'status', 'paymentDate'],
+      attributes: ['id', 'invoiceNumber', 'invoiceDate', 'finalAmountDue', 'totalAmountPaid', 'status', 'paymentDate'],
       raw: true,
     }),
     ChangeOrder.findAll({ where: { workId: id }, attributes: ['changeOrderNumber', 'description', 'totalCost', 'status'], raw: true }),
     MaintenanceVisit.findAll({
       where: { workId: id },
-      attributes: ['visitNumber', 'scheduledDate', 'actualVisitDate', 'status', 'clientStatus'],
+      attributes: ['id', 'visitNumber', 'scheduledDate', 'actualVisitDate', 'status', 'clientStatus'],
       order: [['visitNumber', 'ASC']],
       raw: true,
     }),
@@ -285,8 +286,19 @@ async function getWorkDetails(role, { idWork, address } = {}) {
       raw: true,
     }),
     work.staffId ? Staff.findByPk(work.staffId, { attributes: ['name', 'role'], raw: true }) : null,
-    canSeeFinance ? Income.findAll({ where: { workId: id }, attributes: ['date', 'amount', 'typeIncome', 'paymentMethod'], raw: true }) : null,
-    canSeeFinance ? Expense.findAll({ where: { workId: id }, attributes: ['date', 'amount', 'typeExpense', 'vendor', 'paymentStatus'], raw: true }) : null,
+    canSeeFinance
+      ? Income.findAll({ where: { workId: id }, attributes: ['idIncome', 'date', 'amount', 'typeIncome', 'paymentMethod'], raw: true }).then(r => attachReceipts(role, 'Income', r))
+      : null,
+    canSeeFinance
+      ? Expense.findAll({ where: { workId: id }, attributes: ['idExpense', 'date', 'amount', 'typeExpense', 'vendor', 'paymentStatus'], raw: true }).then(r => attachReceipts(role, 'Expense', r))
+      : null,
+    Image.findAll({
+      where: { idWork: id },
+      attributes: ['stage', 'dateTime', 'comment', 'truckCount', 'imageUrl'],
+      order: [['createdAt', 'ASC']],
+      limit: 40,
+      raw: true,
+    }),
   ]);
 
   const result = {
@@ -302,7 +314,13 @@ async function getWorkDetails(role, { idWork, address } = {}) {
       notes: work.notes,
       assignedTo: staff,
       createdAt: dateOnly(work.createdAt),
+      documents: Object.fromEntries(
+        ['operatingPermitUrl', 'maintenanceServiceUrl', 'maintenanceContractSignedUrl', 'noticeToOwnerDocumentUrl', 'lienDocumentUrl', 'extraDocumentUrl']
+          .filter(k => work[k])
+          .map(k => [k, work[k]])
+      ),
     },
+    photos,
     permit,
     budget,
     inspections,
