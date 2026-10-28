@@ -175,7 +175,8 @@ const AccountsReceivableController = {
       );
 
       const totalPendingFromFinalInvoices = finalInvoicesWithSentInfo.reduce((sum, invoice) => {
-        return sum + parseFloat(invoice.finalAmountDue || 0);
+        const remaining = parseFloat(invoice.finalAmountDue || 0) - parseFloat(invoice.totalAmountPaid || 0);
+        return sum + Math.max(0, remaining);
       }, 0);
 
       // 4. CHANGE ORDERS APROBADOS PERO NO INCLUIDOS EN FINAL INVOICE
@@ -243,6 +244,8 @@ const AccountsReceivableController = {
             initialPaymentMade: parseFloat(fi.initialPaymentMade || 0),
             subtotalExtras: parseFloat(fi.subtotalExtras || 0),
             finalAmountDue: parseFloat(fi.finalAmountDue || 0),
+            totalAmountPaid: parseFloat(fi.totalAmountPaid || 0),
+            remainingAmount: Math.max(0, parseFloat(fi.finalAmountDue || 0) - parseFloat(fi.totalAmountPaid || 0)),
             status: fi.status,
             invoiceDate: fi.invoiceDate,
             extraItemsCount: fi.extraItems?.length || 0,

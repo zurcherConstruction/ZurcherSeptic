@@ -27,5 +27,8 @@ module.exports = {
   ADOBE_TECHNICAL_ACCOUNT_ID: process.env.ADOBE_TECHNICAL_ACCOUNT_ID,
   ADOBE_PRIVATE_KEY: process.env.ADOBE_PRIVATE_KEY,
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+  AI_MODEL: process.env.AI_MODEL, // 🤖 ZurcherAI (default: claude-opus-5-5)
+  AI_MAILBOXES: process.env.AI_MAILBOXES, // 📧 Buzones de Google Workspace que puede leer la IA (separados por coma)
+  GOOGLE_SERVICE_ACCOUNT_JSON: process.env.GOOGLE_SERVICE_ACCOUNT_JSON, // 📧 Cuenta de servicio con domain-wide delegation (gmail.readonly)
 
 };

@@ -878,7 +878,7 @@ function App() {
               <Route
                 path="/ai-assistant"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "owner", "finance", "finance-viewer"]}>
+                  <PrivateRoute allowedRoles={["admin", "owner"]}>
                     <AIAssistant />
                   </PrivateRoute>
                 }

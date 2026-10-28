@@ -37,7 +37,8 @@ import {
   FaNewspaper,
   FaFileSignature,
   FaTruck,
-  FaCheckCircle
+  FaCheckCircle,
+  FaRobot
 } from "react-icons/fa";
 
 const BarraLateral = () => { 
@@ -61,6 +62,7 @@ const BarraLateral = () => {
       color: "text-blue-400",
       items: [
         { name: "Dashboard", path: "/dashboard", icon: FaChartBar },
+        { name: "ZurcherAI", path: "/ai-assistant", icon: FaRobot }, // 🤖 Asistente IA
       ],
     },
     {
@@ -189,6 +191,7 @@ const BarraLateral = () => {
           color: "text-blue-400",
           items: [
             { name: "Dashboard", path: "/dashboard", icon: FaChartBar },
+            { name: "ZurcherAI", path: "/ai-assistant", icon: FaRobot }, // 🤖 Asistente IA
           ],
         },
         {

@@ -1029,6 +1029,13 @@ Staff.hasMany(SignatureDocument, {
 NotificationRouting.belongsTo(Staff, { foreignKey: 'staff_id', as: 'staff' });
 Staff.hasMany(NotificationRouting, { foreignKey: 'staff_id', as: 'notificationRoutings' });
 
+// ========================= 🤖 ZURCHER AI ASSOCIATIONS ========================= //
+const { AIConversation, AIMessage } = sequelize.models;
+Staff.hasMany(AIConversation, { foreignKey: 'staffId', as: 'aiConversations', onDelete: 'CASCADE' });
+AIConversation.belongsTo(Staff, { foreignKey: 'staffId', as: 'staff' });
+AIConversation.hasMany(AIMessage, { foreignKey: 'conversationId', as: 'messages', onDelete: 'CASCADE' });
+AIMessage.belongsTo(AIConversation, { foreignKey: 'conversationId' });
+
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');
