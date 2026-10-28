@@ -179,7 +179,8 @@ function describeEntity(role, { entity }) {
   };
 }
 
-async function queryRecords(role, { entity, filters, fields: selected, orderBy, limit = 25 }) {
+// Valida entidad, filtros, campos y orden (compartido por query_records y export_to_excel)
+function buildFindOptions(role, { entity, filters, fields: selected, orderBy }) {
   assertEntity(role, entity);
   const fields = getEntityFields(entity);
   const where = buildWhere(entity, fields, filters);
@@ -198,8 +199,12 @@ async function queryRecords(role, { entity, filters, fields: selected, orderBy, 
     order.push(['createdAt', 'DESC']);
   }
 
+  return { model: models[entity], where, attributes, order, fieldDefs: fields };
+}
+
+async function queryRecords(role, { entity, filters, fields: selected, orderBy, limit = 25 }) {
+  const { model, where, attributes, order } = buildFindOptions(role, { entity, filters, fields: selected, orderBy });
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 25, 1), MAX_ROWS);
-  const model = models[entity];
   const [rows, total] = await Promise.all([
     model.findAll({ where, attributes, order, limit: safeLimit, raw: true }),
     model.count({ where }),
@@ -361,6 +366,9 @@ function buildEntityToolDefinitions(role) {
 }
 
 module.exports = {
+  FILTER_SCHEMA,
+  buildFindOptions,
+  listEntities,
   buildEntityToolDefinitions,
   describeEntity,
   queryRecords,

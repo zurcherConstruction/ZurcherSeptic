@@ -97,7 +97,7 @@ function extractContent(payload) {
   const walk = part => {
     if (!part) return;
     if (part.filename) {
-      attachments.push({ name: part.filename, mimeType: part.mimeType, size: part.body?.size || 0 });
+      attachments.push({ name: part.filename, mimeType: part.mimeType, size: part.body?.size || 0, attachmentId: part.body?.attachmentId, data: part.body?.data });
     } else if (part.mimeType === 'text/plain' && part.body?.data) {
       plain += decodeBase64Url(part.body.data);
     } else if (part.mimeType === 'text/html' && part.body?.data) {
@@ -158,7 +158,7 @@ async function readEmail(mailbox, { messageId }) {
     ...summarizeMessage(mailbox, msg),
     cc: header(msg.payload?.headers, 'Cc'),
     body: truncate(body, MAX_BODY_CHARS),
-    attachments,
+    attachments: attachments.map(({ name, mimeType, size }) => ({ name, mimeType, size })),
   };
 }
 
@@ -178,4 +178,25 @@ async function readThread(mailbox, { threadId }) {
   };
 }
 
-module.exports = { isGmailConfigured, searchEmails, readEmail, readThread };
+// Descarga un adjunto (buscado por nombre de archivo) para que la IA lo lea
+async function getAttachment(mailbox, { messageId, filename }) {
+  const msg = await gmailGet(mailbox, `/messages/${messageId}`, { format: 'full' });
+  const { attachments } = extractContent(msg.payload);
+  const wanted = String(filename || '').toLowerCase();
+  const att = attachments.find(a => a.name.toLowerCase() === wanted)
+    || attachments.find(a => a.name.toLowerCase().includes(wanted));
+  if (!att) {
+    throw new Error(`Attachment "${filename}" not found. Attachments in this email: ${attachments.map(a => a.name).join(', ') || 'none'}`);
+  }
+  let data = att.data;
+  if (!data && att.attachmentId) {
+    ({ data } = await gmailGet(mailbox, `/messages/${messageId}/attachments/${att.attachmentId}`));
+  }
+  return {
+    name: att.name,
+    mimeType: att.mimeType,
+    buffer: Buffer.from(String(data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
+  };
+}
+
+module.exports = { isGmailConfigured, searchEmails, readEmail, readThread, getAttachment };

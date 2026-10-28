@@ -1,9 +1,18 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useSelector } from 'react-redux';
-import { FaPlus, FaTrash, FaBars, FaTimes, FaPen } from 'react-icons/fa';
+import {
+  FaPlus, FaTrash, FaBars, FaTimes, FaPen, FaMicrophone, FaStop, FaVolumeUp,
+  FaFilePdf, FaFileExcel, FaCopy, FaCheck, FaDownload,
+} from 'react-icons/fa';
 import api from '../utils/axios';
+import {
+  exportAnswerToPdf, exportAnswerToExcel, answerHasTables,
+  SpeechRecognitionAPI, canSpeak, speak, stopSpeaking,
+} from '../utils/aiAnswerTools';
+
+const EXPORT_LINK_PREFIX = '#ai-export/';
 
 const SUGGESTIONS = {
   common: [
@@ -38,8 +47,53 @@ const markdownComponents = {
   td: props => <td className="border border-gray-200 px-2 py-1 align-top" {...props} />,
 };
 
-function Message({ msg }) {
+function ToolbarButton({ onClick, title, children, active }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
+        active ? 'text-blue-700 bg-blue-50' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Message({ msg, question, isSpeaking, onToggleSpeak, onDownloadExport }) {
   const isUser = msg.role === 'user';
+  const contentRef = useRef(null);
+  const [copied, setCopied] = useState(false);
+  const [hasTables, setHasTables] = useState(false);
+
+  useEffect(() => {
+    if (!isUser) setHasTables(answerHasTables(contentRef.current));
+  }, [isUser, msg.content]);
+
+  // Los links "#ai-export/<id>" que genera la IA descargan el Excel desde el backend
+  const components = useMemo(() => ({
+    ...markdownComponents,
+    a: ({ href, children, ...props }) => (href?.startsWith(EXPORT_LINK_PREFIX) ? (
+      <button
+        onClick={() => onDownloadExport(href.slice(EXPORT_LINK_PREFIX.length))}
+        className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg px-3 py-1.5 my-1"
+      >
+        <FaDownload className="w-3 h-3" /> {children}
+      </button>
+    ) : (
+      <a href={href} className="text-blue-600 underline" target="_blank" rel="noreferrer" {...props}>{children}</a>
+    )),
+  }), [onDownloadExport]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(msg.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* sin permiso de portapapeles */ }
+  };
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>
       {!isUser && (
@@ -47,17 +101,43 @@ function Message({ msg }) {
           AI
         </div>
       )}
-      <div
-        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-          isUser
-            ? 'bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap'
-            : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm'
-        }`}
-      >
-        {isUser ? msg.content : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {msg.content}
-          </ReactMarkdown>
+      <div className={`max-w-[85%] ${isUser ? '' : 'min-w-0'}`}>
+        <div
+          className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+            isUser
+              ? 'bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap'
+              : 'bg-white text-gray-800 shadow-sm border border-gray-100 rounded-bl-sm'
+          }`}
+        >
+          {isUser ? msg.content : (
+            <div ref={contentRef}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+                {msg.content}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
+        {!isUser && (
+          <div className="flex flex-wrap gap-0.5 mt-1 ml-1">
+            {canSpeak && (
+              <ToolbarButton onClick={onToggleSpeak} title={isSpeaking ? 'Detener' : 'Escuchar'} active={isSpeaking}>
+                {isSpeaking ? <FaStop className="w-3 h-3" /> : <FaVolumeUp className="w-3 h-3" />}
+                <span>{isSpeaking ? 'Detener' : 'Escuchar'}</span>
+              </ToolbarButton>
+            )}
+            <ToolbarButton onClick={copy} title="Copiar texto">
+              {copied ? <FaCheck className="w-3 h-3 text-green-600" /> : <FaCopy className="w-3 h-3" />}
+              <span>{copied ? 'Copiado' : 'Copiar'}</span>
+            </ToolbarButton>
+            <ToolbarButton onClick={() => exportAnswerToPdf(contentRef.current, { question })} title="Descargar como PDF">
+              <FaFilePdf className="w-3 h-3" /> <span>PDF</span>
+            </ToolbarButton>
+            {hasTables && (
+              <ToolbarButton onClick={() => exportAnswerToExcel(contentRef.current, { question })} title="Descargar las tablas en Excel">
+                <FaFileExcel className="w-3 h-3" /> <span>Excel</span>
+              </ToolbarButton>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -133,8 +213,87 @@ export default function AIAssistant() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState(null);
   const [showList, setShowList] = useState(false);
+  const [speakingIndex, setSpeakingIndex] = useState(null);
+  const [listening, setListening] = useState(false);
+  const [voiceLang, setVoiceLang] = useState(() => {
+    try { return localStorage.getItem('zurcherai.voiceLang') || 'es-US'; } catch { return 'es-US'; }
+  });
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+  const recognitionRef = useRef(null);
+
+  // Detener voz al salir de la pantalla
+  useEffect(() => () => {
+    stopSpeaking();
+    recognitionRef.current?.abort();
+  }, []);
+
+  const toggleSpeak = (index, content) => {
+    if (speakingIndex === index) {
+      stopSpeaking();
+      setSpeakingIndex(null);
+      return;
+    }
+    setSpeakingIndex(index);
+    speak(content, { onEnd: () => setSpeakingIndex(current => (current === index ? null : current)) });
+  };
+
+  // Dictado por voz: el texto se agrega a la caja para revisarlo antes de enviar
+  const toggleListening = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = voiceLang;
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    const baseText = input.trim() ? `${input.trim()} ` : '';
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map(r => r[0].transcript).join('');
+      setInput(baseText + transcript);
+    };
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setError('El navegador no tiene permiso para usar el micrófono.');
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setError('No se pudo usar el dictado por voz. Intenta de nuevo.');
+      }
+    };
+    recognition.onend = () => {
+      setListening(false);
+      inputRef.current?.focus();
+    };
+    recognitionRef.current = recognition;
+    stopSpeaking();
+    setSpeakingIndex(null);
+    setError(null);
+    recognition.start();
+    setListening(true);
+  };
+
+  const changeVoiceLang = () => {
+    const next = voiceLang === 'es-US' ? 'en-US' : 'es-US';
+    setVoiceLang(next);
+    try { localStorage.setItem('zurcherai.voiceLang', next); } catch { /* sin storage */ }
+  };
+
+  const downloadExport = useCallback(async (exportId) => {
+    if (!activeId) return;
+    try {
+      const response = await api.get(`/ai/conversations/${activeId}/exports/${exportId}`, { responseType: 'blob' });
+      const disposition = response.headers['content-disposition'] || '';
+      const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] || 'ZurcherAI.xlsx';
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('No se pudo descargar el Excel.');
+    }
+  }, [activeId]);
 
   const suggestions = currentStaff?.role === 'owner'
     ? [...SUGGESTIONS.common, ...SUGGESTIONS.owner]
@@ -157,6 +316,8 @@ export default function AIAssistant() {
 
   const selectConversation = async (id) => {
     if (loading) return;
+    stopSpeaking();
+    setSpeakingIndex(null);
     setActiveId(id);
     setShowList(false);
     setError(null);
@@ -174,6 +335,8 @@ export default function AIAssistant() {
 
   const newConversation = () => {
     if (loading) return;
+    stopSpeaking();
+    setSpeakingIndex(null);
     setActiveId(null);
     setMessages([]);
     setError(null);
@@ -206,6 +369,7 @@ export default function AIAssistant() {
   const sendMessage = async (question) => {
     const q = (question || input).trim();
     if (!q || loading) return;
+    if (listening) recognitionRef.current?.stop();
 
     setMessages(prev => [...prev, { role: 'user', content: q }]);
     setInput('');
@@ -313,7 +477,16 @@ export default function AIAssistant() {
             </div>
           )}
 
-          {messages.map((msg, i) => <Message key={msg.id || i} msg={msg} />)}
+          {messages.map((msg, i) => (
+            <Message
+              key={msg.id || i}
+              msg={msg}
+              question={messages[i - 1]?.role === 'user' ? messages[i - 1].content : undefined}
+              isSpeaking={speakingIndex === i}
+              onToggleSpeak={() => toggleSpeak(i, msg.content)}
+              onDownloadExport={downloadExport}
+            />
+          ))}
           {loading && <TypingIndicator />}
           <div ref={bottomRef} />
         </div>
@@ -327,12 +500,34 @@ export default function AIAssistant() {
 
         {/* Input */}
         <div className="mt-3 flex gap-2">
+          {SpeechRecognitionAPI && (
+            <div className="flex flex-col items-center shrink-0">
+              <button
+                onClick={toggleListening}
+                disabled={loading}
+                title={listening ? 'Detener dictado' : 'Dictar por voz'}
+                className={`rounded-xl px-3.5 py-2.5 text-sm transition-colors disabled:opacity-50 ${
+                  listening ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
+              >
+                {listening ? <FaStop className="w-4 h-4" /> : <FaMicrophone className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={changeVoiceLang}
+                disabled={listening}
+                title="Idioma del dictado"
+                className="text-[10px] text-gray-400 hover:text-gray-700 mt-0.5"
+              >
+                {voiceLang === 'es-US' ? 'ES' : 'EN'}
+              </button>
+            </div>
+          )}
           <textarea
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Escribe tu pregunta… / Ask anything…"
+            placeholder={listening ? 'Escuchando… habla ahora' : 'Escribe o dicta tu pregunta… / Ask anything…'}
             rows={1}
             disabled={loading}
             className="flex-1 resize-none rounded-xl border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 disabled:opacity-60 transition-all"
@@ -359,7 +554,7 @@ export default function AIAssistant() {
             )}
           </button>
         </div>
-        <p className="text-center text-xs text-gray-400 mt-2">Enter para enviar · Shift+Enter para nueva línea · Solo lectura: la IA no modifica nada</p>
+        <p className="text-center text-xs text-gray-400 mt-2">Enter para enviar · Shift+Enter para nueva línea · 🎤 para dictar · Solo lectura: la IA no modifica nada</p>
       </div>
     </div>
   );

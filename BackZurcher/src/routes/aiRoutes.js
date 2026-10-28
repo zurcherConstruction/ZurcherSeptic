@@ -6,6 +6,7 @@ const {
   getConversationMessages,
   renameConversation,
   deleteConversation,
+  downloadExport,
 } = require('../controllers/aiController');
 const { allowRoles } = require('../middleware/byRol');
 const { AI_ROLES } = require('../services/ai/aiPermissions');
@@ -19,5 +20,6 @@ router.get('/conversations', listConversations);
 router.get('/conversations/:id/messages', getConversationMessages);
 router.patch('/conversations/:id', renameConversation);
 router.delete('/conversations/:id', deleteConversation);
+router.get('/conversations/:id/exports/:exportId', downloadExport);
 
 module.exports = router;
