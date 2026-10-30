@@ -5,6 +5,16 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import JobsMap from './JobsMap';
 import { fetchMapBase, useLocations, useDrivingMatrix, fmtTrip, googleDirectionsUrl } from './mapUtils';
+import RoutePlanner, { MANUAL_STOP_COLOR } from './RoutePlanner';
+
+const ROUTE_STORAGE_KEY = 'workMap.route';
+function loadRoute() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(ROUTE_STORAGE_KEY) || 'null');
+    if (Array.isArray(saved?.stops)) return saved;
+  } catch { /* sin storage */ }
+  return { stops: [], roundTrip: true };
+}
 
 const STATUS_GROUPS = [
   { key: 'start', label: 'COMENZAR', color: '#eab308', statuses: ['pending', 'assigned'] },
@@ -19,11 +29,27 @@ export default function WorkMapView({ works, isWorker }) {
   const [base, setBase] = useState(null);
   const [activeGroups, setActiveGroups] = useState(() => STATUS_GROUPS.map(g => g.key));
   const [selectedId, setSelectedId] = useState(null);
-  const [picking, setPicking] = useState(null); // dirección a ubicar a mano
+  // Clic en el mapa: { type: 'fix', address } corrige un trabajo · { type: 'stop', label } agrega parada manual
+  const [picking, setPicking] = useState(null);
+  const [routeStops, setRouteStops] = useState(() => loadRoute().stops);
+  const [roundTrip, setRoundTrip] = useState(() => loadRoute().roundTrip);
 
   useEffect(() => {
     fetchMapBase().then(setBase).catch(() => toast.error('No se pudo cargar la sede para el mapa'));
   }, []);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ stops: routeStops, roundTrip })); } catch { /* sin storage */ }
+  }, [routeStops, roundTrip]);
+
+  const routeIndexOf = (id) => routeStops.findIndex(s => s.id === id);
+  const toggleInRoute = (p) => {
+    if (routeIndexOf(p.work.idWork) >= 0) {
+      setRouteStops(prev => prev.filter(s => s.id !== p.work.idWork));
+    } else {
+      setRouteStops(prev => [...prev, { id: p.work.idWork, label: p.work.propertyAddress, lat: p.lat, lng: p.lng, color: colorOf(p.work) }]);
+    }
+  };
 
   const visibleWorks = useMemo(
     () => works.filter(w => activeGroups.includes(groupOf(w.status)?.key)),
@@ -59,20 +85,44 @@ export default function WorkMapView({ works, isWorker }) {
       .slice(0, 5)
     : [];
 
-  const points = located.map(p => ({
-    id: p.work.idWork,
-    lat: p.lat,
-    lng: p.lng,
-    color: colorOf(p.work),
-    title: `${p.work.propertyAddress} · ${groupOf(p.work.status)?.label || p.work.status}`,
-  }));
+  // Trabajos (con el número de parada si están en el recorrido) + paradas manuales
+  const points = [
+    ...located.map(p => {
+      const stop = routeIndexOf(p.work.idWork);
+      return {
+        id: p.work.idWork,
+        lat: p.lat,
+        lng: p.lng,
+        color: colorOf(p.work),
+        label: stop >= 0 ? String(stop + 1) : '',
+        title: `${p.work.propertyAddress} · ${groupOf(p.work.status)?.label || p.work.status}`,
+      };
+    }),
+    ...routeStops.filter(s => s.manual).map(s => ({
+      id: s.id,
+      lat: s.lat,
+      lng: s.lng,
+      color: MANUAL_STOP_COLOR,
+      label: String(routeIndexOf(s.id) + 1),
+      title: `📌 ${s.label}`,
+    })),
+  ];
+  const routeLine = hq && routeStops.length
+    ? [hq, ...routeStops, ...(roundTrip ? [hq] : [])]
+    : selected && hq ? [hq, selected] : null;
 
   const toggleGroup = (key) => setActiveGroups(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]));
 
   const handlePick = async (lat, lng) => {
     if (!picking) return;
+    if (picking.type === 'stop') {
+      const id = `manual:${Date.now()}`;
+      setRouteStops(prev => [...prev, { id, label: picking.label, lat, lng, color: MANUAL_STOP_COLOR, manual: true }]);
+      setPicking(null);
+      return;
+    }
     try {
-      await setManual(picking, lat, lng);
+      await setManual(picking.address, lat, lng);
       toast.success('Ubicación guardada');
     } catch {
       toast.error('No se pudo guardar la ubicación');
@@ -111,21 +161,31 @@ export default function WorkMapView({ works, isWorker }) {
             points={points}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            route={selected && hq ? [hq, selected] : null}
+            route={routeLine}
             picking={!!picking}
             onPick={handlePick}
             height="62vh"
           />
           {picking && (
             <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
-              <span>Ubicando: <strong>{picking}</strong></span>
+              <span>{picking.type === 'stop' ? 'Nueva parada' : 'Ubicando'}: <strong>{picking.type === 'stop' ? picking.label : picking.address}</strong></span>
               <button onClick={() => setPicking(null)} className="font-semibold underline">Cancelar</button>
             </div>
           )}
         </div>
 
         {/* Panel lateral */}
-        <div className="w-full lg:w-[340px] shrink-0 flex flex-col gap-3 max-h-[62vh] overflow-y-auto">
+        <div className="w-full lg:w-[360px] shrink-0 flex flex-col gap-3 lg:max-h-[62vh] lg:overflow-y-auto">
+          <RoutePlanner
+            hq={hq}
+            stops={routeStops}
+            setStops={setRouteStops}
+            roundTrip={roundTrip}
+            setRoundTrip={setRoundTrip}
+            onPickOnMap={(label) => setPicking({ type: 'stop', label })}
+            onFocus={(stop) => setSelectedId(stop.id)}
+          />
+
           {selected ? (
             <div className="border-2 border-blue-200 rounded-xl p-3 bg-blue-50/40">
               <div className="flex items-start justify-between gap-2">
@@ -155,6 +215,12 @@ export default function WorkMapView({ works, isWorker }) {
                 </>
               )}
               <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  onClick={() => toggleInRoute(selected)}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg ${routeIndexOf(selected.work.idWork) >= 0 ? 'bg-teal-100 text-teal-800 border border-teal-300' : 'bg-teal-600 hover:bg-teal-700 text-white'}`}
+                >
+                  {routeIndexOf(selected.work.idWork) >= 0 ? `✓ Parada ${routeIndexOf(selected.work.idWork) + 1} (quitar)` : '＋ Agregar al recorrido'}
+                </button>
                 {!isWorker && (
                   <Link to={`/work/${selected.work.idWork}`} className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg">Ver obra</Link>
                 )}
@@ -164,7 +230,7 @@ export default function WorkMapView({ works, isWorker }) {
                   </a>
                 )}
                 {!isWorker && (
-                  <button onClick={() => setPicking(selected.work.propertyAddress)} className="text-xs text-slate-500 hover:text-blue-700 underline">
+                  <button onClick={() => setPicking({ type: 'fix', address: selected.work.propertyAddress })} className="text-xs text-slate-500 hover:text-blue-700 underline">
                     Corregir ubicación
                   </button>
                 )}
@@ -179,18 +245,25 @@ export default function WorkMapView({ works, isWorker }) {
           <div>
             <p className="text-xs font-semibold text-slate-500 mb-1">Ordenados por distancia desde la sede</p>
             <ul className="space-y-1">
-              {ordered.map(p => (
-                <li key={p.work.idWork}>
-                  <button
-                    onClick={() => setSelectedId(p.work.idWork)}
-                    className={`w-full text-left text-xs flex items-center gap-2 rounded-lg px-2 py-1.5 border transition-colors ${p.work.idWork === selectedId ? 'bg-blue-50 border-blue-300' : 'border-transparent hover:bg-slate-50'}`}
-                  >
-                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorOf(p.work) }} />
-                    <span className="flex-1 truncate text-slate-700 font-medium">{p.work.propertyAddress}</span>
-                    {p.fromHq && <span className="text-slate-500 whitespace-nowrap">{fmtTrip(p.fromHq.meters, p.fromHq.seconds, p.fromHq.approximate)}</span>}
-                  </button>
-                </li>
-              ))}
+              {ordered.map(p => {
+                const stop = routeIndexOf(p.work.idWork);
+                return (
+                  <li key={p.work.idWork} className={`flex items-center rounded-lg border transition-colors ${p.work.idWork === selectedId ? 'bg-blue-50 border-blue-300' : 'border-transparent hover:bg-slate-50'}`}>
+                    <button onClick={() => setSelectedId(p.work.idWork)} className="flex-1 min-w-0 text-left text-xs flex items-center gap-2 px-2 py-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colorOf(p.work) }} />
+                      <span className="flex-1 truncate text-slate-700 font-medium">{p.work.propertyAddress}</span>
+                      {p.fromHq && <span className="text-slate-500 whitespace-nowrap">{fmtTrip(p.fromHq.meters, p.fromHq.seconds, p.fromHq.approximate)}</span>}
+                    </button>
+                    <button
+                      onClick={() => toggleInRoute(p)}
+                      title={stop >= 0 ? 'Quitar del recorrido' : 'Agregar al recorrido'}
+                      className={`w-6 h-6 mr-1 rounded-full text-xs font-bold shrink-0 ${stop >= 0 ? 'bg-teal-600 text-white' : 'bg-slate-100 text-teal-700 hover:bg-teal-100'}`}
+                    >
+                      {stop >= 0 ? stop + 1 : '＋'}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
@@ -202,7 +275,7 @@ export default function WorkMapView({ works, isWorker }) {
                   <li key={w.idWork} className="flex items-center gap-2 text-xs">
                     <span className="flex-1 truncate text-slate-700">{w.propertyAddress}</span>
                     {!isWorker && (
-                      <button onClick={() => setPicking(w.propertyAddress)} className="text-amber-800 font-semibold underline whitespace-nowrap">Ubicar en el mapa</button>
+                      <button onClick={() => setPicking({ type: 'fix', address: w.propertyAddress })} className="text-amber-800 font-semibold underline whitespace-nowrap">Ubicar en el mapa</button>
                     )}
                   </li>
                 ))}
