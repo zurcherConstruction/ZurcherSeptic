@@ -8,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 import useAutoRefresh from "../utils/useAutoRefresh";
 import useFetchAllWorks from "../hooks/useFetchAllWorks";
+import WorkMapView from "./Maps/WorkMapView";
 
 // Definir las zonas y sus variantes de nombres
 const ZONES = {
@@ -102,6 +103,8 @@ const WorkZoneMap = () => {
   const { works, loading, error } = useSelector((state) => state.work);
   const { user } = useSelector((state) => state.auth); // Obtener usuario actual
   const [zoneData, setZoneData] = useState({});
+  // Siempre abre en las listas por zona; el mapa se ve al elegir "Mapa y distancias"
+  const [view, setView] = useState('zones');
 
   // ✅ Verificar si el usuario es worker (solo lectura)
   const isWorker = user?.role === 'worker';
@@ -227,7 +230,28 @@ const WorkZoneMap = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="container mx-auto px-4 py-6">
+        {/* Selector de vista: mapa con distancias o listas por zona */}
+        <div className="flex items-center gap-2 mb-4">
+          {[['zones', '📋 Listas por zona'], ['map', '🗺️ Mapa y distancias']].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setView(value)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${view === value ? 'bg-blue-600 text-white shadow' : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === 'map' && (
+          <WorkMapView
+            works={(works || []).filter(w => FIELD_WORK_STATUSES.includes(w.status) && w.budget?.status !== 'legacy_maintenance')}
+            isWorker={isWorker}
+          />
+        )}
+
         {/* Listas de Obras por Zona - TODAS ABIERTAS */}
+        {view === 'zones' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {Object.entries(ZONES).map(([zoneName, zoneInfo]) => {
             const worksInZone = zoneData[zoneName] || [];
@@ -306,6 +330,7 @@ const WorkZoneMap = () => {
             );
           })}
         </div>
+        )}
 
         {/* Mensaje si no hay obras */}
         {Object.values(zoneData).every(arr => arr.length === 0) && (

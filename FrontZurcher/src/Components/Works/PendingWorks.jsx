@@ -15,6 +15,7 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { UserIcon, CalendarDaysIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon, WrenchScrewdriverIcon } from "@heroicons/react/24/outline";
 import { XMarkIcon, CalendarDaysIcon as CalendarIcon } from "@heroicons/react/24/outline";
+import DayRouteMap from "../Maps/DayRouteMap";
 
 const PendingWorks = () => {
   const dispatch = useDispatch();
@@ -232,6 +233,33 @@ const PendingWorks = () => {
         };
       }),
   ];
+
+  // 🗺️ Datos para el mapa del día: trabajos ya programados en la fecha elegida y pendientes sin fecha
+  const jobKey = (job, type) => (type === 'simpleWork' ? `sw:${job.id}` : `work:${job.idWork}`);
+  const selectedDayKey = moment(startDate).format("YYYY-MM-DD");
+  const selectedKey = selectedWork ? jobKey(selectedWork, selectedType) : null;
+  const dayJobs = events
+    .filter((ev) => moment(ev.start).format("YYYY-MM-DD") === selectedDayKey)
+    .map((ev) => ({
+      key: jobKey(ev.work, ev.eventType),
+      address: ev.work.propertyAddress,
+      detail: staff.find((m) => m.id === (ev.eventType === 'simpleWork' ? ev.work.assignedStaffId : ev.work.staffId))?.name,
+    }))
+    .filter((j) => j.key !== selectedKey);
+  const mapCandidates = [
+    ...pendingWorks.filter((w) => !w.startDate).map((w) => ({ key: jobKey(w, 'work'), address: w.propertyAddress })),
+    ...pendingSimpleWorks.filter((sw) => !sw.startDate).map((sw) => ({ key: jobKey(sw, 'simpleWork'), address: sw.propertyAddress })),
+  ].filter((j) => j.key !== selectedKey);
+  const selectCandidate = (key) => {
+    const [type, id] = key.split(':');
+    if (type === 'sw') {
+      const sw = pendingSimpleWorks.find((s) => String(s.id) === id);
+      if (sw) handleSelectSimpleWork(sw);
+    } else {
+      const work = pendingWorks.find((w) => String(w.idWork) === id);
+      if (work) handleSelectWork(work);
+    }
+  };
 
   const eventStyleGetter = (event) => {
     if (event.eventType === 'simpleWork') {
@@ -542,6 +570,14 @@ const PendingWorks = () => {
                   </button>
                 )}
               </div>
+
+              <DayRouteMap
+                selected={{ key: selectedKey, address: selectedWork.propertyAddress }}
+                dayLabel={moment(startDate).format("MM-DD-YYYY")}
+                dayJobs={dayJobs}
+                candidates={mapCandidates}
+                onSelectCandidate={selectCandidate}
+              />
             </>
           )}
         </div>
