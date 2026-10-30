@@ -14,7 +14,7 @@ const MaintenancePage = () => {
     <>
       <SEOHelmet 
         title="Septic Maintenance Services Florida | ATU & System Care"
-        description="Professional septic system maintenance in Southwest Florida. ATU servicing, routine pumping, system inspections, emergency repairs. Keep your septic system running efficiently with Zurcher Septic."
+        description="ATU maintenance contracts in South Florida: $450 for 2 years (4 service visits), as required by the Florida Department of Health. Routine pumping, system inspections and scheduled repairs with Zurcher Septic."
         keywords="septic maintenance Florida, ATU maintenance, septic system pumping, septic inspection, septic repairs Lehigh Acres, septic service Fort Myers"
         canonicalUrl="https://www.zurcherseptic.com/maintenance-services"
         robots="noindex, nofollow"
@@ -22,7 +22,7 @@ const MaintenancePage = () => {
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       <ComingSoon 
         title="Maintenance Services" 
-        message="Professional septic system maintenance programs"
+        message="ATU maintenance contracts — $450 for 2 years, required by the Health Department"
         onQuoteClick={() => setShowQuoteModal(true)}
       />
       <LoginPopup isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />

@@ -174,11 +174,15 @@ export default function ReminderPopup() {
                           handleDismiss();
                           if (r.linkedEntityType === 'work') navigate(`/work/${r.linkedEntityId}`);
                           else if (r.linkedEntityType === 'simpleWork') navigate(`/simple-works/${r.linkedEntityId}`);
+                          else if (r.linkedEntityType === 'salesLead') navigate('/sales-leads');
+                          else if (r.linkedEntityType === 'customInvoice') navigate(`/custom-invoices/${r.linkedEntityId}`);
                           else navigate('/budgets');
                         }}
                         title={
                           r.linkedEntityType === 'work' ? 'Ir al trabajo'
                           : r.linkedEntityType === 'simpleWork' ? 'Ir al trabajo simple'
+                          : r.linkedEntityType === 'salesLead' ? 'Ir a Sales Leads'
+                          : r.linkedEntityType === 'customInvoice' ? 'Ir a la factura'
                           : 'Ir al presupuesto'
                         }
                         className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full transition-colors ${

@@ -843,6 +843,8 @@ function DetailModal({ reminderId, targetStaffId, isOwner, currentStaff, staffLi
                         : detail.linkedEntityType === 'simpleWork'      ? `/simple-works/${detail.linkedEntityId}`
                         : detail.linkedEntityType === 'workCalendar'    ? '/workCalendar'
                         : detail.linkedEntityType === 'supplierInvoice' ? '/supplier-invoices'
+                        : detail.linkedEntityType === 'salesLead'       ? '/sales-leads'
+                        : detail.linkedEntityType === 'customInvoice'   ? `/custom-invoices/${detail.linkedEntityId}`
                         : '/budgets'
                       );
                     }}

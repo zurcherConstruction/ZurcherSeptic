@@ -22,7 +22,7 @@ const ContactPage = () => {
   return (
     <>
       <SEOHelmet 
-        title="Contact Zurcher Septic | Free Quotes & 24/7 Service"
+        title="Contact Zurcher Septic | Free Quotes & Scheduled Service"
         description="Contact Zurcher Septic for free septic system quotes in Southwest Florida. Professional installation, repairs, maintenance. Serving Lehigh Acres, Fort Myers, Cape Coral. Call (954) 636-8200."
         keywords="contact septic contractor, septic quote Florida, septic installation quote, septic service Lehigh Acres, septic company Fort Myers, free septic estimate"
         canonicalUrl="https://www.zurcherseptic.com/contact"
@@ -77,7 +77,7 @@ const ContactPage = () => {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-white mb-1">Call Us</h3>
-                    <p className="text-slate-300">Available 24/7</p>
+                    <p className="text-slate-300">Call or WhatsApp — we'll get back to you fast</p>
                   </div>
                 </div>
                 <a 
@@ -135,7 +135,7 @@ const ContactPage = () => {
                 <div className="text-slate-200 text-lg space-y-1">
                   <p>Mon - Fri: 8:00 AM - 6:00 PM</p>
                   <p>Sat: 9:00 AM - 3:00 PM</p>
-                  <p className="text-cyan-400 font-semibold">Emergency: 24/7</p>
+                  <p className="text-cyan-400 font-semibold">Service calls & repairs by appointment</p>
                 </div>
               </div>
             </div>

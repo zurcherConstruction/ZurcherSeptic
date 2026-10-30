@@ -332,6 +332,9 @@ async function processCustomInvoicePayment(customInvoiceId, amountPaid, session)
 
     console.log(`✅ CustomInvoice ${customInvoiceId} pagado. Income: ${income.idIncome}`);
 
+    // 🔁 Renovación ATU pagada → nuevas visitas · 💳 visita de diagnóstico pagada → tarea para programarla
+    await require('../services/maintenanceRenewals').onCustomInvoicePaid(invoice);
+
     await sendPaymentNotifications(
       { clientName: invoice.clientName, invoiceNumber: invoice.invoiceNumber },
       amountPaid,

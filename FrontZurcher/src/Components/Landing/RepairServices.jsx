@@ -50,14 +50,14 @@ const RepairServices = () => {
         {/* Header */}
         <div className="text-center mb-16">
           <h2 className="text-4xl lg:text-5xl font-bold text-red-600 mb-4">
-            Emergency Repair Services
+            Septic Repair Services
           </h2>
           <p className="text-xl text-slate-600 max-w-3xl mx-auto mb-6">
-            Fast, reliable septic system repairs available 24/7 across Southwest Florida
+            Reliable septic system repairs across South Florida, by appointment
           </p>
           <div className="inline-block bg-red-100 border-2 border-red-500 rounded-lg px-6 py-3">
             <p className="text-red-700 font-bold text-lg">
-              🚨 Emergency Service Available 24/7 - Call Now!
+              🔧 Diagnostic visit $300 — credited toward your repair
             </p>
           </div>
         </div>
@@ -102,23 +102,19 @@ const RepairServices = () => {
         {/* Emergency CTA */}
         <div className="bg-gradient-to-r from-red-600 to-orange-600 rounded-2xl p-8 md:p-12 text-center text-white shadow-2xl">
           <h3 className="text-3xl md:text-4xl font-bold mb-4">
-            Don't Wait - Get Help Now!
+            Don't Wait — Schedule Your Visit
           </h3>
           <p className="text-xl mb-6 opacity-90">
-            Septic emergencies can cause serious property damage. Our certified technicians are standing by.
+            Small septic problems become expensive ones. Call us and we'll schedule the earliest available visit.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <a
               href="tel:+19546368200"
               className="inline-flex items-center gap-3 px-8 py-4 bg-white text-red-600 font-bold rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all text-lg"
             >
-              <FaWrench className="text-2xl animate-pulse" />
-              Emergency: (954) 636-8200
+              <FaWrench className="text-2xl" />
+              Call (954) 636-8200
             </a>
-            <div className="text-center sm:text-left">
-              <p className="text-sm opacity-90">Average response time:</p>
-              <p className="text-2xl font-bold">Under 2 Hours</p>
-            </div>
           </div>
         </div>
 

@@ -13,16 +13,16 @@ const RepairsPage = () => {
   return (
     <>
       <SEOHelmet 
-        title="Emergency Septic Repairs Florida | 24/7 Septic Service"
-        description="Emergency septic system repairs throughout Southwest Florida. 24/7 service for pipe repairs, pump replacement, drain field restoration. Licensed emergency septic contractors serving Lehigh Acres, Fort Myers."
-        keywords="emergency septic repairs, 24/7 septic service, septic pump repair, drain field repair, septic pipe repair Florida, emergency septic Lehigh Acres"
+        title="Septic Repairs Florida | Scheduled Septic Service"
+        description="Septic system repairs throughout South Florida: pipe repairs, pump replacement, drain field restoration. Diagnostic visit $300, credited toward your repair. Licensed septic contractors serving Lehigh Acres, Fort Myers and all of South Florida."
+        keywords="septic repairs, septic pump repair, drain field repair, septic pipe repair Florida, septic repair Lehigh Acres, septic diagnostic visit"
         canonicalUrl="https://www.zurcherseptic.com/repairs"
         robots="noindex, nofollow"
       />
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       <ComingSoon 
         title="Repair Services" 
-        message="24/7 Emergency septic system repairs"
+        message="Scheduled septic system repairs — $300 diagnostic visit, credited toward your repair"
         onQuoteClick={() => setShowQuoteModal(true)}
       />
       <LoginPopup isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />

@@ -12,8 +12,8 @@ const ServicesSection = () => {
     {
       icon: <FaTools className="text-5xl text-cyan-600" />,
       title: 'Repairs & Replacements',
-      description: '24/7 emergency repair service for drain fields, pumps, tanks, and all system components.',
-      features: ['Emergency service', 'Drain field repair', 'Pump replacement', 'Tank crack sealing']
+      description: 'Scheduled repairs for drain fields, pumps, tanks, and all system components. $300 diagnostic visit, credited toward your repair.',
+      features: ['Diagnostic visits', 'Drain field repair', 'Pump replacement', 'Tank crack sealing']
     },
     {
       icon: <FaCheckCircle className="text-5xl text-green-600" />,
@@ -24,8 +24,8 @@ const ServicesSection = () => {
     {
       icon: <FaClipboardCheck className="text-5xl text-purple-600" />,
       title: 'Maintenance Programs',
-      description: 'Regular maintenance plans to keep your system running efficiently and prevent costly repairs.',
-      features: ['Scheduled inspections', 'Pumping service', 'ATU maintenance', 'System monitoring']
+      description: 'ATU maintenance contracts ($450 / 2 years) as required by the Health Department, plus pumping and routine service.',
+      features: ['ATU maintenance contracts', 'Contract renewals', 'Pumping service', 'Scheduled inspections']
     },
     {
       icon: <FaWrench className="text-5xl text-orange-600" />,

@@ -50,6 +50,10 @@ const TITLES = {
   notice_to_owner_35:                    (e) => `NTO día 35 - vence en 10d: ${e.propertyAddress}`,
   deferred_initial_payment:              (e) => `Cobrar pago inicial: ${e.propertyAddress}`,
   supplierInvoiceCreated:                (e) => `Revisar invoice: ${e.vendor} #${e.invoiceNumber}`,
+  website_chat_lead:                     (e) => `${e.urgent ? '⚠️ ' : ''}Lead web: contactar a ${e.applicantName}${e.propertyAddress ? ` · ${e.propertyAddress}` : ''}`,
+  maintenance_renewal_due:               (e) => `${e.missingContact ? '⚠️ ' : ''}Renovar contrato ATU: ${e.propertyAddress} (vence ${e.endsLabel})`,
+  maintenance_renewal_paid:              (e) => `Renovación ATU pagada: ${e.propertyAddress || ''}`,
+  diagnostic_visit_paid:                 (e) => `Programar visita diagnóstico (pagada): ${e.applicantName}`,
 };
 
 // Eventos que disparan recordatorios adicionales en paralelo
@@ -85,12 +89,16 @@ async function createRoutedReminder(eventType, entity = {}, _isCompanion = false
     const linkedEntityType  = entity?.idWork              ? (CALENDAR_EVENTS.has(eventType) ? 'workCalendar' : 'work')
                             : entity?.idBudget            ? 'budget'
                             : entity?.supplierInvoiceId   ? 'supplierInvoice'
+                            : entity?.salesLeadId         ? 'salesLead'
+                            : entity?.customInvoiceId     ? 'customInvoice'
                             : null;
     const linkedEntityId    = entity?.idWork            ? String(entity.idWork)
                             : entity?.idBudget          ? String(entity.idBudget)
                             : entity?.supplierInvoiceId ? String(entity.supplierInvoiceId)
+                            : entity?.salesLeadId       ? String(entity.salesLeadId)
+                            : entity?.customInvoiceId   ? String(entity.customInvoiceId)
                             : null;
-    const linkedEntityLabel = entity?.propertyAddress || entity?.vendor || null;
+    const linkedEntityLabel = entity?.propertyAddress || entity?.vendor || entity?.applicantName || null;
 
     // 4. Deduplicar: no crear si ya existe uno igual para esta entidad+evento
     if (linkedEntityId) {
@@ -104,7 +112,7 @@ async function createRoutedReminder(eventType, entity = {}, _isCompanion = false
     const reminder = await Reminder.create({
       title,
       type:             'system',
-      priority:         'medium',
+      priority:         entity?.urgent ? 'urgent' : 'medium',
       linkedEntityType,
       linkedEntityId,
       linkedEntityLabel,

@@ -136,8 +136,8 @@ const AboutTeam = () => {
             <div className="text-slate-600">Licensed & Insured</div>
           </div>
           <div className="text-center p-6 bg-white rounded-lg shadow-md">
-            <div className="text-4xl font-bold text-blue-600 mb-2">24/7</div>
-            <div className="text-slate-600">Emergency Service</div>
+            <div className="text-4xl font-bold text-blue-600 mb-2">All-in</div>
+            <div className="text-slate-600">One Price, No Surprises</div>
           </div>
         </div>
       </div>
