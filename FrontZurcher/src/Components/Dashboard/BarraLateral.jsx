@@ -160,7 +160,6 @@ const BarraLateral = () => {
       color: "text-red-400",
       items: [
         { name: "Materials", path: "/materiales", icon: FaTools },
-        { name: "Send Message", path: "/send-notifications", icon: FaBell },
         { name: "Staff", path: "/register", icon: FaUsers },
         { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, // 🆕 Base de Conocimiento
         { name: "Signature Documents", path: "/signature-documents", icon: FaFileSignature }, // 🆕 Documentos para Firma
@@ -279,15 +278,31 @@ const BarraLateral = () => {
           color: "text-red-400",
           items: [
 
-            { name: "Send Message", path: "/send-notifications", icon: FaBell },
             { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook },
             { name: "Signature Documents", path: "/signature-documents", icon: FaFileSignature }, // 🆕 Documentos para Firma
           ],
         },
       ];
     } else if (staff?.role === "recept") {
-      // Solo materiales, itemBudget, attachInvoice, send-notifications, calendario y progress tracker
+      // Solo materiales, itemBudget, attachInvoice, calendario y progress tracker
       return [
+        {
+          name: "Dashboard",
+          icon: FaHome,
+          color: "text-blue-400",
+          items: [
+            { name: "ZurcherAI", path: "/ai-assistant", icon: FaRobot }, // 🤖 Asistente IA (mismo acceso que admin)
+          ],
+        },
+        {
+          name: "Budgets",
+          icon: FaFolderOpen,
+          color: "text-blue-400",
+          items: [
+            { name: "Budgets", path: "/budgets", icon: FaFolderOpen }, // notas, reenviar y copiar links
+            { name: "Gestion Budgets", path: "/gestionBudgets", icon: FaCog },
+          ],
+        },
         {
           name: "Sales Leads",
           icon: FaUserPlus,
@@ -305,14 +320,12 @@ const BarraLateral = () => {
             { name: "Materials", path: "/materiales", icon: FaTools },
             { name: "Items Budgets", path: "/itemBudget", icon: FaBoxes },
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
-            { name: "Send Message", path: "/send-notifications", icon: FaBell },
             { name: "Simple Works", path: "/simple-works", icon: FaTools },
             { name: "Claims", path: "/claims", icon: FaExclamationTriangle },
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Works", path: "/works", icon: FaTasks },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
-            { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
             { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook },
           ],
         },

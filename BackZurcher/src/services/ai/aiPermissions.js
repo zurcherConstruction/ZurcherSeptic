@@ -44,7 +44,9 @@ const ADMIN_EXCLUDED_ENTITIES = [
 // Herramientas de negocio que admin NO puede usar
 const ADMIN_EXCLUDED_TOOLS = ['get_revenue_summary'];
 
-const AI_ROLES = ['owner', 'admin'];
+// recept tiene el mismo acceso que admin
+const AI_ROLES = ['owner', 'admin', 'recept'];
+const ADMIN_LEVEL_ROLES = ['admin', 'recept'];
 
 function parseMailboxList(value) {
   return (value || '')
@@ -69,13 +71,13 @@ function canUseAI(role) {
 
 function isEntityAllowed(role, entityName) {
   if (role === 'owner') return true;
-  if (role === 'admin') return !ADMIN_EXCLUDED_ENTITIES.includes(entityName);
+  if (ADMIN_LEVEL_ROLES.includes(role)) return !ADMIN_EXCLUDED_ENTITIES.includes(entityName);
   return false;
 }
 
 function isToolAllowed(role, toolName) {
   if (role === 'owner') return true;
-  if (role === 'admin') return !ADMIN_EXCLUDED_TOOLS.includes(toolName);
+  if (ADMIN_LEVEL_ROLES.includes(role)) return !ADMIN_EXCLUDED_TOOLS.includes(toolName);
   return false;
 }
 

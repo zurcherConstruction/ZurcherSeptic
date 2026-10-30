@@ -35,7 +35,6 @@ import StaffActivityDashboard from "./Components/StaffActivity/StaffActivityDash
 import WorkDetail from "./Components/Works/WorkDetail";
 import Materiales from "./Components/Materiales";
 import MaterialsCheck from "./Components/Seguimiento/WorkStatusManager";
-import SendNotification from "./Components/SendNotification";
 import Notifications from "./Components/Notifications";
 //import InstallationForm from "./Components/Works/InstalationForm";
 import CreateBudget from "./Components/Budget/CreateBudget";
@@ -211,7 +210,7 @@ function App() {
       {shouldShowLayout && <Header />}
       {shouldShowLayout && <ReminderPopup />}
       {shouldShowLayout && <FloatingMyOrders />}
-      {shouldShowLayout && ['owner', 'admin'].includes(currentStaff?.role) && location.pathname !== '/ai-assistant' && <AIPanel />}
+      {shouldShowLayout && ['owner', 'admin', 'recept'].includes(currentStaff?.role) && location.pathname !== '/ai-assistant' && <AIPanel />}
       {MARKETING_ROUTES.includes(location.pathname) && <ZurcherChatWidget />}
       <LoadingSpinner />
       <div className={`flex ${shouldShowLayout ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
@@ -317,7 +316,7 @@ function App() {
               <Route
                 path="/monthly-installations"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance", "worker", "capataz"]}>
+                  <PrivateRoute allowedRoles={["admin", "owner", "finance", "worker", "capataz"]}>
                     <MonthlyInstallations />
                   </PrivateRoute>
                 }
@@ -573,16 +572,6 @@ function App() {
               />
               <Route path="/archives/:folder/:file" element={<FileDetail />} />
 
-              <Route
-                path="/send-notifications"
-                element={
-                  <PrivateRoute
-                    allowedRoles={["owner", "recept", "worker", "admin", "maintenance", "finance", "follow-up"]}
-                  >
-                    <SendNotification />
-                  </PrivateRoute>
-                }
-              />
               <Route
                 path="/notifications"
                 element={
@@ -889,7 +878,7 @@ function App() {
               <Route
                 path="/ai-assistant"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "owner"]}>
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept"]}>
                     <AIAssistant />
                   </PrivateRoute>
                 }

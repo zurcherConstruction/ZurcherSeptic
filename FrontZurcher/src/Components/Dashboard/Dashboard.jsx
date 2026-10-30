@@ -11,7 +11,6 @@ import {
   FolderIcon,
   PencilSquareIcon,
   ArchiveBoxIcon,
-  ChatBubbleLeftIcon,
   DocumentArrowUpIcon,
   BanknotesIcon,
   CurrencyDollarIcon,
@@ -196,14 +195,6 @@ const Dashboard = () => {
           icon: DocumentDuplicateIcon,
           gradient: 'from-lime-500 to-lime-600',
           allowedRoles: ['owner', 'admin'],
-        },
-        {
-          path: '/send-notifications',
-          title: 'Send Messages',
-          description: 'Team communication',
-          icon: ChatBubbleLeftIcon,
-          gradient: 'from-pink-500 to-pink-600',
-          allowedRoles: ['owner', 'admin', 'recept', 'worker', 'finance', 'maintenance', 'follow-up'],
         },
         {
           path: '/register',
