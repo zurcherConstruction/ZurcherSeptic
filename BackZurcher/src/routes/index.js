@@ -80,6 +80,7 @@ router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (inc
 router.use('/stripe', stripeWebhookRoutes); // 🆕 Webhooks de Stripe (público, sin auth)
 router.use('/signnow', signNowRoutes);
 router.use('/contact', contactRoutes); // Ruta pública para formulario de contacto
+router.use('/public-ai', require('./publicAiRoutes')); // 🌐 Chat público de la landing (asistente para clientes)
 router.use('/gallery', galleryRoutes); // 🆕 Galería de trabajos (público)
 router.use('/docusign', docusignRoutes); // 🆕 OAuth de DocuSign (público, sin auth)
 

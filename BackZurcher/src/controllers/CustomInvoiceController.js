@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const { CustomInvoice, Work, Budget, SimpleWork, Income } = require('../data');
 const { generateCustomInvoicePdf } = require('../utils/pdfGenerators/customInvoicePdfGenerator');
 const { sendEmail } = require('../utils/notifications/emailService');
+const { createCustomInvoicePaymentLink } = require('../utils/stripePaymentLink');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -610,38 +611,8 @@ const createPaymentLink = async (req, res) => {
     if (payAmt <= 0) return res.status(400).json({ error: true, message: 'Monto de pago inválido' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(400).json({ error: true, message: 'Stripe no configurado' });
 
-    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-    const frontendUrl = (process.env.FRONTEND_URL || 'https://www.zurcherseptic.com').replace(/\/$/, '');
-    const thankYouUrl = `${frontendUrl}/thank-you?session_id={CHECKOUT_SESSION_ID}&source=stripe`;
-    const amountWithFee = Math.round(payAmt * 1.03 * 100);
-
-    const product = await stripe.products.create({
-      name: `${invoice.invoiceNumber} - ${invoice.clientName}`,
-      metadata: { custom_invoice_id: invoice.id, invoice_number: invoice.invoiceNumber },
-    });
-    const price = await stripe.prices.create({
-      product: product.id,
-      unit_amount: amountWithFee,
-      currency: 'usd',
-    });
-    const paymentLink = await stripe.paymentLinks.create({
-      line_items: [{ price: price.id, quantity: 1 }],
-      customer_creation: 'always',
-      after_completion: { type: 'redirect', redirect: { url: thankYouUrl } },
-      // metadata on the link → copied to checkout session → readable by webhook via session.metadata
-      metadata: { custom_invoice_id: invoice.id, invoice_number: invoice.invoiceNumber },
-      payment_intent_data: {
-        description: `Payment for ${invoice.invoiceNumber}`,
-        metadata: { custom_invoice_id: invoice.id, invoice_number: invoice.invoiceNumber },
-      },
-    });
-
-    await invoice.update({
-      stripePaymentLinkId: paymentLink.id,
-      stripePaymentLinkUrl: paymentLink.url,
-    });
-
-    res.json({ error: false, data: { url: paymentLink.url, id: paymentLink.id } });
+    const { url, id } = await createCustomInvoicePaymentLink(invoice);
+    res.json({ error: false, data: { url, id } });
   } catch (err) {
     console.error('❌ createPaymentLink:', err);
     res.status(500).json({ error: true, message: err.message });
@@ -686,6 +657,9 @@ const markAsPaid = async (req, res) => {
       paymentDetails: paymentDetails || null,
       verified: false,
     });
+
+    // 🔁 Renovación ATU pagada → nuevas visitas · 💳 visita de diagnóstico pagada → tarea para programarla
+    require('../services/maintenanceRenewals').onCustomInvoicePaid(invoice);
 
     res.json({ error: false, data: { invoice, income } });
   } catch (err) {
@@ -816,4 +790,7 @@ module.exports = {
   publicView,
   clientApprove,
   getAvailableYears,
+  // Helpers reutilizados por servicios automáticos (renovaciones ATU, visita de diagnóstico)
+  _generateInvoiceNumber,
+  _computeTotals,
 };

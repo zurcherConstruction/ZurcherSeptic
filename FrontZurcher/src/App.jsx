@@ -118,6 +118,14 @@ import FleetDashboard from './Components/Fleet/FleetDashboard'; // 🆕 Flota y 
 import FleetAssetDetail from './Components/Fleet/FleetAssetDetail'; // 🆕 Detalle de activo de flota
 import AIAssistant from './Components/AIAssistant'; // 🆕 Asistente de IA
 import AIPanel from './Components/AI/AIPanel'; // 🤖 Panel lateral de Zurcher AI (Ctrl+K)
+import ZurcherChatWidget from './Components/Landing/ZurcherChatWidget'; // 🌐 Asistente virtual para clientes en la landing
+
+// Páginas de marketing donde se muestra el asistente virtual para clientes
+const MARKETING_ROUTES = [
+  "/", "/about", "/services", "/services/atu-installation", "/services/regular-installation",
+  "/services/septic-replacement", "/services/drainfield", "/installation", "/gallery",
+  "/maintenance-services", "/repairs", "/contact",
+];
 import CustomInvoiceList from './Components/CustomInvoices/CustomInvoiceList'; // 🆕 Custom Invoices
 import CustomInvoiceBuilder from './Components/CustomInvoices/CustomInvoiceBuilder'; // 🆕 Custom Invoice Builder
 import CustomInvoicePublicView from './Components/CustomInvoices/CustomInvoicePublicView'; // 🆕 Public invoice view
@@ -204,6 +212,7 @@ function App() {
       {shouldShowLayout && <ReminderPopup />}
       {shouldShowLayout && <FloatingMyOrders />}
       {shouldShowLayout && ['owner', 'admin'].includes(currentStaff?.role) && location.pathname !== '/ai-assistant' && <AIPanel />}
+      {MARKETING_ROUTES.includes(location.pathname) && <ZurcherChatWidget />}
       <LoadingSpinner />
       <div className={`flex ${shouldShowLayout ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
         {shouldShowLayout && <BarraLateral />}

@@ -5,7 +5,8 @@ import { toast } from 'react-toastify';
 import { fetchNotificationRoutings, saveNotificationRoutings } from '../../Redux/Actions/notificationRoutingActions';
 import { fetchStaff } from '../../Redux/Actions/adminActions';
 
-const CATEGORIES = ['Obras', 'Presupuestos', 'Cotizaciones', 'Flota', 'Knowledge Base', 'Legal', 'Financiero'];
+// Orden de las categorías; las que no estén en la lista se agregan al final automáticamente
+const CATEGORIES = ['Obras', 'Presupuestos', 'Cotizaciones', 'Ventas', 'Mantenimiento', 'Flota', 'Knowledge Base', 'Legal', 'Financiero'];
 
 const ROLE_LABELS = {
   owner: 'Owner',
@@ -64,7 +65,11 @@ export default function NotificationRoutingSettings() {
     }
   };
 
-  const groupedByCategory = CATEGORIES.map(cat => ({
+  const allCategories = [
+    ...CATEGORIES,
+    ...[...new Set(routings.map(r => r.category))].filter(c => c && !CATEGORIES.includes(c)),
+  ];
+  const groupedByCategory = allCategories.map(cat => ({
     category: cat,
     items: routings.filter(r => r.category === cat),
   }));

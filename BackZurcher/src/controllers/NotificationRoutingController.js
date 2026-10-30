@@ -28,6 +28,14 @@ const EVENT_TYPES = [
   { key: 'deferred_initial_payment',         label: 'Pago inicial diferido — cobrar antes de iniciar', category: 'Financiero' },
   { key: 'supplierInvoiceCreated',           label: 'Invoice de proveedor cargado – revisar y aprobar', category: 'Financiero' },
 
+  // ── Ventas ───────────────────────────────────────────────────────────────
+  { key: 'website_chat_lead',                label: 'Nuevo lead desde el chat de la web – contactar al cliente', category: 'Ventas' },
+  { key: 'diagnostic_visit_paid',            label: 'Visita de diagnóstico ($300) pagada – programar visita', category: 'Ventas' },
+
+  // ── Mantenimiento ────────────────────────────────────────────────────────
+  { key: 'maintenance_renewal_due',          label: 'Contrato de mantenimiento ATU por vencer – revisar y enviar renovación', category: 'Mantenimiento' },
+  { key: 'maintenance_renewal_paid',         label: 'Renovación de contrato ATU pagada – visitas nuevas creadas', category: 'Mantenimiento' },
+
   // ── Solicitudes de Cotización ────────────────────────────────────────────
   { key: 'quote_request',                    label: 'Nueva solicitud de cotización (campo) – generar presupuesto', category: 'Cotizaciones' },
 ];

@@ -11,6 +11,7 @@ const { startNewsletterSchedulerCron } = require("./src/services/newsletterSched
 const { startFleetExpiryRemindersCron } = require("./src/services/checkFleetExpiryReminders.js");
 const { startGoogleReviewRemindersCron } = require("./src/services/checkGoogleReviewReminders.js");
 const { startNoticeToOwnerCron } = require("./src/services/checkNoticeToOwnerReminders.js");
+const { startMaintenanceRenewalCron } = require("./src/services/maintenanceRenewals.js");
 
 require("dotenv").config();
 
@@ -105,6 +106,7 @@ function startServer() {
     startFleetExpiryRemindersCron(); // Iniciar el cron para alertas de vencimiento de flota
     startGoogleReviewRemindersCron(); // Iniciar el cron para recordatorios de Google Review
     startNoticeToOwnerCron(); // Iniciar el cron para Notice to Owner día 35
+    startMaintenanceRenewalCron(); // 🔁 Renovaciones de contratos de mantenimiento ATU (45 días antes)
   });
 }
 
