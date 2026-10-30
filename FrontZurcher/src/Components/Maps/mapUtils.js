@@ -24,12 +24,15 @@ export function estimateTrip(a, b) {
 }
 
 // Ruta en Google Maps desde la sede pasando por las paradas (en el orden dado)
-export function googleDirectionsUrl(hq, stops) {
+// (roundTrip: termina de nuevo en la sede). Google acepta hasta 9 paradas intermedias.
+export function googleDirectionsUrl(hq, stops, { roundTrip = false } = {}) {
   if (!stops.length) return null;
   const point = (p) => `${p.lat},${p.lng}`;
-  const destination = stops[stops.length - 1];
-  const waypoints = stops.slice(0, -1).slice(0, 9).map(point).join('|');
-  const params = new URLSearchParams({ api: '1', origin: hq?.address || point(hq), destination: point(destination), travelmode: 'driving' });
+  const hqText = hq?.address || point(hq);
+  const destination = roundTrip ? hqText : point(stops[stops.length - 1]);
+  const middle = roundTrip ? stops : stops.slice(0, -1);
+  const waypoints = middle.slice(0, 9).map(point).join('|');
+  const params = new URLSearchParams({ api: '1', origin: hqText, destination, travelmode: 'driving' });
   if (waypoints) params.set('waypoints', waypoints);
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
