@@ -152,6 +152,7 @@ router.use('/knowledge-base', knowledgeBaseRoutes); // 🆕 Ruta para base de co
 router.use('/fleet', fleetRoutes); // 🆕 Ruta para flota y maquinaria
 router.use('/signature-documents', signatureDocumentRoutes); // 🆕 Ruta para documentos de firma genéricos (SignNow/DocuSign)
 router.use('/ai', aiRoutes); // 🆕 Ruta para consultas de IA en lenguaje natural
+router.use('/maps', require('./mapRoutes')); // 🗺️ Mapas de trabajos: coordenadas y distancias desde la sede
 router.use('/notification-routing', notificationRoutingRoutes); // 🆕 Routing de alertas automáticas por responsable
 router.use('/sales-indicators', salesIndicatorsRoutes); // 🆕 Indicadores mensuales de ventas/instalados/backlog
 router.use('/custom-invoices', customInvoiceRoutes); // 🆕 Facturas personalizadas (INV, QUO, PRO, CRN, REC)
