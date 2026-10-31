@@ -239,6 +239,8 @@ const BudgetList = () => {
   // ✅ Solo owner y admin pueden editar, el resto solo ve
   const canEdit = userRole === 'owner' || userRole === 'admin';
   const isReadOnly = !canEdit;
+  // recept: puede dejar notas, reenviar presupuestos/PPI y copiar links (no edita, rechaza ni aprueba)
+  const canCommunicate = canEdit || userRole === 'recept';
   
   // ✅ Permisos para exportar Excel (owner, admin, finance)
   const canExportExcel = ['owner', 'admin', 'finance'].includes(userRole);
@@ -1396,7 +1398,7 @@ const BudgetList = () => {
     const isSigned = ppiStatus === 'signed' || ppiStatus === 'completed';
     const isSent = ppiStatus === 'sent';
 
-    const buttonColorClass = isReadOnly
+    const buttonColorClass = !canCommunicate
       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
       : isSigned
       ? 'bg-green-500 text-white hover:bg-green-600'
@@ -1408,11 +1410,11 @@ const BudgetList = () => {
       <div className="relative w-full signature-menu-wrapper">
         <button
           onClick={(event) => toggleSignatureMenu(event, ppiMenuKey)}
-          disabled={isReadOnly}
+          disabled={!canCommunicate}
           className={`inline-flex items-center justify-center rounded font-medium w-full shadow-sm ${buttonColorClass} ${
             isMobile ? 'px-3 py-2 text-sm gap-1' : 'px-2 py-1 text-[10px]'
           }`}
-          title={isReadOnly ? 'View only - No edit permissions' : 'Opciones de Firma PPI'}
+          title={!canCommunicate ? 'View only - No edit permissions' : 'Opciones de Firma PPI'}
         >
           {isMobile ? (
             <>
@@ -2039,13 +2041,13 @@ const BudgetList = () => {
                                 </div>
                                 <button
                                   onClick={() => handleEditNoteClick(budget)}
-                                  disabled={isReadOnly}
+                                  disabled={!canCommunicate}
                                   className={`p-0.5 flex-shrink-0 ${
-                                    isReadOnly 
+                                    !canCommunicate 
                                       ? 'text-gray-400 cursor-not-allowed' 
                                       : 'text-blue-600 hover:text-blue-800'
                                   }`}
-                                  title={isReadOnly ? "View only - No edit permissions" : "Edit Notes"}
+                                  title={!canCommunicate ? "View only - No edit permissions" : "Edit Notes"}
                                 >
                                   <PencilIcon className="h-3 w-3" />
                                 </button>
@@ -2128,13 +2130,13 @@ const BudgetList = () => {
                                   </p>
                                   <button
                                     onClick={() => handleResendBudget(budget)}
-                                    disabled={isReadOnly}
+                                    disabled={!canCommunicate}
                                     className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] ${
-                                      isReadOnly 
+                                      !canCommunicate 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-orange-500 text-white hover:bg-orange-600'
                                     }`}
-                                    title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget to client"}
+                                    title={!canCommunicate ? "View only - No edit permissions" : "Resend updated budget to client"}
                                   >
                                     🔄 Resend
                                   </button>
@@ -2269,13 +2271,13 @@ const BudgetList = () => {
                                   <div className="flex gap-0.5">
                                     <button
                                       onClick={() => handleResendBudget(budget)}
-                                      disabled={isReadOnly}
+                                      disabled={!canCommunicate}
                                       className={`inline-flex items-center justify-center px-1.5 py-1 rounded text-[9px] font-medium flex-1 shadow-sm ${
-                                        isReadOnly 
+                                        !canCommunicate 
                                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                           : 'bg-orange-500 text-white hover:bg-orange-600'
                                       }`}
-                                      title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget"}
+                                      title={!canCommunicate ? "View only - No edit permissions" : "Resend updated budget"}
                                     >
                                       🔄
                                     </button>
@@ -2472,13 +2474,13 @@ const BudgetList = () => {
                                   </p>
                                   <button
                                     onClick={() => handleResendBudget(budget)}
-                                    disabled={isReadOnly}
+                                    disabled={!canCommunicate}
                                     className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
-                                      isReadOnly 
+                                      !canCommunicate 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-blue-500 text-white hover:bg-blue-600'
                                     }`}
-                                    title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget for client review"}
+                                    title={!canCommunicate ? "View only - No edit permissions" : "Resend updated budget for client review"}
                                   >
                                     🔄 Resend
                                   </button>
@@ -3032,13 +3034,13 @@ const BudgetList = () => {
                               </div>
                               <button
                                 onClick={() => handleEditNoteClick(budget)}
-                                disabled={isReadOnly}
+                                disabled={!canCommunicate}
                                 className={`p-1.5 rounded-md transition-colors ${
-                                  isReadOnly 
+                                  !canCommunicate 
                                     ? 'text-gray-400 cursor-not-allowed' 
                                     : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
                                 }`}
-                                title={isReadOnly ? "View only - No edit permissions" : "Edit Notes"}
+                                title={!canCommunicate ? "View only - No edit permissions" : "Edit Notes"}
                               >
                                 <PencilIcon className="h-4 w-4" />
                               </button>
@@ -3134,13 +3136,13 @@ const BudgetList = () => {
                                 {/* 🆕 Botón: Reenviar presupuesto editado */}
                                 <button
                                   onClick={() => handleResendBudget(budget)}
-                                  disabled={isReadOnly}
+                                  disabled={!canCommunicate}
                                   className={`w-full py-2 rounded-lg text-sm font-semibold ${
-                                    isReadOnly 
+                                    !canCommunicate 
                                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                       : 'bg-orange-500 text-white hover:bg-orange-600'
                                   }`}
-                                  title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget"}
+                                  title={!canCommunicate ? "View only - No edit permissions" : "Resend updated budget"}
                                 >
                                   🔄 Resend Updated Budget
                                 </button>
@@ -3260,13 +3262,13 @@ const BudgetList = () => {
                                 {/* 🆕 Botón: Reenviar */}
                                 <button
                                   onClick={() => handleResendBudget(budget)}
-                                  disabled={isReadOnly}
+                                  disabled={!canCommunicate}
                                   className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                    isReadOnly 
+                                    !canCommunicate 
                                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                       : 'bg-orange-500 text-white hover:bg-orange-600'
                                   }`}
-                                  title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget"}
+                                  title={!canCommunicate ? "View only - No edit permissions" : "Resend updated budget"}
                                 >
                                   🔄 Resend Updated Budget
                                 </button>
@@ -3462,13 +3464,13 @@ const BudgetList = () => {
                                 {/* Botón: Reenviar para Revisión */}
                                 <button
                                   onClick={() => handleResendBudget(budget)}
-                                  disabled={isReadOnly}
+                                  disabled={!canCommunicate}
                                   className={`w-full inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-md ${
-                                    isReadOnly 
+                                    !canCommunicate 
                                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                       : 'bg-blue-600 text-white hover:bg-blue-700'
                                   }`}
-                                  title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget for client review"}
+                                  title={!canCommunicate ? "View only - No edit permissions" : "Resend updated budget for client review"}
                                 >
                                   🔄 Resend for Review
                                 </button>

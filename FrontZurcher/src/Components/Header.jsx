@@ -20,7 +20,7 @@ const Header = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isAuthenticated, currentStaff } = useSelector((state) => state.auth);
-  const hasAI = ['owner', 'admin'].includes(currentStaff?.role);
+  const hasAI = ['owner', 'admin', 'recept'].includes(currentStaff?.role);
   const { notifications } = useSelector((state) => state.notifications);
   const { reminders } = useSelector((state) => state.reminders || { reminders: [] });
 

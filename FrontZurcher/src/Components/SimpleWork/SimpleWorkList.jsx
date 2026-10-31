@@ -106,7 +106,9 @@ const SimpleWorkList = () => {
   const navigate = useNavigate();
 
   const { simpleWorks, loading, error, successMessage } = useSelector(s => s.simpleWork);
-  const { staff } = useSelector(s => s.auth);
+  const { staff, currentStaff } = useSelector(s => s.auth);
+  // 👁️ recept solo puede ver Simple Works (sin crear, aprobar, asignar, enviar ni editar)
+  const isReadOnly = (currentStaff || staff)?.role === 'recept';
   const { staffList } = useSelector(s => s.admin);
 
   // Local state
@@ -340,13 +342,13 @@ const SimpleWorkList = () => {
               <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               Actualizar
             </button>
-            <button
+            <>{!isReadOnly && (<button
               onClick={() => { setEditingWork(null); setShowCreateModal(true); }}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm"
             >
               <PlusIcon className="h-4 w-4" />
               Nueva Cotización
-            </button>
+            </button>)}</>
           </div>
         </div>
 
@@ -564,7 +566,7 @@ const SimpleWorkList = () => {
                                 </span>
                               )}
                               {['quoted', 'sent'].includes(work.status) && (
-                                <button
+                                <>{!isReadOnly && (<button
                                   onClick={(e) => handleApproveWork(e, work)}
                                   disabled={approvingWorkId === work.id}
                                   className="flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-300 hover:bg-green-100 hover:text-green-800 hover:ring-green-400 transition cursor-pointer"
@@ -573,7 +575,7 @@ const SimpleWorkList = () => {
                                     ? <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-green-600" />
                                     : <><HandThumbUpIcon className="h-3.5 w-3.5" /> Aprobar</>
                                   }
-                                </button>
+                                </button>)}</>
                               )}
                               {paymentCfg && (
                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ring-1 ${paymentCfg.badge}`}>
@@ -606,7 +608,7 @@ const SimpleWorkList = () => {
                             <select
                               value={work.assignedStaffId || ''}
                               onChange={(e) => handleAssignStaff(e, work, e.target.value)}
-                              disabled={assigningStaffId === work.id}
+                              disabled={isReadOnly || assigningStaffId === work.id}
                               className={`text-sm border rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition w-full max-w-[160px] ${
                                 work.assignedStaffId 
                                   ? 'border-blue-200 bg-blue-50/50 text-blue-800 font-medium' 
@@ -642,24 +644,24 @@ const SimpleWorkList = () => {
                                 className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition disabled:opacity-40" title="Ver PDF">
                                 {viewingPdfId === work.id ? <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" /> : <DocumentTextIcon className="h-4 w-4" />}
                               </button>
-                              <button onClick={(e) => handleSendEmail(e, work)} disabled={sendingEmailId === work.id}
+                              <>{!isReadOnly && (<button onClick={(e) => handleSendEmail(e, work)} disabled={sendingEmailId === work.id}
                                 className="p-1.5 rounded-lg text-sky-600 hover:bg-sky-50 transition disabled:opacity-40" title="Enviar Email">
                                 {sendingEmailId === work.id ? <div className="animate-spin h-4 w-4 border-2 border-sky-500 border-t-transparent rounded-full" /> : <EnvelopeIcon className="h-4 w-4" />}
-                              </button>
+                              </button>)}</>
                               <button onClick={(e) => handleGeneratePdf(e, work.id)}
                                 className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition" title="Descargar PDF">
                                 <ArrowDownTrayIcon className="h-4 w-4" />
                               </button>
                               {work.status !== 'completed' && work.status !== 'cancelled' && (
-                                <button onClick={(e) => handleMarkAsCompleted(e, work)} disabled={completingWorkId === work.id}
+                                <>{!isReadOnly && (<button onClick={(e) => handleMarkAsCompleted(e, work)} disabled={completingWorkId === work.id}
                                   className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition disabled:opacity-40" title="Marcar Terminado">
                                   {completingWorkId === work.id ? <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full" /> : <CheckCircleIcon className="h-4 w-4" />}
-                                </button>
+                                </button>)}</>
                               )}
-                              <button onClick={(e) => handleEditWork(e, work)}
+                              <>{!isReadOnly && (<button onClick={(e) => handleEditWork(e, work)}
                                 className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition" title="Editar">
                                 <PencilSquareIcon className="h-4 w-4" />
-                              </button>
+                              </button>)}</>
                               {(staff?.role === 'admin' || staff?.role === 'manager') && (
                                 <button onClick={(e) => handleDeleteWork(e, work.id)}
                                   className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition" title="Eliminar">
@@ -729,7 +731,7 @@ const SimpleWorkList = () => {
                           </span>
                         )}
                         {['quoted', 'sent'].includes(work.status) && (
-                          <button
+                          <>{!isReadOnly && (<button
                             onClick={(e) => handleApproveWork(e, work)}
                             disabled={approvingWorkId === work.id}
                             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-300 hover:bg-green-100 hover:text-green-800 hover:ring-green-400 transition"
@@ -738,7 +740,7 @@ const SimpleWorkList = () => {
                               ? <div className="animate-spin h-3 w-3 border-2 border-green-600 border-t-transparent rounded-full" />
                               : <><HandThumbUpIcon className="h-3.5 w-3.5" /> Aprobar</>
                             }
-                          </button>
+                          </button>)}</>
                         )}
                         {paymentCfg && (
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ring-1 ${paymentCfg.badge}`}>
@@ -756,7 +758,7 @@ const SimpleWorkList = () => {
                         <select
                           value={work.assignedStaffId || ''}
                           onChange={(e) => handleAssignStaff(e, work, e.target.value)}
-                          disabled={assigningStaffId === work.id}
+                          disabled={isReadOnly || assigningStaffId === work.id}
                           className={`text-xs border rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 transition flex-1 min-w-[120px] max-w-[200px] ${
                             work.assignedStaffId 
                               ? 'border-blue-200 bg-blue-50/50 text-blue-800 font-medium' 
@@ -786,26 +788,26 @@ const SimpleWorkList = () => {
                           {viewingPdfId === work.id ? <div className="animate-spin h-3.5 w-3.5 border-2 border-blue-500 border-t-transparent rounded-full" /> : <DocumentTextIcon className="h-3.5 w-3.5" />}
                           <span className="hidden sm:inline">PDF</span>
                         </button>
-                        <button onClick={(e) => handleSendEmail(e, work)} disabled={sendingEmailId === work.id}
+                        <>{!isReadOnly && (<button onClick={(e) => handleSendEmail(e, work)} disabled={sendingEmailId === work.id}
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-sky-700 bg-sky-50 hover:bg-sky-100 transition disabled:opacity-40">
                           {sendingEmailId === work.id ? <div className="animate-spin h-3.5 w-3.5 border-2 border-sky-500 border-t-transparent rounded-full" /> : <EnvelopeIcon className="h-3.5 w-3.5" />}
                           <span className="hidden sm:inline">Email</span>
-                        </button>
+                        </button>)}</>
                         <button onClick={(e) => handleGeneratePdf(e, work.id)}
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition">
                           <ArrowDownTrayIcon className="h-3.5 w-3.5" />
                         </button>
                         {work.status !== 'completed' && work.status !== 'cancelled' && (
-                          <button onClick={(e) => handleMarkAsCompleted(e, work)} disabled={completingWorkId === work.id}
+                          <>{!isReadOnly && (<button onClick={(e) => handleMarkAsCompleted(e, work)} disabled={completingWorkId === work.id}
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition disabled:opacity-40">
                             {completingWorkId === work.id ? <div className="animate-spin h-3.5 w-3.5 border-2 border-emerald-500 border-t-transparent rounded-full" /> : <CheckCircleIcon className="h-3.5 w-3.5" />}
                             <span className="hidden sm:inline">Terminado</span>
-                          </button>
+                          </button>)}</>
                         )}
-                        <button onClick={(e) => handleEditWork(e, work)}
+                        <>{!isReadOnly && (<button onClick={(e) => handleEditWork(e, work)}
                           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition">
                           <PencilSquareIcon className="h-3.5 w-3.5" />
-                        </button>
+                        </button>)}</>
                         {(staff?.role === 'admin' || staff?.role === 'manager') && (
                           <button onClick={(e) => handleDeleteWork(e, work.id)}
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition ml-auto">

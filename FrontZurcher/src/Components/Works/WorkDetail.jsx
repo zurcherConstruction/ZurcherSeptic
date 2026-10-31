@@ -497,6 +497,7 @@ const WorkDetail = () => {
   const canUploadImages = ['owner', 'admin', 'worker'].includes(userRole);
   const isViewOnly = userRole === 'finance'; // Finance role is view-only
   const isCapataz = userRole === 'capataz'; // Capataz: solo ve Información e Imágenes
+  const hideIncomeAndBalance = userRole === 'recept'; // Recept: ve todo menos ingresos y balance
 
   const [showCreateCOModal, setShowCreateCOModal] = useState(false);
   const [showEditCOModal, setShowEditCOModal] = useState(false); // Estado para el modal de edición
@@ -593,8 +594,8 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
       consolidated.push(...work.Receipts.map(r => ({ ...r, relatedRecordType: 'Obra', relatedRecordDesc: work.propertyAddress })));
     }
 
-    // Recibos de Income
-    if (incomes) {
+    // Recibos de Income (no para recept)
+    if (incomes && !hideIncomeAndBalance) {
       incomes.forEach(income => {
         if (income.Receipts) {
           consolidated.push(...income.Receipts.map(r => ({ ...r, relatedRecordType: 'Ingreso', relatedRecordDesc: `${income.typeIncome} - $${income.amount}` })));
@@ -624,8 +625,9 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
       return true;
     });
 
-    return deduped;
-  }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress]); // Dependencias
+    // Recept: solo comprobantes de gastos
+    return hideIncomeAndBalance ? deduped.filter(r => r.relatedRecordType === 'Gasto') : deduped;
+  }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress, hideIncomeAndBalance]); // Dependencias
 
   // ❌ ELIMINADO: useEffect duplicado para fetchWorkById (ahora en loadInitialData consolidado)
   // ❌ ELIMINADO: useEffect duplicado para fetchInspectionsByWork (ahora en loadInitialData consolidado)
@@ -3104,7 +3106,8 @@ const handleUploadInstalledImage = async () => {
               />
             )}
 
-            {/* --- 2. TARJETA DE BALANCE TOTAL --- */}
+            {/* --- 2. TARJETA DE BALANCE TOTAL --- (oculta para recept) */}
+            {!hideIncomeAndBalance && (
             <div className={`
               shadow-lg rounded-lg p-4 md:p-6 border-l-8
               ${balance > 0 ? 'bg-green-100 border-green-500' : ''}
@@ -3149,6 +3152,7 @@ const handleUploadInstalledImage = async () => {
                 </>
               )}
             </div>
+            )}
 
             {/* Tarjeta: Gastos */}
             <div className="bg-red-100 shadow-md rounded-lg p-4 md:p-6 border-l-4 border-red-500">
@@ -3221,7 +3225,8 @@ const handleUploadInstalledImage = async () => {
               )}
             </div>
 
-            {/* Tarjeta: Ingresos */}
+            {/* Tarjeta: Ingresos (oculta para recept) */}
+            {!hideIncomeAndBalance && (
             <div className="bg-green-100 shadow-md rounded-lg p-4 md:p-6 border-l-4 border-green-500">
               <h2
                 className="text-xl font-bold mb-4 cursor-pointer flex justify-between items-center"
@@ -3291,6 +3296,7 @@ const handleUploadInstalledImage = async () => {
                 </>
               )}
             </div>
+            )}
 
             <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-orange-500">
               <h3

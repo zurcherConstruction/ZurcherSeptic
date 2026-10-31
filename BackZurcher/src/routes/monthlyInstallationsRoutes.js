@@ -12,6 +12,10 @@ const {
   getAvailableYears,
   downloadMonthlyInstallationsPDF
 } = require('../controllers/monthlyInstallationsController');
+const { allowRoles } = require('../middleware/byRol');
+
+// verifyToken se aplica globalmente en routes/index.js — recept no tiene acceso a esta sección
+router.use(allowRoles(['admin', 'owner', 'finance', 'worker', 'capataz']));
 
 // GET /monthly-installations - Obtener instalaciones por mes/año
 router.get('/', getMonthlyInstallations);

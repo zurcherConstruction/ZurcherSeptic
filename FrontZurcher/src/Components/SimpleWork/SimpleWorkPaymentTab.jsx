@@ -8,7 +8,7 @@ import {
   fetchSimpleWorkById
 } from '../../Redux/Actions/simpleWorkActions';
 
-const SimpleWorkPaymentTab = ({ workId }) => {
+const SimpleWorkPaymentTab = ({ workId, readOnly = false }) => {
   const dispatch = useDispatch();
   const { currentSimpleWork } = useSelector(state => state.simpleWork);
 
@@ -123,13 +123,13 @@ const SimpleWorkPaymentTab = ({ workId }) => {
             </p>
           )}
         </div>
-        <button
+        <>{!readOnly && (<button
           onClick={() => setShowPaymentForm(true)}
           className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
         >
           <FaPlus />
           <span>Registrar Pago</span>
-        </button>
+        </button>)}</>
       </div>
 
       {/* Payment Form */}
@@ -231,12 +231,12 @@ const SimpleWorkPaymentTab = ({ workId }) => {
         <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
           <FaDollarSign className="text-4xl text-gray-400 mx-auto mb-3" />
           <p className="text-gray-600">No hay pagos registrados aún</p>
-          <button
+          <>{!readOnly && (<button
             onClick={() => setShowPaymentForm(true)}
             className="mt-4 text-green-600 hover:text-green-700"
           >
             Registrar primer pago
-          </button>
+          </button>)}</>
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -286,13 +286,13 @@ const SimpleWorkPaymentTab = ({ workId }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     {payment.paymentType === 'dedicated' ? (
-                      <button
+                      <>{!readOnly && (<button
                         onClick={() => handleDeletePayment(payment.id)}
                         className="text-red-600 hover:text-red-800"
                         title="Eliminar pago"
                       >
                         <FaTrash />
-                      </button>
+                      </button>)}</>
                     ) : (
                       <span className="text-xs text-gray-400 italic">
                         Ver en Seguimiento

@@ -52,6 +52,9 @@ const SimpleWorkDetail = () => {
 
   const { currentSimpleWork, loading } = useSelector(state => state.simpleWork);
   const { staffList } = useSelector(state => state.admin);
+  const { currentStaff } = useSelector(state => state.auth);
+  // 👁️ recept solo puede ver el detalle (sin editar, enviar, asignar, subir ni borrar)
+  const isReadOnly = currentStaff?.role === 'recept';
 
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'overview';
@@ -430,13 +433,13 @@ const SimpleWorkDetail = () => {
 
           {/* Right: action buttons */}
           <div className="flex flex-wrap gap-2 flex-shrink-0">
-            <button
+            <>{!isReadOnly && (<button
               onClick={() => setShowEditModal(true)}
               className="px-3 py-2 bg-white/15 hover:bg-white/25 text-white rounded-lg border border-white/20 flex items-center gap-1.5 text-sm font-medium transition-colors"
             >
               <PencilSquareIcon className="h-4 w-4" />
               Editar
-            </button>
+            </button>)}</>
             <button
               onClick={handleGeneratePdf}
               disabled={generatingPdf}
@@ -445,13 +448,13 @@ const SimpleWorkDetail = () => {
               <DocumentTextIcon className="h-4 w-4" />
               {generatingPdf ? 'Generando...' : 'PDF'}
             </button>
-            <button
+            <>{!isReadOnly && (<button
               onClick={handleSendEmail}
               className="px-3 py-2 bg-green-500/80 hover:bg-green-500 text-white rounded-lg border border-white/20 flex items-center gap-1.5 text-sm font-medium transition-colors"
             >
               <EnvelopeIcon className="h-4 w-4" />
               Enviar
-            </button>
+            </button>)}</>
           </div>
         </div>
       </div>
@@ -465,7 +468,8 @@ const SimpleWorkDetail = () => {
               {inspectionAlerts.map((a, i) => (
                 <button
                   key={i}
-                  onClick={() => openQuickInsp(a.type)}
+                  onClick={() => !isReadOnly && openQuickInsp(a.type)}
+                  disabled={isReadOnly}
                   className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded border transition-opacity hover:opacity-80 ${a.color}`}
                   title="Clic para actualizar resultado"
                 >
@@ -806,6 +810,7 @@ const SimpleWorkDetail = () => {
                           <select
                             value={work.assignedStaffId || ''}
                             onChange={(e) => handleAssignStaff(e.target.value)}
+                            disabled={isReadOnly}
                             className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
                           >
                             <option value="">— Sin asignar —</option>
@@ -863,10 +868,10 @@ const SimpleWorkDetail = () => {
                             className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-60">
                             <DocumentTextIcon className="h-3.5 w-3.5" /> {generatingPdf ? '...' : 'PDF'}
                           </button>
-                          <button onClick={handleSendEmail}
+                          <>{!isReadOnly && (<button onClick={handleSendEmail}
                             className="px-3 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-1.5">
                             <EnvelopeIcon className="h-3.5 w-3.5" /> Enviar
-                          </button>
+                          </button>)}</>
                         </div>
                       </div>
                     </div>
@@ -894,12 +899,12 @@ const SimpleWorkDetail = () => {
                           {compImgs.map((img, i) => renderMedia(img, `c-${img.id||i}`, 'Foto finalización'))}
                           {compImgs.length === 0 && <p className="text-xs text-gray-300 italic">Sin fotos aún</p>}
                         </div>
-                        <label className="mt-3 cursor-pointer inline-flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border border-blue-100">
+                        <>{!isReadOnly && (<label className="mt-3 cursor-pointer inline-flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border border-blue-100">
                           <CameraIcon className="h-3.5 w-3.5" />
                           {isUploadingCompletion ? 'Subiendo...' : 'Subir foto/video'}
                           <input type="file" onChange={handleUploadCompletionImage} className="hidden"
                             accept=".jpg,.jpeg,.png,.gif,.mp4,.mov,.avi,.mkv,.webm" disabled={isUploadingCompletion} />
-                        </label>
+                        </label>)}</>
                       </div>
                     </div>
                   )}
@@ -961,12 +966,12 @@ const SimpleWorkDetail = () => {
                   {openSections.customInvoices && (
                     <div className="px-4 pb-4 space-y-2 border-t border-gray-100">
                       <div className="flex justify-end pt-2">
-                        <button
+                        <>{!isReadOnly && (<button
                           onClick={() => navigate(`/custom-invoices/new?simpleWorkId=${work.id}`)}
                           className="px-3 py-1.5 text-xs bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-medium transition"
                         >
                           + Nuevo Custom Invoice
-                        </button>
+                        </button>)}</>
                       </div>
                       {customInvoices.length === 0 && !loadingCustomInvoices && (
                         <p className="text-xs text-gray-400 italic py-2">Sin custom invoices vinculados</p>
@@ -1012,8 +1017,8 @@ const SimpleWorkDetail = () => {
             })()}
 
             {activeTab === 'items' && <SimpleWorkItemsTab work={work} />}
-            {activeTab === 'payments' && <SimpleWorkPaymentTab workId={work.id} />}
-            {activeTab === 'expenses' && <SimpleWorkExpenseTab workId={work.id} />}
+            {activeTab === 'payments' && <SimpleWorkPaymentTab workId={work.id} readOnly={isReadOnly} />}
+            {activeTab === 'expenses' && <SimpleWorkExpenseTab workId={work.id} readOnly={isReadOnly} />}
 
             {activeTab === 'documents' && (() => {
               const docs = work.attachments || [];
@@ -1022,7 +1027,7 @@ const SimpleWorkDetail = () => {
                   {/* Upload area */}
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900">Documentos Adjuntos</h3>
-                    <label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
+                    <>{!isReadOnly && (<label className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors
                       ${uploadingDoc ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'}`}>
                       <ArrowUpTrayIcon className="h-4 w-4" />
                       {uploadingDoc ? 'Subiendo...' : 'Subir Documento'}
@@ -1033,7 +1038,7 @@ const SimpleWorkDetail = () => {
                         disabled={uploadingDoc}
                         onChange={handleUploadDoc}
                       />
-                    </label>
+                    </label>)}</>
                   </div>
 
                   {docs.length === 0 ? (
@@ -1070,13 +1075,13 @@ const SimpleWorkDetail = () => {
                             </button>
                             <p className="text-xs text-gray-700 mt-1.5 max-w-full truncate text-center font-medium px-1" title={name}>{name}</p>
                             {date && <p className="text-xs text-gray-400">{date}</p>}
-                            <button
+                            <>{!isReadOnly && (<button
                               onClick={() => handleDeleteAttachment(doc.id)}
                               className="absolute top-1 right-1 p-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow"
                               title="Eliminar"
                             >
                               <TrashIcon className="h-3.5 w-3.5" />
-                            </button>
+                            </button>)}</>
                           </div>
                         );
                       })}
@@ -1226,7 +1231,7 @@ const SimpleWorkDetail = () => {
 
                 {/* Save */}
                 <div className="flex justify-end">
-                  <button
+                  <>{!isReadOnly && (<button
                     onClick={handleSaveInspections}
                     disabled={savingInspection}
                     className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-60"
@@ -1236,7 +1241,7 @@ const SimpleWorkDetail = () => {
                     ) : (
                       <><CheckCircleIcon className="h-4 w-4" /> Guardar Inspecciones</>
                     )}
-                  </button>
+                  </button>)}</>
                 </div>
               </div>
             )}
