@@ -4,8 +4,10 @@ import { logout } from '../Redux/Reducer/authReducer';
 
 const api = axios.create({
 
+
   baseURL: 'https://zurcherapi.up.railway.app/', // Change to your API base URL
   timeout: 180000,
+
 });
 
 // 👤 Actividad real: el registro de horas solo cuenta peticiones hechas con interacción reciente
