@@ -48,7 +48,7 @@ const ENTITIES = {
   Reminder: 'Task board reminders: title, priority, dueDate, linked entity.',
   StaffAttendance: 'Staff daily attendance (staffId, workDate, isPresent).',
   Staff: 'Employees: name, email, phone, role, isActive.',
-  StaffActivityLog: 'Web activity log of staff (sections visited).',
+  StaffActivityLog: 'Web activity log of staff (sections visited, at most one row every 2 min). Since 2026-10-31 only real use is logged (no logs after 5 min without mouse/keyboard or with the tab hidden); before that date, automatic refreshes of open screens were also logged, so older days overstate hours.',
   FleetAsset: 'Vehicles, machines and equipment: status, mileage, insurance/registration expiry.',
   FleetMaintenance: 'Fleet maintenance/service records (assetId): type, cost, serviceDate, nextServiceDate.',
   KnowledgeContact: 'Knowledge base: contacts of suppliers, inspectors, companies.',
