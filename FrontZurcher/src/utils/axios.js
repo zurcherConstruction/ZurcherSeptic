@@ -3,7 +3,7 @@ import { store } from '../Redux/Store/Store';
 import { logout } from '../Redux/Reducer/authReducer';
 
 const api = axios.create({
-  baseURL: 'http://localhost:3001/', // Change to your API base URL
+  baseURL: 'http://localhost:3001/', 
   timeout: 180000, // ⬆️ Aumentado a 3 minutos (temporal hasta optimizaciones)
 });
 
