@@ -153,7 +153,7 @@ function buildReportHTML(data, fromDate, toDate) {
     <span><span class="dot" style="background:#fee2e2;border:1px solid #fca5a5;"></span>Menos de 4 horas</span>
     <span><span class="dot" style="background:#ede9fe;border:1px solid #c4b5fd;"></span>Fin de semana</span>
     <span><span class="dot" style="background:#f1f5f9;border:1px solid #cbd5e1;"></span>Sin actividad</span>
-    <span>· Horas estimadas por sesiones de actividad API (30 min sin actividad = nueva sesión, +5 min buffer/sesión, 2 min debounce)</span>
+    <span>· Horas estimadas por sesiones de actividad API (30 min sin actividad = nueva sesión, +5 min buffer/sesión, 2 min debounce; solo uso real: sin interacción por más de 5 min o pestaña oculta no cuenta)</span>
   </div>
   </body></html>`;
 }
@@ -509,6 +509,33 @@ const INFO_CARDS = [
             <div className="text-[10px] text-gray-400 py-0.5 line-through opacity-50">9:01:10 — ignorada</div>
             <p className="text-[11px] font-bold text-emerald-600 mt-2">= 1 registro, tiempo real</p>
           </div>
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'inactividad',
+    icon: '💤',
+    color: 'amber',
+    title: 'Pantalla abierta ≠ trabajo',
+    short: 'Si no hay mouse, teclado ni clics por más de 5 min, el tiempo deja de contar.',
+    detail: 'Muchas pantallas se actualizan solas cada pocos minutos (recordatorios, listas, alertas). Antes, esos refrescos automáticos contaban como actividad, y una computadora con el sistema abierto parecía "conectada" todo el día. Ahora solo cuenta el uso real: mover el mouse, escribir, hacer clic, scroll o tocar la pantalla. Si pasan más de 5 minutos sin interacción, o la pestaña está minimizada u oculta, los refrescos no se registran. Apenas la persona vuelve a usar el sistema, se cuenta de nuevo. Los días anteriores a este cambio (31/10/2026) pueden mostrar horas de más.',
+    example: (
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div className="bg-red-50 border border-red-100 rounded-xl p-3">
+          <p className="text-[11px] font-bold text-red-600 mb-2">❌ Antes</p>
+          {['9:00 — trabaja ✓', '9:40 — deja la pantalla abierta', '10:00 — refresco automático ✓', '12:00 — refresco automático ✓'].map((a, i) => (
+            <div key={i} className="text-[10px] text-gray-500 py-0.5 border-b border-red-50 last:border-0">{a}</div>
+          ))}
+          <p className="text-[11px] font-bold text-red-500 mt-2">= sesión 9:00–12:00, ~3 h</p>
+        </div>
+        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+          <p className="text-[11px] font-bold text-emerald-600 mb-2">✅ Ahora</p>
+          <div className="text-[10px] text-gray-500 py-0.5 border-b border-emerald-50">9:00 — trabaja ✓</div>
+          <div className="text-[10px] text-gray-500 py-0.5 border-b border-emerald-50">9:40 — deja la pantalla abierta</div>
+          <div className="text-[10px] text-gray-400 py-0.5 border-b border-emerald-50 line-through opacity-50">10:00 — refresco, sin uso</div>
+          <div className="text-[10px] text-gray-400 py-0.5 line-through opacity-50">12:00 — refresco, sin uso</div>
+          <p className="text-[11px] font-bold text-emerald-600 mt-2">= sesión 9:00–9:40, ~45 min</p>
         </div>
       </div>
     ),

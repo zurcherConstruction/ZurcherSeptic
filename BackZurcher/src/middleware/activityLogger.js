@@ -87,6 +87,9 @@ const activityLogger = (req, res, next) => {
 
   if (!req.user?.id) return;
   if (SKIP_PATTERNS.some((p) => p.test(originalPath))) return;
+  // El frontend marca con X-User-Active: 0 las peticiones automáticas (refrescos, polling) hechas
+  // sin interacción real reciente o con la pestaña oculta: no cuentan como tiempo trabajado
+  if (req.get('X-User-Active') === '0') return;
 
   const staffId = req.user.id;
   const now = Date.now();

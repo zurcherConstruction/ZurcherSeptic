@@ -166,7 +166,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma', 'X-User-Active'],
   exposedHeaders: ['Content-Disposition'],
   preflightContinue: false, // ✅ Terminar preflight aquí
   optionsSuccessStatus: 204 // ✅ Status para OPTIONS
