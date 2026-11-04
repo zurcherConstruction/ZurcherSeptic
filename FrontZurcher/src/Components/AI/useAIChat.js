@@ -15,6 +15,9 @@ export default function useAIChat({ enabled = true, initialConversationId = null
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [error, setError] = useState(null);
   const [speakingIndex, setSpeakingIndex] = useState(null);
+  const [actions, setActions] = useState({}); // acciones confirmadas: toolUseId → resultado
+  const [savedPrompts, setSavedPrompts] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [listening, setListening] = useState(false);
   const [voiceLang, setVoiceLang] = useState(() => {
     try { return localStorage.getItem('zurcherai.voiceLang') || 'es-US'; } catch { return 'es-US'; }
@@ -41,6 +44,13 @@ export default function useAIChat({ enabled = true, initialConversationId = null
     if (enabled && !conversationsLoaded) loadConversations();
   }, [enabled, conversationsLoaded, loadConversations]);
 
+  // Mis reportes y resumen del día (una vez por sesión)
+  useEffect(() => {
+    if (!enabled || summary) return;
+    api.get('/ai/saved-prompts').then(r => setSavedPrompts(r.data.prompts)).catch(() => {});
+    api.get('/ai/daily-summary').then(r => setSummary(r.data)).catch(() => setSummary({ sections: [] }));
+  }, [enabled, summary]);
+
   const stopVoice = () => {
     stopSpeaking();
     setSpeakingIndex(null);
@@ -55,6 +65,7 @@ export default function useAIChat({ enabled = true, initialConversationId = null
     try {
       const { data } = await api.get(`/ai/conversations/${id}/messages`);
       setMessages(data.messages);
+      setActions(data.actions || {});
     } catch {
       setError('No se pudo cargar la conversación.');
       setMessages([]);
@@ -75,6 +86,7 @@ export default function useAIChat({ enabled = true, initialConversationId = null
     stopVoice();
     setActiveId(null);
     setMessages([]);
+    setActions({});
     setError(null);
     focusInput();
   };
@@ -154,7 +166,7 @@ export default function useAIChat({ enabled = true, initialConversationId = null
           break;
         case 'done':
           finished = true;
-          updateDraft(() => ({ content: data.answer, streaming: false, status: null }));
+          updateDraft(() => ({ id: data.messageId, content: data.answer, streaming: false, status: null }));
           break;
         case 'error':
           serverError = true;
@@ -238,6 +250,55 @@ export default function useAIChat({ enabled = true, initialConversationId = null
     }
   }, [activeId]);
 
+  // --- Acciones confirmadas (tarea, nota, estado de lead, borrador de correo) ---
+
+  const confirmAction = useCallback(async (actionId) => {
+    if (!activeId) return null;
+    try {
+      const { data } = await api.post(`/ai/conversations/${activeId}/actions/${actionId}`);
+      setActions(prev => ({ ...prev, [actionId]: data }));
+      return data;
+    } catch (err) {
+      throw new Error(err.response?.data?.error || 'No se pudo realizar la acción.');
+    }
+  }, [activeId]);
+
+  // --- 👍 / 👎 ---
+
+  const rateMessage = useCallback(async (messageId, rating, comment) => {
+    if (!messageId) return;
+    setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, rating: rating || null } : m)));
+    try {
+      await api.post(`/ai/messages/${messageId}/feedback`, { rating, comment });
+    } catch {
+      setError('No se pudo guardar tu calificación.');
+    }
+  }, []);
+
+  // --- ⭐ Mis reportes ---
+
+  const savePrompt = async (prompt) => {
+    const title = window.prompt('Nombre del reporte (para encontrarlo rápido)', prompt.slice(0, 60));
+    if (!title || !title.trim()) return;
+    try {
+      const { data } = await api.post('/ai/saved-prompts', { title: title.trim(), prompt });
+      setSavedPrompts(prev => [...prev, data.prompt].sort((a, b) => a.title.localeCompare(b.title)));
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo guardar el reporte.');
+    }
+  };
+
+  const deleteSavedPrompt = async (p) => {
+    if (!window.confirm(`¿Quitar "${p.title}" de Mis reportes?`)) return;
+    try {
+      await api.delete(`/ai/saved-prompts/${p.id}`);
+      setSavedPrompts(prev => prev.filter(x => x.id !== p.id));
+    } catch {
+      setError('No se pudo quitar el reporte.');
+    }
+  };
+
+
   // --- Voz ---
 
   useEffect(() => () => {
@@ -296,6 +357,7 @@ export default function useAIChat({ enabled = true, initialConversationId = null
   return {
     conversations, activeId, messages, input, setInput, loading, loadingMessages, error, setError, inputRef,
     selectConversation, newConversation, deleteConversation, renameConversation, sendMessage, downloadExport,
+    actions, confirmAction, rateMessage, savedPrompts, savePrompt, deleteSavedPrompt, summary,
     speakingIndex, toggleSpeak, stopVoice,
     canDictate: !!SpeechRecognitionAPI, listening, toggleListening, voiceLang, changeVoiceLang,
   };

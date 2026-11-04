@@ -9,6 +9,13 @@ const {
   downloadExport,
   getContext,
   getUsage,
+  updateBudget,
+  confirmAction,
+  rateMessage,
+  listSavedPrompts,
+  createSavedPrompt,
+  deleteSavedPrompt,
+  getDailySummary,
 } = require('../controllers/aiController');
 const { allowRoles } = require('../middleware/byRol');
 const { AI_ROLES } = require('../services/ai/aiPermissions');
@@ -25,5 +32,12 @@ router.delete('/conversations/:id', deleteConversation);
 router.get('/conversations/:id/exports/:exportId', downloadExport);
 router.get('/context/:entity/:id', getContext);
 router.get('/usage', allowRoles(['owner']), getUsage);
+router.put('/budget', allowRoles(['owner']), updateBudget);
+router.post('/conversations/:id/actions/:actionId', confirmAction);
+router.post('/messages/:messageId/feedback', rateMessage);
+router.get('/saved-prompts', listSavedPrompts);
+router.post('/saved-prompts', createSavedPrompt);
+router.delete('/saved-prompts/:promptId', deleteSavedPrompt);
+router.get('/daily-summary', getDailySummary);
 
 module.exports = router;

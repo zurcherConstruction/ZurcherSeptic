@@ -62,7 +62,7 @@ async function usageSummary(days = 30) {
     AIUsageLog.findAll({
       where: { createdAt: { [Op.gte]: since } },
       attributes: [
-        'source', 'staffId',
+        'source', 'staffId', 'model',
         [fn('COUNT', col('id')), 'questions'],
         [fn('SUM', col('costUsd')), 'cost'],
         [fn('SUM', col('requests')), 'requests'],
@@ -70,7 +70,7 @@ async function usageSummary(days = 30) {
         [fn('SUM', literal('"inputTokens" + "cacheReadTokens" + "cacheWriteTokens"')), 'inputTokens'],
         [fn('SUM', col('outputTokens')), 'outputTokens'],
       ],
-      group: ['source', 'staffId'],
+      group: ['source', 'staffId', 'model'],
       raw: true,
     }),
     AIMessage.findAll({
@@ -105,16 +105,24 @@ async function usageSummary(days = 30) {
   });
 
   let webbot = { messages: 0, costUsd: 0 };
+  let routerCost = 0;
+  const byModel = {};
   costRows.forEach(c => {
     if (c.source === 'webbot') {
       webbot = { messages: webbot.messages + +c.questions, costUsd: webbot.costUsd + +c.cost };
       return;
     }
+    if (c.source === 'router') { routerCost += +c.cost; return; }
+    const m = (byModel[c.model || 'otro'] ||= { questions: 0, costUsd: 0 });
+    m.questions += +c.questions;
+    m.costUsd += +c.cost;
     if (!c.staffId) return;
-    Object.assign(row(c.staffId), {
-      trackedQuestions: +c.questions, costUsd: +c.cost, toolCalls: +c.toolCalls,
-      inputTokens: +c.inputTokens, outputTokens: +c.outputTokens,
-    });
+    const s = row(c.staffId);
+    s.trackedQuestions += +c.questions;
+    s.costUsd += +c.cost;
+    s.toolCalls += +c.toolCalls;
+    s.inputTokens += +c.inputTokens;
+    s.outputTokens += +c.outputTokens;
   });
 
   const staff = Object.values(byStaff).map(s => ({
@@ -126,7 +134,7 @@ async function usageSummary(days = 30) {
   // Proyección: costo por día desde que hay registro (dentro del período) × 30
   const trackedFrom = firstLog && new Date(firstLog) > since ? new Date(firstLog) : since;
   const trackedDays = Math.max((Date.now() - trackedFrom.getTime()) / 86400000, 1);
-  const totalCost = staff.reduce((a, s) => a + s.costUsd, 0) + webbot.costUsd;
+  const totalCost = staff.reduce((a, s) => a + s.costUsd, 0) + webbot.costUsd + routerCost;
 
   return {
     days,
@@ -136,6 +144,10 @@ async function usageSummary(days = 30) {
     totalCostUsd: +totalCost.toFixed(2),
     projectedMonthlyUsd: firstLog ? +((totalCost / trackedDays) * 30).toFixed(2) : null,
     webbot: { messages: webbot.messages, costUsd: +webbot.costUsd.toFixed(2) },
+    routerCostUsd: +routerCost.toFixed(2),
+    models: Object.entries(byModel)
+      .map(([model, m]) => ({ model, questions: m.questions, costUsd: +m.costUsd.toFixed(2) }))
+      .sort((a, b) => b.costUsd - a.costUsd),
     staff,
   };
 }

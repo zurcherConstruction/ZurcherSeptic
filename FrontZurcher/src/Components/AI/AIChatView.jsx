@@ -11,6 +11,9 @@ import { exportAnswerToPdf, exportAnswerToExcel, answerHasTables, canSpeak } fro
 import {
   OPEN_LINK_PREFIX, EXPORT_LINK_PREFIX, CONTEXT_ACTIONS, resolveOpenLink, isCompanyImage, thumbnailUrl,
 } from './aiLinks';
+import {
+  ACTION_LINK_PREFIX, ActionButton, FeedbackButtons, DailySummaryCard, SavedPrompts, SavedPromptsMenu,
+} from './AIChatExtras';
 
 // Preguntas rápidas que requieren acceso a finanzas internas
 const OWNER_ONLY_ACTIONS = ['Gastos e ingresos con comprobantes', 'Movimientos de este mes', 'Resumen de esta cuenta'];
@@ -72,7 +75,10 @@ function ToolbarButton({ onClick, title, children, active }) {
   );
 }
 
-function Message({ msg, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate, onOpenImage }) {
+function Message({
+  msg, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate, onOpenImage,
+  actions, onConfirmAction, onRate, onSavePrompt,
+}) {
   const isUser = msg.role === 'user';
   const contentRef = useRef(null);
   const [copied, setCopied] = useState(false);
@@ -85,7 +91,20 @@ function Message({ msg, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate,
   const components = useMemo(() => ({
     ...baseMarkdown,
     a: ({ href = '', children }) => {
-      // Excel generado por la IA
+      // Acción propuesta por la IA: solo se hace si el usuario confirma
+      if (href.startsWith(ACTION_LINK_PREFIX)) {
+        const actionId = href.slice(ACTION_LINK_PREFIX.length);
+        return (
+          <ActionButton
+            actionId={actionId}
+            label={children}
+            result={actions?.[actionId]}
+            onConfirm={onConfirmAction}
+            onNavigate={onNavigate}
+          />
+        );
+      }
+      // Excel o PDF generado por la IA
       if (href.startsWith(EXPORT_LINK_PREFIX)) {
         return (
           <button
@@ -122,7 +141,7 @@ function Message({ msg, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate,
         <img src={thumbnailUrl(src, 320)} alt={alt || ''} loading="lazy" className="w-32 h-24 sm:w-40 sm:h-28 object-cover" />
       </button>
     ) : null),
-  }), [onDownloadExport, onNavigate, onOpenImage]);
+  }), [onDownloadExport, onNavigate, onOpenImage, actions, onConfirmAction]);
 
   const copy = async () => {
     try {
@@ -134,7 +153,16 @@ function Message({ msg, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate,
 
   if (isUser) {
     return (
-      <div className="flex justify-end mb-4">
+      <div className="group flex justify-end items-end gap-1 mb-4">
+        {onSavePrompt && (
+          <button
+            onClick={() => onSavePrompt(msg.content)}
+            title="Guardar en Mis reportes para repetirla con un clic"
+            className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-[11px] text-gray-400 hover:text-[#b38f00] px-1 py-1 transition-opacity shrink-0"
+          >
+            ☆ Guardar
+          </button>
+        )}
         <div className="max-w-[85%] bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-2xl rounded-br-sm px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap shadow-sm">
           {msg.content}
         </div>
@@ -175,6 +203,7 @@ function Message({ msg, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate,
               <FaFileExcel className="w-3 h-3" /> <span>Excel</span>
             </ToolbarButton>
           )}
+          <FeedbackButtons msg={msg} onRate={onRate} />
         </div>}
       </div>
     </div>
@@ -234,6 +263,7 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false, s
   const {
     messages, input, setInput, loading, loadingMessages, error, setError, inputRef, sendMessage: rawSend, downloadExport,
     speakingIndex, toggleSpeak, canDictate, listening, toggleListening, voiceLang, changeVoiceLang,
+    actions, confirmAction, rateMessage, savedPrompts, savePrompt, deleteSavedPrompt, summary,
   } = chat;
 
   // Cada pregunta lleva el registro que el usuario está viendo (si hay)
@@ -305,6 +335,13 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false, s
                 </div>
               </>
             )}
+            {savedPrompts?.length > 0 && (
+              <>
+                <p className="text-[11px] text-gray-500 mt-5 mb-2 font-semibold tracking-wide">⭐ MIS REPORTES</p>
+                <SavedPrompts prompts={savedPrompts} onRun={sendMessage} onDelete={deleteSavedPrompt} disabled={loading} />
+              </>
+            )}
+            {!compact && <DailySummaryCard summary={summary} onNavigate={onNavigate} onAsk={sendMessage} />}
             <p className="text-[11px] text-gray-500 mt-5 mb-2 font-semibold tracking-wide">PRUEBA CON</p>
             <div className="flex flex-wrap gap-2">
               {suggestions.map(s => (
@@ -329,6 +366,10 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false, s
             onDownloadExport={downloadExport}
             onNavigate={onNavigate}
             onOpenImage={setImage}
+            actions={actions}
+            onConfirmAction={confirmAction}
+            onRate={rateMessage}
+            onSavePrompt={msg.role === 'user' && !savedPrompts?.some(p => p.prompt === msg.content) ? savePrompt : null}
           />
         ))}
         <div ref={bottomRef} />
@@ -402,6 +443,7 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false, s
               </button>
             </div>
           )}
+          {messages.length > 0 && <SavedPromptsMenu prompts={savedPrompts} onRun={sendMessage} disabled={loading} />}
           <textarea
             ref={inputRef}
             value={input}
@@ -433,7 +475,7 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false, s
         </div>
         {!compact && (
           <p className="text-center text-[11px] text-gray-400 mt-2">
-            Enter para enviar · Shift+Enter nueva línea · Ctrl+K abre Zurcher AI desde cualquier pantalla · Solo lectura
+            Enter para enviar · Shift+Enter nueva línea · Ctrl+K abre Zurcher AI desde cualquier pantalla · Las acciones siempre piden tu confirmación
           </p>
         )}
       </div>

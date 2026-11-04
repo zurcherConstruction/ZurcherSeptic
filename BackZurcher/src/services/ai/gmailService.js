@@ -199,4 +199,83 @@ async function getAttachment(mailbox, { messageId, filename }) {
   };
 }
 
-module.exports = { isGmailConfigured, searchEmails, readEmail, readThread, getAttachment };
+// ---------------------------------------------------------------------------
+// ✍️ Borradores (solo cuando el usuario confirma en el chat). Usa un cliente aparte con el scope
+// gmail.compose, que hay que autorizar en Google Workspace (Seguridad → Controles de API →
+// Delegación de todo el dominio). Si no está autorizado, la lectura sigue funcionando igual.
+// ---------------------------------------------------------------------------
+const COMPOSE_SCOPE = 'https://www.googleapis.com/auth/gmail.compose';
+const composeClients = new Map();
+
+function getComposeClient(mailbox) {
+  if (!composeClients.has(mailbox)) {
+    const creds = getCredentials();
+    composeClients.set(mailbox, new JWT({ email: creds.email, key: creds.key, scopes: [COMPOSE_SCOPE], subject: mailbox }));
+  }
+  return composeClients.get(mailbox);
+}
+
+// Encabezados con acentos/ñ (RFC 2047)
+const encodeHeader = (text) => (/^[\x20-\x7e]*$/.test(text) ? text : `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`);
+const toBase64Url = (buffer) => buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+/**
+ * Crea un borrador en el buzón. Con replyToMessageId queda como respuesta dentro del mismo hilo.
+ * Devuelve { draftId, threadId, openUrl }.
+ */
+async function createDraft(mailbox, { to, cc, subject, body, replyToMessageId }) {
+  let threadId;
+  let replyHeaders = [];
+  let finalSubject = subject;
+  if (replyToMessageId) {
+    const original = await gmailGet(mailbox, `/messages/${replyToMessageId}`, {
+      format: 'metadata',
+      metadataHeaders: ['Message-ID', 'References', 'Subject'],
+    });
+    threadId = original.threadId;
+    const messageIdHeader = header(original.payload?.headers, 'Message-ID');
+    const references = header(original.payload?.headers, 'References');
+    if (messageIdHeader) {
+      replyHeaders = [`In-Reply-To: ${messageIdHeader}`, `References: ${[references, messageIdHeader].filter(Boolean).join(' ')}`];
+    }
+    if (!finalSubject) {
+      const originalSubject = header(original.payload?.headers, 'Subject') || '';
+      finalSubject = /^re:/i.test(originalSubject) ? originalSubject : `Re: ${originalSubject}`;
+    }
+  }
+
+  const lines = [
+    `From: ${mailbox}`,
+    `To: ${to}`,
+    ...(cc ? [`Cc: ${cc}`] : []),
+    `Subject: ${encodeHeader(finalSubject || '')}`,
+    ...replyHeaders,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(String(body || ''), 'utf8').toString('base64').replace(/(.{76})/g, '$1\r\n'),
+  ];
+  const raw = toBase64Url(Buffer.from(lines.join('\r\n'), 'utf8'));
+
+  try {
+    const { data } = await getComposeClient(mailbox).request({
+      url: `${GMAIL_API}/drafts`,
+      method: 'POST',
+      data: { message: { raw, ...(threadId ? { threadId } : {}) } },
+    });
+    return {
+      draftId: data.id,
+      threadId: data.message?.threadId || threadId || null,
+      openUrl: `https://mail.google.com/mail/u/${encodeURIComponent(mailbox)}/#drafts`,
+    };
+  } catch (err) {
+    const detail = err.response?.data?.error_description || err.response?.data?.error?.message || err.message;
+    if (/unauthorized_client|insufficient|scope/i.test(String(detail))) {
+      throw new Error('Falta autorizar el permiso de borradores (gmail.compose) en Google Workspace. Pedile al administrador que lo habilite.');
+    }
+    throw new Error(`No se pudo crear el borrador: ${detail}`);
+  }
+}
+
+module.exports = { isGmailConfigured, searchEmails, readEmail, readThread, getAttachment, createDraft };

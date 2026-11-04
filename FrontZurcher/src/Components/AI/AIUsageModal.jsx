@@ -7,6 +7,52 @@ const usd = (n) => (n == null ? '—' : `$${Number(n).toFixed(2)}`);
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—');
 const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', recept: 'Recepción' };
 const PERIODS = [7, 30, 90];
+const MODEL_LABELS = {
+  'claude-opus-5-5': 'Opus (análisis, correos, documentos)',
+  'claude-sonnet-5-5': 'Sonnet (consultas simples)',
+};
+
+function BudgetBar({ budget, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(budget.budget));
+  const pct = Math.min(budget.ratio * 100, 100);
+  const color = budget.ratio >= 1 ? 'bg-red-500' : budget.ratio >= 0.8 ? 'bg-amber-500' : 'bg-green-500';
+  const save = async () => {
+    if (await onSave(Number(value))) setEditing(false);
+  };
+  return (
+    <div className="rounded-xl border border-gray-200 p-3">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-xs text-gray-500">Presupuesto de {budget.month}</p>
+        {editing ? (
+          <span className="flex items-center gap-1">
+            <span className="text-xs text-gray-500">$</span>
+            <input
+              type="number"
+              min="1"
+              value={value}
+              onChange={e => setValue(e.target.value)}
+              className="w-20 text-xs border border-gray-300 rounded px-1.5 py-0.5"
+            />
+            <button onClick={save} className="text-xs font-semibold text-white bg-gray-900 rounded px-2 py-0.5">Guardar</button>
+            <button onClick={() => setEditing(false)} className="text-xs text-gray-400 px-1">Cancelar</button>
+          </span>
+        ) : (
+          <button onClick={() => setEditing(true)} className="text-xs text-blue-700 hover:underline">Cambiar</button>
+        )}
+      </div>
+      <p className="text-sm text-gray-800 mt-1">
+        <strong>{usd(budget.spent)}</strong> de {usd(budget.budget)} <span className="text-gray-400">({Math.round(budget.ratio * 100)}%)</span>
+      </p>
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mt-1.5">
+        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="text-[11px] text-gray-400 mt-1.5">
+        Al 80% te llega una tarea de aviso. Al 100%, admin y recepción no pueden usar ZurcherAI hasta el mes siguiente (los owners sí).
+      </p>
+    </div>
+  );
+}
 
 export default function AIUsageModal({ onClose }) {
   const [days, setDays] = useState(30);
@@ -22,6 +68,17 @@ export default function AIUsageModal({ onClose }) {
   }, [days]);
 
   const maxQuestions = Math.max(1, ...(data?.staff || []).map(s => s.questions));
+
+  const saveBudget = async (amount) => {
+    try {
+      const { data: res } = await api.put('ai/budget', { monthlyBudgetUsd: amount });
+      setData(prev => ({ ...prev, budget: res.budget }));
+      return true;
+    } catch (err) {
+      setError(err.response?.data?.error || 'No se pudo guardar el presupuesto');
+      return false;
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -68,6 +125,18 @@ export default function AIUsageModal({ onClose }) {
                   <p className="text-[11px] text-gray-400">{data.webbot.messages} mensajes</p>
                 </div>
               </div>
+
+              {data.budget && <BudgetBar budget={data.budget} onSave={saveBudget} />}
+
+              {data.models?.length > 0 && (
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  {data.models.map(m => (
+                    <span key={m.model} className="bg-gray-100 text-gray-700 rounded-full px-2.5 py-1">
+                      {MODEL_LABELS[m.model] || m.model}: <strong>{m.questions}</strong> preguntas · {usd(m.costUsd)}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {data.trackingSince ? (
                 <p className="text-[11px] text-gray-500">
@@ -119,6 +188,22 @@ export default function AIUsageModal({ onClose }) {
                   </tbody>
                 </table>
               </div>
+
+              {data.negativeFeedback?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-700 mb-2">👎 Respuestas marcadas como incorrectas ({data.negativeFeedback.length})</p>
+                  <div className="space-y-2">
+                    {data.negativeFeedback.map((f, i) => (
+                      <div key={i} className="rounded-lg border border-red-100 bg-red-50/40 p-2.5 text-xs">
+                        <p className="text-gray-500">{f.staff} · {fmtDate(f.createdAt)}</p>
+                        <p className="text-gray-800 mt-0.5"><strong>Pregunta:</strong> {f.question}</p>
+                        {f.comment && <p className="text-red-700 mt-0.5"><strong>Qué estuvo mal:</strong> {f.comment}</p>}
+                        <p className="text-gray-500 mt-0.5 line-clamp-2"><strong>Respuesta:</strong> {f.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <p className="text-[11px] text-gray-400">
                 Lo que más encarece una pregunta: conversaciones muy largas (cada pregunta vuelve a leer todo el historial),
