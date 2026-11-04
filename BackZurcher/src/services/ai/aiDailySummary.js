@@ -20,6 +20,16 @@ function floridaDates() {
 
 const shortDate = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '');
 
+// Día (YYYY-MM-DD) en Florida de una fecha que puede venir como Date, timestamp o 'YYYY-MM-DD'
+function floridaDay(value) {
+  if (!value) return null;
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return new Date(value).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+// Días completos entre una fecha y hoy (en Florida)
+const daysSince = (value, today) => Math.max(0, Math.round((Date.parse(today) - Date.parse(floridaDay(value))) / 86400000));
+
 async function addressesOf(workIds) {
   const ids = [...new Set(workIds.filter(Boolean))];
   if (!ids.length) return {};
@@ -109,16 +119,20 @@ async function newLeads(today) {
   const leads = await SalesLead.findAll({
     where: { status: 'new' },
     attributes: ['applicantName', 'propertyAddress', 'priority', 'createdAt'],
-    order: [['createdAt', 'ASC']],
+    order: [['createdAt', 'DESC']], // los más recientes primero
     raw: true,
   });
   if (!leads.length) return null;
-  const days = (d) => Math.max(0, Math.round((new Date(today) - new Date(String(d).slice(0, 10))) / 86400000));
+  const days = (d) => daysSince(d, today);
   return {
     key: 'leads',
     title: 'Leads sin contactar',
     count: leads.length,
-    alert: leads.some(l => days(l.createdAt) >= 2) ? 'hay leads con 2+ días sin respuesta' : null,
+    // Solo cuentan los del último mes: los leads viejos importados no deberían disparar el aviso
+    alert: (() => {
+      const waiting = leads.filter(l => days(l.createdAt) >= 2 && days(l.createdAt) <= 30).length;
+      return waiting ? `${waiting} del último mes con 2+ días sin respuesta` : null;
+    })(),
     path: '/sales-leads',
     items: leads.slice(0, MAX_ITEMS).map(l => ({
       text: l.applicantName || l.propertyAddress || 'Lead',
@@ -151,7 +165,7 @@ async function unpaidFinalInvoices(today, role) {
   const sentByWork = Object.fromEntries(firstSent.map(n => [n.workId, n.firstSentAt]));
   const addresses = await addressesOf(invoices.map(i => i.workId));
 
-  const days = (d) => Math.max(0, Math.round((new Date(today) - new Date(new Date(d).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }))) / 86400000));
+  const days = (d) => daysSince(d, today);
   const sent = invoices
     .filter(i => sentByWork[i.workId])
     .map(i => ({
@@ -173,7 +187,7 @@ async function unpaidFinalInvoices(today, role) {
     path: ['owner', 'admin'].includes(role) ? '/accounts-receivable?tab=overview' : null, // recepción no tiene esa pantalla
     items: sent.slice(0, MAX_ITEMS).map(i => ({
       text: addresses[i.workId] || `Invoice #${i.invoiceNumber || ''}`,
-      meta: `${money(i.pending)} · enviada ${shortDate(new Date(i.firstSentAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }))} (hace ${days(i.firstSentAt)} d)`,
+      meta: `${money(i.pending)} · env. ${shortDate(floridaDay(i.firstSentAt))} (${days(i.firstSentAt)} d)`,
       path: `/work/${i.workId}`,
       urgent: days(i.firstSentAt) >= 30,
     })),
@@ -197,7 +211,7 @@ async function overdueInvoices(today) {
     path: '/custom-invoices',
     items: invoices.slice(0, MAX_ITEMS).map(i => ({
       text: `${i.invoiceNumber || ''} ${i.clientName || ''}`.trim(),
-      meta: `venció ${shortDate(String(i.dueDate).slice(0, 10))}`,
+      meta: `venció ${shortDate(floridaDay(i.dueDate))}`,
       urgent: true,
     })),
   };
