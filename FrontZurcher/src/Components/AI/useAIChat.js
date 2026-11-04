@@ -219,14 +219,14 @@ export default function useAIChat({ enabled = true, initialConversationId = null
     }
   };
 
-  // --- Excel generado por la IA ---
+  // --- Excel / PDF generados por la IA ---
 
   const downloadExport = useCallback(async (exportId) => {
     if (!activeId) return;
     try {
       const response = await api.get(`/ai/conversations/${activeId}/exports/${exportId}`, { responseType: 'blob' });
       const disposition = response.headers['content-disposition'] || '';
-      const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] || 'ZurcherAI.xlsx';
+      const fileName = disposition.match(/filename="?([^"]+)"?/)?.[1] || 'ZurcherAI';
       const url = URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = url;
@@ -234,7 +234,7 @@ export default function useAIChat({ enabled = true, initialConversationId = null
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError('No se pudo descargar el Excel.');
+      setError('No se pudo descargar el archivo.');
     }
   }, [activeId]);
 
