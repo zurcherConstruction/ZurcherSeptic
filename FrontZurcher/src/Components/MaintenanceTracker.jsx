@@ -61,7 +61,8 @@ const MaintenanceTracker = () => {
           }
 
           // Si no hay visitas futuras, ordenar por la última visita
-          const lastVisit = work.maintenanceVisits
+          // Copia: las visitas vienen del store de Redux (solo lectura) y sort() ordena en el lugar
+          const lastVisit = [...work.maintenanceVisits]
             .sort((x, y) => new Date(y.scheduledDate || y.createdAt) - new Date(x.scheduledDate || x.createdAt))[0];
           
           return new Date(lastVisit.scheduledDate || lastVisit.createdAt);
@@ -101,7 +102,7 @@ const MaintenanceTracker = () => {
     }
 
     // Si no hay visitas futuras, mostrar la última
-    const lastVisit = work.maintenanceVisits
+    const lastVisit = [...work.maintenanceVisits]
       .sort((a, b) => new Date(b.actualVisitDate || b.scheduledDate || b.createdAt) - new Date(a.actualVisitDate || a.scheduledDate || a.createdAt))[0];
 
     return {
