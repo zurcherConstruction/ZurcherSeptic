@@ -1,16 +1,19 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { Op } = require('sequelize');
-const { AIConversation, AIMessage, sequelize } = require('../data/index');
+const { AIConversation, AIMessage, AIFeedback, AISavedPrompt, Staff, sequelize } = require('../data/index');
 const { getToolsForRole, executeTool } = require('../services/ai/aiTools');
 const { isEntityAllowed, getAllowedMailboxes } = require('../services/ai/aiPermissions');
 const { isGmailConfigured } = require('../services/ai/gmailService');
 const { buildExportWorkbook } = require('../services/ai/aiExport');
 const { buildPdfDocument } = require('../services/ai/aiPdf');
 const { newUsage, addUsage, recordUsage, usageSummary } = require('../services/ai/aiUsage');
+const { chooseModel } = require('../services/ai/aiRouter');
+const { checkBudget, budgetStatus, setMonthlyBudget } = require('../services/ai/aiBudget');
+const { executeAction, executedActions, ACTION_TOOL_NAMES } = require('../services/ai/aiActions');
+const { dailySummary } = require('../services/ai/aiDailySummary');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const MODEL = process.env.AI_MODEL || 'claude-opus-5-5';
 const MAX_ITERATIONS = 10;
 const MAX_TOOL_RESULT_CHARS = 100000;
 // 💲 Control de costo: cada pregunta reenvía toda la conversación. Las conversaciones largas se cortan
@@ -40,7 +43,7 @@ Access for this user's role:
 - ${canSeeFinance
     ? 'Full access, including internal finances (incomes, expenses, bank accounts, fixed expenses, supplier invoices).'
     : 'Operations data (works, permits, budgets, inspections, maintenance, leads, claims, fleet, knowledge base, client invoices / accounts receivable). Internal finances (incomes, expenses, banks, fixed expenses, supplier invoices) are NOT available to this role: if asked, explain that politely.'}
-- You cannot create, modify, send or delete anything — only read.
+- You read data directly. You can also propose a few actions — create a task/reminder, add a note to a work/budget/lead, change a lead's status${mailboxes.length ? ', save an email as a Gmail draft' : ''} — with the propose_* tools: they only take effect when the user presses the confirm button you show. You can never send emails, delete, or change anything else.
 
 Work status lifecycle (in order):
 pending → assigned → inProgress → installed → firstInspectionPending → approvedInspection / rejectedInspection → coverPending → covered → invoiceFinal → paymentReceived → finalInspectionPending → finalApproved / finalRejected → maintenance (cancelled can happen at any point).
@@ -67,6 +70,10 @@ Presentation for employees (tables, lists, reports, PDFs, Excel): the readers ar
 Reports are downloaded as PDF/Excel from your answer, so when the answer is a report, list or table: start it with a short markdown heading naming the topic, not the question (e.g. "## Obras pendientes de cubrir - Lee County", "## Gastos de septiembre 2026"), and put the information right after it. Keep conversational text (greetings, "aquí tienes…", offers like "¿Querés que…?") out of the report body; if you add an offer, make it a single short question at the very end.
 
 Each user message starts with the current date and time (America/New_York): use it for "today", "this week", "this month", etc.
+
+${mailboxes.length ? `Emails: when the user asks you to write or answer an email, write the complete email and also save it with propose_email_draft (replying in the same thread when answering an email), so the user only has to review and send it from Gmail.
+
+` : ''}Routes: when the user asks for a route, the order to visit jobs, or distances between them, collect the addresses with the other tools and use plan_route; present the ordered stops with leg times, the total and the Google Maps link.
 
 Respond in the language the user writes in (Spanish or English). Be concise and professional; use lists or tables when presenting several records, and include addresses/names so the user can find them in the system. Your answers may be read aloud, so avoid unnecessary symbols.`;
 }
@@ -112,13 +119,14 @@ function textOf(content) {
   return (content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
 }
 
-async function runToolCalls(role, staffEmail, content, usedTools) {
+async function runToolCalls(staff, content, usedTools) {
+  const { role, email: staffEmail } = staff;
   const calls = content.filter(b => b.type === 'tool_use');
   return Promise.all(calls.map(async block => {
     usedTools.push(block.name);
     if (LOG_FULL) console.log(`  🔧 [AI] ${staffEmail} → ${block.name}`, JSON.stringify(block.input).slice(0, 200));
     try {
-      const result = await executeTool(role, block.name, block.input, { toolUseId: block.id });
+      const result = await executeTool(role, block.name, block.input, { toolUseId: block.id, staff });
       if (result?.contentBlocks) {
         return { type: 'tool_result', tool_use_id: block.id, content: result.contentBlocks };
       }
@@ -167,11 +175,17 @@ const getConversationMessages = async (req, res) => {
       attributes: ['id', 'role', 'displayText', 'createdAt'],
       order: [['id', 'ASC']],
     });
+    const [actions, feedback] = await Promise.all([
+      executedActions(conversation.id),
+      AIFeedback.findAll({ where: { conversationId: conversation.id }, attributes: ['messageId', 'rating'], raw: true }),
+    ]);
+    const ratings = Object.fromEntries(feedback.map(f => [f.messageId, f.rating]));
     res.json({
       conversation: { id: conversation.id, title: conversation.title },
       messages: messages
         .filter(m => m.displayText !== null)
-        .map(m => ({ id: m.id, role: m.role, content: m.displayText, createdAt: m.createdAt })),
+        .map(m => ({ id: m.id, role: m.role, content: m.displayText, createdAt: m.createdAt, rating: ratings[m.id] || null })),
+      actions,
     });
   } catch (error) {
     console.error('❌ [AI] getConversationMessages:', error);
@@ -239,6 +253,11 @@ function describeToolCall(name, input = {}) {
     case 'export_to_excel': return '📥 Preparando Excel';
     case 'create_pdf': return '📄 Armando el PDF';
     case 'read_file': return '📄 Abriendo archivo';
+    case 'plan_route': return '🧭 Armando el recorrido';
+    case 'propose_reminder': return '📝 Preparando la tarea';
+    case 'propose_note': return '📝 Preparando la nota';
+    case 'propose_lead_status': return '📝 Preparando el cambio de estado';
+    case 'propose_email_draft': return '✉️ Preparando el borrador';
     case 'search_emails': return `📧 Buscando correos${input.query ? `: ${String(input.query).slice(0, 40)}` : ''}`;
     case 'read_email': return '📧 Leyendo correo';
     case 'read_email_thread': return '📧 Leyendo conversación de correo';
@@ -279,6 +298,18 @@ const chat = async (req, res) => {
   const staff = req.staff;
   let conversation;
   let isNewConversation = false;
+
+  try {
+    const { allowed, status } = await checkBudget(staff.role);
+    if (!allowed) {
+      return res.status(429).json({
+        error: `ZurcherAI alcanzó el presupuesto mensual (${status.budget}). Vuelve a estar disponible el mes que viene, o un owner puede aumentarlo en ZurcherAI → 💲 Consumo.`,
+        budgetReached: true,
+      });
+    }
+  } catch (error) {
+    console.error('⚠️ [AI] no se pudo revisar el presupuesto:', error.message);
+  }
 
   try {
     if (conversationId) {
@@ -363,12 +394,14 @@ const chat = async (req, res) => {
     }];
     const system = buildSystemPrompt(staff);
     const tools = getToolsForRole(staff.role);
+    const model = await chooseModel(question, conversation.model);
+    if (model !== conversation.model) await conversation.update({ model });
     let finalText = '';
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const isLastIteration = i === MAX_ITERATIONS - 1;
       const stream = client.beta.messages.stream({
-        model: MODEL,
+        model,
         // Incluye el razonamiento interno + el texto; solo se cobra lo que se genera
         max_tokens: 32000,
         betas: ['server-side-fallback-2026-07-01', 'thinking-binding-controls-2026-08-01'],
@@ -418,7 +451,7 @@ const chat = async (req, res) => {
 
       const labels = [...new Set(response.content.filter(b => b.type === 'tool_use').map(b => describeToolCall(b.name, b.input)))];
       emit('status', { label: labels.join(' · ') });
-      const toolResults = await runToolCalls(staff.role, staff.email, response.content, usedTools);
+      const toolResults = await runToolCalls(staff, response.content, usedTools);
       usage.toolCalls = usedTools.length;
       emit('status', { label: '✍️ Preparando la respuesta' });
       newMessages.push({ role: 'user', content: toolResults, displayText: null });
@@ -429,12 +462,14 @@ const chat = async (req, res) => {
     newMessages[newMessages.length - 1].displayText = finalText;
 
     // Solo se guarda el turno completo: el historial siempre termina en un mensaje del asistente
+    let messageId = null;
     if (newMessages[newMessages.length - 1].role === 'assistant') {
       await sequelize.transaction(async transaction => {
-        await AIMessage.bulkCreate(
+        const saved = await AIMessage.bulkCreate(
           newMessages.map(m => ({ conversationId: conversation.id, role: m.role, content: m.content, displayText: m.displayText })),
-          { transaction }
+          { transaction, returning: true }
         );
+        messageId = saved[saved.length - 1]?.id || null;
         await conversation.update({ lastMessageAt: new Date() }, { transaction });
       });
     }
@@ -444,7 +479,7 @@ const chat = async (req, res) => {
         .map(([t, n]) => (n > 1 ? `${t}×${n}` : t)).join(', ');
       console.log(`🤖 [AI] ${staff.email} (${staff.role}) — ${usedTools.length} consultas [${toolCounts || 'ninguna'}] — ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
     }
-    const result = { conversationId: conversation.id, title: conversation.title, answer: finalText };
+    const result = { conversationId: conversation.id, title: conversation.title, answer: finalText, messageId };
     if (wantsStream) {
       emit('done', result);
       res.end();
@@ -546,11 +581,146 @@ const downloadExport = async (req, res) => {
   }
 };
 
+// ✅ El usuario confirma una acción propuesta por la IA (tarea, nota, estado de lead, borrador)
+const confirmAction = async (req, res) => {
+  try {
+    const conversation = await findOwnConversation(req, req.params.id);
+    if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+    const assistantMessages = await AIMessage.findAll({
+      where: { conversationId: conversation.id, role: 'assistant' },
+      attributes: ['content'],
+      raw: true,
+    });
+    const toolUse = assistantMessages
+      .flatMap(m => (Array.isArray(m.content) ? m.content : []))
+      .find(b => b.type === 'tool_use' && ACTION_TOOL_NAMES.includes(b.name) && b.id === req.params.actionId);
+    if (!toolUse) return res.status(404).json({ error: 'Acción no encontrada' });
+    res.json(await executeAction(req.staff, conversation.id, toolUse));
+  } catch (error) {
+    console.error('❌ [AI] confirmAction:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+// 👍/👎 sobre una respuesta (rating 1, -1 o 0 para quitarla)
+const rateMessage = async (req, res) => {
+  try {
+    const rating = Number(req.body.rating);
+    if (![1, -1, 0].includes(rating)) return res.status(400).json({ error: 'rating must be 1, -1 or 0' });
+    const message = await AIMessage.findOne({ where: { id: req.params.messageId, role: 'assistant' }, attributes: ['id', 'conversationId'] });
+    const conversation = message && await findOwnConversation(req, message.conversationId);
+    if (!conversation) return res.status(404).json({ error: 'Message not found' });
+    if (rating === 0) {
+      await AIFeedback.destroy({ where: { messageId: message.id } });
+    } else {
+      await AIFeedback.upsert({
+        messageId: message.id,
+        conversationId: conversation.id,
+        staffId: req.staff.id,
+        rating,
+        comment: String(req.body.comment || '').trim().slice(0, 1000) || null,
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ [AI] rateMessage:', error);
+    res.status(500).json({ error: 'Error saving feedback' });
+  }
+};
+
+// ⭐ Mis reportes (preguntas guardadas)
+const listSavedPrompts = async (req, res) => {
+  try {
+    const prompts = await AISavedPrompt.findAll({ where: { staffId: req.staff.id }, attributes: ['id', 'title', 'prompt'], order: [['title', 'ASC']] });
+    res.json({ prompts });
+  } catch (error) {
+    console.error('❌ [AI] listSavedPrompts:', error);
+    res.status(500).json({ error: 'Error loading saved reports' });
+  }
+};
+
+const createSavedPrompt = async (req, res) => {
+  try {
+    const prompt = String(req.body.prompt || '').trim().slice(0, 2000);
+    const title = String(req.body.title || prompt).trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!prompt) return res.status(400).json({ error: 'prompt is required' });
+    if (await AISavedPrompt.count({ where: { staffId: req.staff.id } }) >= 30) {
+      return res.status(400).json({ error: 'Llegaste al máximo de 30 reportes guardados' });
+    }
+    const saved = await AISavedPrompt.create({ staffId: req.staff.id, title, prompt });
+    res.status(201).json({ prompt: { id: saved.id, title: saved.title, prompt: saved.prompt } });
+  } catch (error) {
+    console.error('❌ [AI] createSavedPrompt:', error);
+    res.status(500).json({ error: 'Error saving report' });
+  }
+};
+
+const deleteSavedPrompt = async (req, res) => {
+  try {
+    await AISavedPrompt.destroy({ where: { id: req.params.promptId, staffId: req.staff.id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ [AI] deleteSavedPrompt:', error);
+    res.status(500).json({ error: 'Error deleting report' });
+  }
+};
+
+// ☀️ Resumen del día del usuario
+const getDailySummary = async (req, res) => {
+  try {
+    res.json(await dailySummary(req.staff));
+  } catch (error) {
+    console.error('❌ [AI] getDailySummary:', error);
+    res.status(500).json({ error: 'Error loading daily summary' });
+  }
+};
+
+// 💲 Presupuesto mensual (solo owner)
+const updateBudget = async (req, res) => {
+  try {
+    const monthlyBudgetUsd = await setMonthlyBudget(req.body.monthlyBudgetUsd);
+    res.json({ budget: await budgetStatus({ fresh: true }), monthlyBudgetUsd });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
+// 👎 Respuestas mal calificadas (solo owner), para revisar y ajustar las instrucciones
+async function negativeFeedback(days) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const rows = await AIFeedback.findAll({
+    where: { rating: -1, createdAt: { [Op.gte]: since } },
+    order: [['createdAt', 'DESC']],
+    limit: 30,
+    raw: true,
+  });
+  if (!rows.length) return [];
+  const [messages, staff] = await Promise.all([
+    AIMessage.findAll({ where: { id: rows.map(r => r.messageId) }, attributes: ['id', 'displayText'], raw: true }),
+    Staff.findAll({ where: { id: rows.map(r => r.staffId).filter(Boolean) }, attributes: ['id', 'name'], raw: true }),
+  ]);
+  // La pregunta es el último mensaje del usuario antes de esa respuesta
+  const questions = await Promise.all(rows.map(r => AIMessage.findOne({
+    where: { conversationId: r.conversationId, role: 'user', displayText: { [Op.ne]: null }, id: { [Op.lt]: r.messageId } },
+    order: [['id', 'DESC']],
+    attributes: ['displayText'],
+    raw: true,
+  })));
+  return rows.map((r, i) => ({
+    staff: staff.find(s => s.id === r.staffId)?.name || '—',
+    createdAt: r.createdAt,
+    question: questions[i]?.displayText?.slice(0, 300) || '',
+    answer: messages.find(m => m.id === r.messageId)?.displayText?.slice(0, 400) || '',
+    comment: r.comment,
+  }));
+}
+
 // 💲 Consumo de ZurcherAI y del chat de la web (solo owner)
 const getUsage = async (req, res) => {
   try {
     const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
-    res.json(await usageSummary(days));
+    const [summary, budget, feedback] = await Promise.all([usageSummary(days), budgetStatus({ fresh: true }), negativeFeedback(days)]);
+    res.json({ ...summary, budget, negativeFeedback: feedback });
   } catch (error) {
     console.error('❌ [AI] getUsage:', error);
     res.status(500).json({ error: 'Error loading AI usage' });
@@ -560,6 +730,13 @@ const getUsage = async (req, res) => {
 module.exports = {
   chat,
   getUsage,
+  updateBudget,
+  confirmAction,
+  rateMessage,
+  listSavedPrompts,
+  createSavedPrompt,
+  deleteSavedPrompt,
+  getDailySummary,
   getContext,
   downloadExport,
   listConversations,

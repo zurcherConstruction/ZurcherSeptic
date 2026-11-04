@@ -19,6 +19,11 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: 'Nueva conversación',
     },
+    model: {
+      type: DataTypes.STRING(60),
+      allowNull: true,
+      comment: 'Modelo elegido para la conversación (Sonnet para consultas simples, Opus para análisis/redacción)',
+    },
     lastMessageAt: {
       type: DataTypes.DATE,
       allowNull: true,

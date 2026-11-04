@@ -9,6 +9,8 @@ const { buildEntityToolDefinitions, describeEntity, queryRecords, aggregateRecor
 const gmail = require('./gmailService');
 const { buildExportToolDefinition, prepareExport } = require('./aiExport');
 const { CREATE_PDF_TOOL, prepareCreatePdf } = require('./aiPdf');
+const { PLAN_ROUTE_TOOL, planRoute } = require('./aiRoutePlanner');
+const { getActionTools, ACTION_TOOL_NAMES, proposeAction } = require('./aiActions');
 const { fileToContentBlocks, readCompanyFile } = require('./aiFileReader');
 
 const READ_FILE_TOOL = {
@@ -85,6 +87,8 @@ function getToolsForRole(role) {
     ...buildEntityToolDefinitions(role),
     buildExportToolDefinition(role),
     CREATE_PDF_TOOL,
+    PLAN_ROUTE_TOOL,
+    ...getActionTools(role),
     READ_FILE_TOOL,
   ];
   const mailboxes = getAllowedMailboxes(role);
@@ -105,11 +109,13 @@ function assertMailbox(role, mailbox) {
  * Ejecuta una herramienta. Devuelve un objeto JSON, o { contentBlocks: [...] } cuando el
  * resultado es un archivo (PDF/imagen) que se pasa a Claude como bloques de contenido.
  */
-async function executeTool(role, name, input = {}, { toolUseId } = {}) {
+async function executeTool(role, name, input = {}, { toolUseId, staff } = {}) {
   if (!isToolAllowed(role, name)) throw new Error(`Tool not allowed for role ${role}: ${name}`);
 
   if (name === 'export_to_excel') return prepareExport(role, input, toolUseId);
   if (name === 'create_pdf') return prepareCreatePdf(input, toolUseId);
+  if (name === 'plan_route') return planRoute(input);
+  if (ACTION_TOOL_NAMES.includes(name)) return proposeAction(role, staff, name, input, toolUseId);
   if (name === 'read_file') return { contentBlocks: await readCompanyFile(input) };
 
   if (ENTITY_TOOL_NAMES.includes(name)) {
