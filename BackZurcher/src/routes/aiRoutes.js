@@ -8,6 +8,7 @@ const {
   deleteConversation,
   downloadExport,
   getContext,
+  getUsage,
 } = require('../controllers/aiController');
 const { allowRoles } = require('../middleware/byRol');
 const { AI_ROLES } = require('../services/ai/aiPermissions');
@@ -23,5 +24,6 @@ router.patch('/conversations/:id', renameConversation);
 router.delete('/conversations/:id', deleteConversation);
 router.get('/conversations/:id/exports/:exportId', downloadExport);
 router.get('/context/:entity/:id', getContext);
+router.get('/usage', allowRoles(['owner']), getUsage);
 
 module.exports = router;

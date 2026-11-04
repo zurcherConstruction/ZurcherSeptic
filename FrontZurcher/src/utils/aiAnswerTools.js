@@ -28,7 +28,28 @@ function fileBaseName(title) {
   return `${clean || 'ZurcherAI'}_${new Date().toISOString().slice(0, 10)}`;
 }
 
-export function exportAnswerToPdf(element, { question } = {}) {
+// El reporte va sin la pregunta ni la conversación: el título sale del primer encabezado de la
+// respuesta (la IA arranca los reportes con "## Tema"), y se omite lo que esté antes del título
+// y las preguntas finales tipo "¿Querés que…?".
+const HEADING = /^H[1-6]$/;
+
+function reportTitle(element) {
+  const heading = Array.from(element.children).find(n => HEADING.test(n.tagName));
+  return heading?.innerText.trim() || '';
+}
+
+function reportNodes(element) {
+  let nodes = Array.from(element.children).filter(n => n.tagName !== 'HR');
+  const first = nodes.findIndex(n => HEADING.test(n.tagName));
+  if (first >= 0) nodes = nodes.slice(first + 1);
+  while (nodes.length && nodes[nodes.length - 1].tagName === 'P' && /\?\s*$/.test(nodes[nodes.length - 1].innerText)) {
+    nodes = nodes.slice(0, -1);
+  }
+  return nodes;
+}
+
+export function exportAnswerToPdf(element) {
+  const title = reportTitle(element) || 'Reporte';
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const margin = 40;
   const width = doc.internal.pageSize.getWidth() - margin * 2;
@@ -57,11 +78,11 @@ export function exportAnswerToPdf(element, { question } = {}) {
     y += gap;
   };
 
-  writeText('Zurcher Septic - ZurcherAI', { size: 14, bold: true, color: 20, gap: 2 });
-  writeText(new Date().toLocaleString(), { size: 8, color: 120, gap: 8 });
-  if (question) writeText(question, { size: 11, bold: true, color: 40, gap: 10 });
+  writeText('Zurcher Septic', { size: 9, bold: true, color: 120, gap: 2 });
+  writeText(title, { size: 15, bold: true, color: 20, gap: 2 });
+  writeText(new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }), { size: 8, color: 120, gap: 10 });
 
-  for (const node of Array.from(element.children)) {
+  for (const node of reportNodes(element)) {
     const table = node.tagName === 'TABLE' ? node : node.querySelector('table');
     if (table) {
       autoTable(doc, {
@@ -86,14 +107,15 @@ export function exportAnswerToPdf(element, { question } = {}) {
     }
   }
 
-  doc.save(`${fileBaseName(question)}.pdf`);
+  doc.save(`${fileBaseName(title)}.pdf`);
 }
 
 export function answerHasTables(element) {
   return !!element?.querySelector('table');
 }
 
-export function exportAnswerToExcel(element, { question } = {}) {
+export function exportAnswerToExcel(element) {
+  const title = reportTitle(element) || 'Reporte';
   const tables = Array.from(element.querySelectorAll('table'));
   if (!tables.length) return;
   const workbook = XLSX.utils.book_new();
@@ -101,7 +123,7 @@ export function exportAnswerToExcel(element, { question } = {}) {
     const sheet = XLSX.utils.table_to_sheet(table, { raw: false });
     XLSX.utils.book_append_sheet(workbook, sheet, tables.length > 1 ? `Tabla ${i + 1}` : 'Datos');
   });
-  XLSX.writeFile(workbook, `${fileBaseName(question)}.xlsx`);
+  XLSX.writeFile(workbook, `${fileBaseName(title)}.xlsx`);
 }
 
 // ---------------------------------------------------------------------------

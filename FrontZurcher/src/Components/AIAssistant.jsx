@@ -6,12 +6,14 @@ import { FaBars, FaTimes } from 'react-icons/fa';
 import useAIChat from './AI/useAIChat';
 import AIChatView, { AIAvatar } from './AI/AIChatView';
 import ConversationList from './AI/ConversationList';
+import AIUsageModal from './AI/AIUsageModal';
 
 export default function AIAssistant() {
   const { currentStaff } = useSelector(state => state.auth);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showList, setShowList] = useState(false);
+  const [showUsage, setShowUsage] = useState(false);
   const chat = useAIChat({ initialConversationId: searchParams.get('c') });
   const activeTitle = chat.conversations.find(c => c.id === chat.activeId)?.title;
 
@@ -41,7 +43,7 @@ export default function AIAssistant() {
             <FaBars />
           </button>
           <AIAvatar size="w-10 h-10" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-lg font-bold leading-tight">
               Zurcher <span className="text-[#f6d02c]">AI</span>
             </h1>
@@ -49,11 +51,17 @@ export default function AIAssistant() {
               {activeTitle || 'Obras, permisos, presupuestos, finanzas, correos y archivos de la empresa'}
             </p>
           </div>
+          {currentStaff?.role === 'owner' && (
+            <button onClick={() => setShowUsage(true)} className="shrink-0 text-xs font-semibold bg-white/10 hover:bg-white/20 text-[#f6d02c] px-3 py-1.5 rounded-lg">
+              💲 Consumo
+            </button>
+          )}
         </div>
         <div className="flex-1 min-h-0">
           <AIChatView chat={chat} staff={currentStaff} onNavigate={navigate} />
         </div>
       </section>
+      {showUsage && <AIUsageModal onClose={() => setShowUsage(false)} />}
     </div>
   );
 }

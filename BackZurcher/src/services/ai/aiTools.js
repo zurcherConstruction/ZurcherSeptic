@@ -8,6 +8,7 @@ const { BUSINESS_TOOLS, executeBusinessTool } = require('./aiBusinessTools');
 const { buildEntityToolDefinitions, describeEntity, queryRecords, aggregateRecords } = require('./aiEntityCatalog');
 const gmail = require('./gmailService');
 const { buildExportToolDefinition, prepareExport } = require('./aiExport');
+const { CREATE_PDF_TOOL, prepareCreatePdf } = require('./aiPdf');
 const { fileToContentBlocks, readCompanyFile } = require('./aiFileReader');
 
 const READ_FILE_TOOL = {
@@ -83,6 +84,7 @@ function getToolsForRole(role) {
     ...BUSINESS_TOOLS.filter(t => isToolAllowed(role, t.name)),
     ...buildEntityToolDefinitions(role),
     buildExportToolDefinition(role),
+    CREATE_PDF_TOOL,
     READ_FILE_TOOL,
   ];
   const mailboxes = getAllowedMailboxes(role);
@@ -107,6 +109,7 @@ async function executeTool(role, name, input = {}, { toolUseId } = {}) {
   if (!isToolAllowed(role, name)) throw new Error(`Tool not allowed for role ${role}: ${name}`);
 
   if (name === 'export_to_excel') return prepareExport(role, input, toolUseId);
+  if (name === 'create_pdf') return prepareCreatePdf(input, toolUseId);
   if (name === 'read_file') return { contentBlocks: await readCompanyFile(input) };
 
   if (ENTITY_TOOL_NAMES.includes(name)) {

@@ -72,7 +72,7 @@ function ToolbarButton({ onClick, title, children, active }) {
   );
 }
 
-function Message({ msg, question, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate, onOpenImage }) {
+function Message({ msg, isSpeaking, onToggleSpeak, onDownloadExport, onNavigate, onOpenImage }) {
   const isUser = msg.role === 'user';
   const contentRef = useRef(null);
   const [copied, setCopied] = useState(false);
@@ -167,11 +167,11 @@ function Message({ msg, question, isSpeaking, onToggleSpeak, onDownloadExport, o
             {copied ? <FaCheck className="w-3 h-3 text-green-600" /> : <FaCopy className="w-3 h-3" />}
             <span>{copied ? 'Copiado' : 'Copiar'}</span>
           </ToolbarButton>
-          <ToolbarButton onClick={() => exportAnswerToPdf(contentRef.current, { question })} title="Descargar como PDF">
+          <ToolbarButton onClick={() => exportAnswerToPdf(contentRef.current)} title="Descargar como PDF">
             <FaFilePdf className="w-3 h-3" /> <span>PDF</span>
           </ToolbarButton>
           {hasTables && (
-            <ToolbarButton onClick={() => exportAnswerToExcel(contentRef.current, { question })} title="Descargar las tablas en Excel">
+            <ToolbarButton onClick={() => exportAnswerToExcel(contentRef.current)} title="Descargar las tablas en Excel">
               <FaFileExcel className="w-3 h-3" /> <span>Excel</span>
             </ToolbarButton>
           )}
@@ -324,7 +324,6 @@ export default function AIChatView({ chat, staff, onNavigate, compact = false, s
           <Message
             key={msg.id || i}
             msg={msg}
-            question={messages[i - 1]?.role === 'user' ? messages[i - 1].content : undefined}
             isSpeaking={speakingIndex === i}
             onToggleSpeak={() => toggleSpeak(i, msg.content)}
             onDownloadExport={downloadExport}

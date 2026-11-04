@@ -1,15 +1,22 @@
 const Anthropic = require('@anthropic-ai/sdk');
+const { Op } = require('sequelize');
 const { AIConversation, AIMessage, sequelize } = require('../data/index');
 const { getToolsForRole, executeTool } = require('../services/ai/aiTools');
 const { isEntityAllowed, getAllowedMailboxes } = require('../services/ai/aiPermissions');
 const { isGmailConfigured } = require('../services/ai/gmailService');
 const { buildExportWorkbook } = require('../services/ai/aiExport');
+const { buildPdfDocument } = require('../services/ai/aiPdf');
+const { newUsage, addUsage, recordUsage, usageSummary } = require('../services/ai/aiUsage');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 const MODEL = process.env.AI_MODEL || 'claude-opus-5-5';
 const MAX_ITERATIONS = 10;
 const MAX_TOOL_RESULT_CHARS = 100000;
+// 💲 Control de costo: cada pregunta reenvía toda la conversación. Las conversaciones largas se cortan
+// y los archivos/resultados grandes de preguntas anteriores se reenvían resumidos (ver compactHistory).
+const MAX_QUESTIONS_PER_CONVERSATION = 20;
+const OLD_TOOL_RESULT_CHARS = 6000;
 
 // Nivel de detalle de los logs: "full" (pregunta + parámetros de cada herramienta) o
 // "reduced" (solo usuario, herramientas usadas y duración). Por defecto reducido en producción.
@@ -53,13 +60,44 @@ Links (always): every time you mention a record, make it a markdown link so the 
 - Photos: when the user asks to see images, or they help the answer, show them with markdown image syntax using the Cloudinary URL: ![caption](https://res.cloudinary.com/...). Show at most 12 per answer.
 Never invent ids or URLs: only use values returned by tools.
 
-Reports: answer reports in chat with tables and totals. Keep answers readable: if a list would have more than ~25 rows, do NOT print it all — give a grouped summary (counts/totals by status, month, county, etc.), show only the most relevant ~15 rows (overdue, urgent, recent), and create the full list with export_to_excel. When the user asks for Excel/a file, use export_to_excel and include its link as a markdown link. In long tables, put the record link only in the first column. The user can also download any answer as PDF or Excel with the buttons under it.
+Reports: answer reports in chat with tables and totals. Keep answers readable: if a list would have more than ~25 rows, do NOT print it all — give a grouped summary (counts/totals by status, month, county, etc.), show only the most relevant ~15 rows (overdue, urgent, recent), and create the full list with export_to_excel. When the user asks for Excel, use export_to_excel; when they ask for a PDF or a document to send/print, write it with create_pdf. Include the link as a markdown link. In long tables, put the record link only in the first column. The user can also download any answer as PDF or Excel with the buttons under it.
 
 Presentation for employees (tables, lists, reports, PDFs, Excel): the readers are office and field staff, not developers. Show only what is useful to them: address, client name and contact (phone/email), status, relevant dates, amounts, and the numbers they recognize (invoice, permit, budget or work numbers). Never show internal ids, UUIDs, foreign keys (staffId, workId, budgetId...), raw field names, JSON, or system fields like createdAt/updatedAt as columns or text — ids go only inside the markdown links. Use readable column names in the user's language ("Dirección", "Cliente", "Estado") instead of field names, and translate statuses into plain words (e.g. coverPending → "Pendiente de cubrir", rejectedInspection → "Inspección rechazada"). Show assigned staff by name, not by id (look it up if needed). Only include ids or technical fields when the user explicitly asks for them.
+
+Reports are downloaded as PDF/Excel from your answer, so when the answer is a report, list or table: start it with a short markdown heading naming the topic, not the question (e.g. "## Obras pendientes de cubrir - Lee County", "## Gastos de septiembre 2026"), and put the information right after it. Keep conversational text (greetings, "aquí tienes…", offers like "¿Querés que…?") out of the report body; if you add an offer, make it a single short question at the very end.
 
 Each user message starts with the current date and time (America/New_York): use it for "today", "this week", "this month", etc.
 
 Respond in the language the user writes in (Spanish or English). Be concise and professional; use lists or tables when presenting several records, and include addresses/names so the user can find them in the system. Your answers may be read aloud, so avoid unnecessary symbols.`;
+}
+
+/**
+ * Prepara el historial de preguntas anteriores para reenviarlo: los archivos (PDFs, imágenes, adjuntos)
+ * ya leídos se reemplazan por un aviso y los resultados de texto muy largos se recortan. Lo que la IA
+ * concluyó de ellos queda en sus respuestas. Es determinístico, así que el caché sigue funcionando.
+ * Lo guardado en la base no cambia.
+ */
+function compactHistory(history) {
+  const compactBlock = (block) => {
+    if (block.type !== 'tool_result') return block;
+    if (Array.isArray(block.content)) {
+      const hasFile = block.content.some(b => b.type === 'document' || b.type === 'image');
+      if (!hasFile) return block;
+      const names = block.content.filter(b => b.title).map(b => b.title).join(', ');
+      return {
+        ...block,
+        content: [{ type: 'text', text: `[File content${names ? ` (${names})` : ''} omitted: it was read in an earlier question. Use what you concluded then; if exact details are needed again, open the file again.]` }],
+      };
+    }
+    if (typeof block.content === 'string' && block.content.length > OLD_TOOL_RESULT_CHARS) {
+      return { ...block, content: `${block.content.slice(0, OLD_TOOL_RESULT_CHARS)}…[older result shortened; run the query again if more detail is needed]` };
+    }
+    return block;
+  };
+  return history.map(m => ({
+    role: m.role,
+    content: Array.isArray(m.content) ? m.content.map(compactBlock) : m.content,
+  }));
 }
 
 function currentDateNote() {
@@ -199,6 +237,7 @@ function describeToolCall(name, input = {}) {
     case 'query_records': return `🔎 Consultando ${entity}`;
     case 'aggregate_records': return `📊 Calculando totales de ${entity}`;
     case 'export_to_excel': return '📥 Preparando Excel';
+    case 'create_pdf': return '📄 Armando el PDF';
     case 'read_file': return '📄 Abriendo archivo';
     case 'search_emails': return `📧 Buscando correos${input.query ? `: ${String(input.query).slice(0, 40)}` : ''}`;
     case 'read_email': return '📧 Leyendo correo';
@@ -245,6 +284,15 @@ const chat = async (req, res) => {
     if (conversationId) {
       conversation = await findOwnConversation(req, conversationId);
       if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+      const questions = await AIMessage.count({
+        where: { conversationId: conversation.id, role: 'user', displayText: { [Op.ne]: null } },
+      });
+      if (questions >= MAX_QUESTIONS_PER_CONVERSATION) {
+        return res.status(409).json({
+          error: `Esta conversación ya tiene ${questions} preguntas. Para cuidar el costo de ZurcherAI, empezá una conversación nueva (botón "Nueva conversación"). Si necesitás algo de esta, contalo en una línea en la nueva.`,
+          limitReached: true,
+        });
+      }
     } else {
       conversation = await AIConversation.create({
         staffId: staff.id,
@@ -265,6 +313,7 @@ const chat = async (req, res) => {
   // --- Streaming (SSE) ---
   let clientGone = false;
   let heartbeat = null;
+  let usage = null;
   const emit = (event, data = {}) => {
     if (!wantsStream || clientGone || res.writableEnded) return;
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -286,9 +335,10 @@ const chat = async (req, res) => {
   try {
     const startedAt = Date.now();
     const usedTools = [];
+    usage = newUsage();
     if (LOG_FULL) console.log(`🤖 [AI] ${staff.email} (${staff.role}) conv=${conversation.id}: "${question.slice(0, 80)}"`);
 
-    // Historial completo tal como se envió/recibió (append-only)
+    // Historial completo tal como se guardó; se reenvía compactado (compactHistory)
     const history = await AIMessage.findAll({
       where: { conversationId: conversation.id },
       attributes: ['role', 'content'],
@@ -333,7 +383,7 @@ const chat = async (req, res) => {
         // En la última vuelta se obliga a responder con lo que ya tiene
         ...(isLastIteration ? { tool_choice: { type: 'none' } } : {}),
         messages: [
-          ...history.map(m => ({ role: m.role, content: m.content })),
+          ...compactHistory(history),
           ...newMessages.map(m => ({ role: m.role, content: m.content })),
         ],
       });
@@ -347,6 +397,7 @@ const chat = async (req, res) => {
       }
 
       const response = await stream.finalMessage();
+      addUsage(usage, response);
       newMessages.push({ role: 'assistant', content: response.content, displayText: null });
 
       // El texto previo a consultar herramientas ("voy a revisar…") no es la respuesta final
@@ -368,6 +419,7 @@ const chat = async (req, res) => {
       const labels = [...new Set(response.content.filter(b => b.type === 'tool_use').map(b => describeToolCall(b.name, b.input)))];
       emit('status', { label: labels.join(' · ') });
       const toolResults = await runToolCalls(staff.role, staff.email, response.content, usedTools);
+      usage.toolCalls = usedTools.length;
       emit('status', { label: '✍️ Preparando la respuesta' });
       newMessages.push({ role: 'user', content: toolResults, displayText: null });
     }
@@ -413,6 +465,7 @@ const chat = async (req, res) => {
   } finally {
     clearInterval(heartbeat);
     busyConversations.delete(conversation.id);
+    if (usage) recordUsage('zurcherai', usage, { staffId: req.staff.id, conversationId: conversation.id, toolCalls: usage.toolCalls });
   }
 };
 
@@ -457,7 +510,7 @@ const getContext = async (req, res) => {
 };
 
 // ---------------------------------------------------------------------------
-// Descarga de Excel generado por export_to_excel
+// Descarga de Excel (export_to_excel) o PDF (create_pdf) generado por la IA
 // ---------------------------------------------------------------------------
 
 const downloadExport = async (req, res) => {
@@ -472,8 +525,15 @@ const downloadExport = async (req, res) => {
     });
     const toolUse = assistantMessages
       .flatMap(m => (Array.isArray(m.content) ? m.content : []))
-      .find(b => b.type === 'tool_use' && b.name === 'export_to_excel' && b.id === req.params.exportId);
+      .find(b => b.type === 'tool_use' && ['export_to_excel', 'create_pdf'].includes(b.name) && b.id === req.params.exportId);
     if (!toolUse) return res.status(404).json({ error: 'Export not found' });
+
+    if (toolUse.name === 'create_pdf') {
+      const { buffer, fileName } = await buildPdfDocument(toolUse.input);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      return res.send(buffer);
+    }
 
     // Se re-valida el permiso con el rol actual del usuario
     const { buffer, fileName } = await buildExportWorkbook(req.staff.role, toolUse.input);
@@ -486,8 +546,20 @@ const downloadExport = async (req, res) => {
   }
 };
 
+// 💲 Consumo de ZurcherAI y del chat de la web (solo owner)
+const getUsage = async (req, res) => {
+  try {
+    const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+    res.json(await usageSummary(days));
+  } catch (error) {
+    console.error('❌ [AI] getUsage:', error);
+    res.status(500).json({ error: 'Error loading AI usage' });
+  }
+};
+
 module.exports = {
   chat,
+  getUsage,
   getContext,
   downloadExport,
   listConversations,

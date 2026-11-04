@@ -8,6 +8,7 @@
  */
 const Anthropic = require('@anthropic-ai/sdk');
 const bot = require('../services/ai/publicBot');
+const { newUsage, addUsage, recordUsage } = require('../services/ai/aiUsage');
 
 const { buildPublicSystemPrompt, SAVE_LEAD_TOOL, DIAGNOSTIC_TOOL, checkRateLimit } = bot;
 
@@ -68,6 +69,7 @@ const publicChat = async (req, res) => {
   };
 
   let savedThisTurn = false;
+  const usage = newUsage();
   try {
     const system = buildPublicSystemPrompt({ leadSaved: !!leadSaved, lang });
     const turn = messages.map(m => ({ role: m.role, content: m.content }));
@@ -89,6 +91,7 @@ const publicChat = async (req, res) => {
         emit('delta', { text: delta });
       });
       const response = await stream.finalMessage();
+      addUsage(usage, response);
       turn.push({ role: 'assistant', content: response.content });
 
       if (response.stop_reason !== 'tool_use') {
@@ -134,6 +137,7 @@ const publicChat = async (req, res) => {
     });
   } finally {
     res.end();
+    recordUsage('webbot', usage);
   }
 };
 
@@ -155,6 +159,7 @@ const translateMessages = async (req, res) => {
       system: `You translate chat messages from a septic company's website assistant into ${lang === 'es' ? 'Spanish (neutral Latin American)' : 'English'}. Keep the meaning, tone, markdown, links, prices, phone numbers, emails and proper names exactly. If a message is already in the target language, return it unchanged. Output ONLY the translations, each wrapped as <t i="N">…</t> with the same index N as the input, nothing else.`,
       messages: [{ role: 'user', content: texts.map((t, i) => `<t i="${i}">${t}</t>`).join('\n') }],
     });
+    recordUsage('webbot', addUsage(newUsage(), response));
     const output = response.content.filter(b => b.type === 'text').map(b => b.text).join('');
     const translated = texts.map((original, i) => {
       const match = output.match(new RegExp(`<t i="${i}">([\\s\\S]*?)</t>`));

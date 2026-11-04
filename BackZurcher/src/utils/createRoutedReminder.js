@@ -61,21 +61,32 @@ const COMPANION_EVENTS = {
   installed: ['installed_fee'],
 };
 
+// Clientes nuevos que no pueden quedar sin seguimiento: si no hay responsable configurado
+// (o está inactivo), la tarea va al owner.
+const OWNER_FALLBACK_EVENTS = new Set(['website_chat_lead', 'diagnostic_visit_paid']);
+
+async function findResponsible(eventType) {
+  const routing = await NotificationRouting.findOne({ where: { eventType } });
+  console.log(`[createRoutedReminder] routing=${routing ? `staffId=${routing.staffId}` : 'null'}`);
+  if (routing?.staffId) {
+    const staff = await Staff.findOne({ where: { id: routing.staffId, isActive: true }, attributes: ['id'] });
+    if (staff) return staff.id;
+    console.log(`[createRoutedReminder] staff ${routing.staffId} no encontrado o inactivo`);
+  }
+  if (!OWNER_FALLBACK_EVENTS.has(eventType)) return null;
+  const owner = await Staff.findOne({ where: { role: 'owner', isActive: true }, attributes: ['id'], order: [['createdAt', 'ASC']] });
+  if (owner) console.log(`[createRoutedReminder] sin responsable para "${eventType}" → owner ${owner.id}`);
+  return owner?.id || null;
+}
+
 async function createRoutedReminder(eventType, entity = {}, _isCompanion = false) {
   try {
     console.log(`[createRoutedReminder] → eventType="${eventType}" entity.id=${entity?.id || entity?.idWork || 'N/A'}`);
 
     // 1. Buscar responsable configurado
-    const routing = await NotificationRouting.findOne({ where: { eventType } });
-    console.log(`[createRoutedReminder] routing=${routing ? `staffId=${routing.staffId}` : 'null'}`);
-    if (!routing?.staffId) { console.log(`[createRoutedReminder] sin routing para "${eventType}", saliendo.`); return; }
-
-    const staff = await Staff.findOne({
-      where: { id: routing.staffId, isActive: true },
-      attributes: ['id'],
-    });
-    console.log(`[createRoutedReminder] staff=${staff ? staff.id : 'null/inactivo'}`);
-    if (!staff) { console.log(`[createRoutedReminder] staff no encontrado o inactivo, saliendo.`); return; }
+    const staffId = await findResponsible(eventType);
+    if (!staffId) { console.log(`[createRoutedReminder] sin responsable para "${eventType}", saliendo.`); return; }
+    const routing = { staffId };
 
     // 2. Armar título (máx 60 chars para no romper la UI)
     const titleFn = TITLES[eventType];
