@@ -79,6 +79,35 @@ async function createAlert(title, threshold, status) {
   console.log(`💲 [AI] Aviso de presupuesto: ${title}`);
 }
 
+// Sin crédito en la cuenta de Anthropic: la API responde 400 con este texto
+const isOutOfCredit = (error) => /credit balance is too low/i.test(String(error?.message || ''));
+
+// Aviso a los owners (una vez por día): sin crédito dejan de funcionar ZurcherAI y el chat de la web
+async function alertOutOfCredit() {
+  const day = new Date().toLocaleDateString('es-AR', { timeZone: 'America/New_York' });
+  const title = `Sin crédito en Anthropic (${day}): IA detenida`;
+  if (alertsInProgress.has(title)) return;
+  alertsInProgress.add(title);
+  try {
+    if (await Reminder.findOne({ where: { title } })) return;
+    const owners = await Staff.findAll({ where: { role: 'owner', isActive: true }, attributes: ['id'], raw: true });
+    if (!owners.length) return;
+    const reminder = await Reminder.create({
+      title,
+      description: 'La cuenta de Anthropic se quedó sin crédito: ZurcherAI y el chat de la página web (leads de clientes) no funcionan. Cargar crédito en console.anthropic.com → Plans & Billing (conviene activar la recarga automática). Vuelve a funcionar solo, sin deploy.',
+      type: 'tagged',
+      priority: 'urgent',
+      createdBy: owners[0].id,
+    });
+    await ReminderAssignment.bulkCreate(owners.map(o => ({ reminderId: reminder.id, staffId: o.id })), { ignoreDuplicates: true });
+    console.log(`🚨 [AI] ${title}`);
+  } catch (err) {
+    console.error('❌ [AI] aviso sin crédito:', err.message);
+  } finally {
+    alertsInProgress.delete(title);
+  }
+}
+
 /**
  * Antes de cada pregunta: devuelve { allowed, status }. Al 100% bloquea a los no-owner.
  */
@@ -89,4 +118,4 @@ async function checkBudget(role) {
   return { allowed: status.ratio < 1 || role === 'owner', status };
 }
 
-module.exports = { checkBudget, budgetStatus, getMonthlyBudget, setMonthlyBudget };
+module.exports = { checkBudget, budgetStatus, getMonthlyBudget, setMonthlyBudget, isOutOfCredit, alertOutOfCredit };

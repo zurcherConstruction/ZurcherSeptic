@@ -9,6 +9,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const bot = require('../services/ai/publicBot');
 const { newUsage, addUsage, recordUsage } = require('../services/ai/aiUsage');
+const { isOutOfCredit, alertOutOfCredit } = require('../services/ai/aiBudget');
 
 const { buildPublicSystemPrompt, SAVE_LEAD_TOOL, DIAGNOSTIC_TOOL, checkRateLimit } = bot;
 
@@ -129,6 +130,7 @@ const publicChat = async (req, res) => {
     emit('done', { answer: finalText, leadSaved: !!leadSaved || savedThisTurn });
   } catch (error) {
     console.error('❌ [WebBot] chat:', error.message);
+    if (isOutOfCredit(error)) alertOutOfCredit();
     emit('error', {
       error: error instanceof Anthropic.RateLimitError
         ? 'We are receiving many messages right now. Please try again in a minute or call (954) 636-8200.'

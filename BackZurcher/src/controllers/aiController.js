@@ -8,7 +8,7 @@ const { buildExportWorkbook } = require('../services/ai/aiExport');
 const { buildPdfDocument } = require('../services/ai/aiPdf');
 const { newUsage, addUsage, recordUsage, usageSummary } = require('../services/ai/aiUsage');
 const { chooseModel } = require('../services/ai/aiRouter');
-const { checkBudget, budgetStatus, setMonthlyBudget } = require('../services/ai/aiBudget');
+const { checkBudget, budgetStatus, setMonthlyBudget, isOutOfCredit, alertOutOfCredit } = require('../services/ai/aiBudget');
 const { executeAction, executedActions, ACTION_TOOL_NAMES } = require('../services/ai/aiActions');
 const { dailySummary } = require('../services/ai/aiDailySummary');
 
@@ -272,6 +272,10 @@ function mapChatError(error) {
   }
   if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
     return { status: 503, body: { error: 'AI service not configured correctly (API key)' } };
+  }
+  if (isOutOfCredit(error)) {
+    alertOutOfCredit();
+    return { status: 503, body: { error: 'ZurcherAI está detenido porque la cuenta de IA se quedó sin crédito. Ya se avisó a los dueños; vuelve a funcionar apenas se cargue crédito.' } };
   }
   if (error instanceof Anthropic.APIError) {
     return { status: 502, body: { error: 'Error del servicio de IA', details: error.message } };
