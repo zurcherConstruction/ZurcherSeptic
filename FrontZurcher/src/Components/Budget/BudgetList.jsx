@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchBudgets,
@@ -241,6 +241,10 @@ const BudgetList = () => {
   const isReadOnly = !canEdit;
   // recept: puede dejar notas, reenviar presupuestos/PPI y copiar links (no edita, rechaza ni aprueba)
   const canCommunicate = canEdit || userRole === 'recept';
+  // Igual que en Gestión de Budgets: editar el budget completo (owner/admin, salvo aprobados o firmados)
+  const navigate = useNavigate();
+  const canOpenEdit = (budget) => canEdit && !['approved', 'signed'].includes(budget.status);
+  const handleEditBudget = (budget) => navigate(`/budgets/edit/${budget.idBudget}`);
   
   // ✅ Permisos para exportar Excel (owner, admin, finance)
   const canExportExcel = ['owner', 'admin', 'finance'].includes(userRole);
@@ -2057,6 +2061,15 @@ const BudgetList = () => {
                           {/* --- FIN CELDA DE NOTAS --- */}
                           <td className="border border-gray-300 px-1.5 py-1.5">
                             <div className="flex flex-row items-center justify-center gap-1">
+                              {canOpenEdit(budget) && (
+                                <button
+                                  onClick={() => handleEditBudget(budget)}
+                                  className="p-1 rounded text-blue-600 hover:text-blue-900 hover:bg-blue-50"
+                                  title="Editar budget"
+                                >
+                                  <PencilIcon className="h-4 w-4" />
+                                </button>
+                              )}
                               {/* ESTADO: DRAFT - Solo enviar para revisión del cliente */}
                               {budget.status === "draft" && (
                                 <div className="flex flex-col gap-0.5 w-full">
@@ -3054,6 +3067,14 @@ const BudgetList = () => {
                             Actions:
                           </p>
                           <div className="space-y-3">
+                            {canOpenEdit(budget) && (
+                              <button
+                                onClick={() => handleEditBudget(budget)}
+                                className="w-full flex items-center justify-center gap-2 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 px-4 py-2.5 rounded-lg text-sm font-medium"
+                              >
+                                <PencilIcon className="h-4 w-4" /> Editar budget
+                              </button>
+                            )}
                             {/* Status action buttons */}
                             {/* 🆕 ESTADO: DRAFT - Solo enviar para revisión del cliente */}
                             {budget.status === "draft" && (

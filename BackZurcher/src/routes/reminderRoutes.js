@@ -11,6 +11,9 @@ router.get('/', ReminderController.getMyReminders);
 // Tablero por empleado (owner ve todos, otros ven solo el suyo)
 router.get('/board', ReminderController.getBoardReminders);
 
+// Buscador de órdenes de trabajo y sus notas (antes de '/:id')
+router.get('/search', ReminderController.searchReminders);
+
 // Todos (admin/owner)
 router.get('/all', ReminderController.getAllReminders);
 
