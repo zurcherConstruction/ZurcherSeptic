@@ -11,6 +11,7 @@ import { toast } from 'react-toastify';
 import api from '../../utils/axios';
 import { fetchStaff } from '../../Redux/Actions/adminActions';
 import { searchWorksForLink, searchBudgetsForLink } from '../../Redux/Actions/reminderActions';
+import { useReminderSearch, ReminderSearchBar, ReminderSearchResults } from './ReminderSearch';
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -1311,6 +1312,7 @@ export default function ReminderBoard() {
   const [refreshing, setRefreshing] = useState(false);
   const [createTarget, setCreateTarget] = useState(null); // null=cerrado | 'general' | staffData
   const [detailTarget, setDetailTarget] = useState(null); // { reminderId, targetStaffId }
+  const search = useReminderSearch();
 
   const fetchBoard = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -1438,7 +1440,20 @@ export default function ReminderBoard() {
 
       {/* Contenido */}
       <div className="max-w-7xl mx-auto px-3 py-4 sm:px-6 sm:py-6">
-        {loading ? (
+        {/* Buscador: órdenes y notas, pendientes y realizadas */}
+        <div className="mb-4 sm:mb-5">
+          <ReminderSearchBar search={search} />
+        </div>
+
+        {search.active ? (
+          <ReminderSearchResults
+            search={search}
+            onOpen={(r) => setDetailTarget({
+              reminderId: r.id,
+              targetStaffId: r.assignees.find(a => a.staffId === currentStaff?.id)?.staffId || r.assignees[0]?.staffId || currentStaff?.id,
+            })}
+          />
+        ) : loading ? (
           <div className="flex flex-col items-center justify-center py-32 text-slate-400">
             <div className="w-12 h-12 border-4 border-slate-200 border-t-slate-500 rounded-full animate-spin mb-4" />
             <p className="text-sm text-slate-500">Cargando tablero...</p>

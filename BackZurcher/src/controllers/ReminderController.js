@@ -94,6 +94,91 @@ module.exports = {
     }
   },
 
+  // GET /reminders/search?q=texto&status=all|pending|done
+  // Busca en título, descripción, dirección vinculada y comentarios (notas) de las órdenes de trabajo,
+  // pendientes y realizadas. Cada palabra tiene que aparecer en algún lado (la orden o sus notas).
+  // Respeta lo que cada uno ve en el tablero: admin/owner/recept todo menos lo personal ajeno; el resto, lo suyo.
+  async searchReminders(req, res) {
+    try {
+      const myStaffId = req.staff.id;
+      const canViewAll = ['admin', 'owner', 'recept'].includes(req.staff.role);
+      const status = ['pending', 'done'].includes(req.query.status) ? req.query.status : 'all';
+      const terms = String(req.query.q || '')
+        .trim()
+        .split(/\s+/)
+        .filter(t => t.length >= 2)
+        .slice(0, 6);
+      if (!terms.length) return res.json({ success: true, results: [] });
+
+      const escapeLike = (t) => t.replace(/[\\%_]/g, m => `\\${m}`);
+      const termConditions = terms.map((t, i) => {
+        const like = { [Op.iLike]: `%${escapeLike(t)}%` };
+        return {
+          [Op.or]: [
+            { title: like },
+            { description: like },
+            { linkedEntityLabel: like },
+            sequelize.literal(`EXISTS (SELECT 1 FROM "ReminderComments" c WHERE c.reminder_id = "Reminder"."id" AND c.message ILIKE :term${i})`),
+          ],
+        };
+      });
+
+      const visibility = canViewAll
+        ? { [Op.or]: [{ type: { [Op.ne]: 'personal' } }, { createdBy: myStaffId }] }
+        : {
+          [Op.or]: [
+            { createdBy: myStaffId },
+            sequelize.literal('EXISTS (SELECT 1 FROM "ReminderAssignments" a WHERE a.reminder_id = "Reminder"."id" AND a.staff_id = :me)'),
+          ],
+        };
+
+      const replacements = { me: myStaffId };
+      terms.forEach((t, i) => { replacements[`term${i}`] = `%${escapeLike(t)}%`; });
+
+      const reminders = await Reminder.findAll({
+        where: { [Op.and]: [visibility, ...termConditions] },
+        include: reminderIncludes(),
+        order: [['createdAt', 'DESC']],
+        limit: 60,
+        replacements,
+      });
+
+      const lowerTerms = terms.map(t => t.toLowerCase());
+      const results = reminders.map(r => {
+        const plain = r.toJSON();
+        const assignments = plain.assignments || [];
+        const done = assignments.length > 0 && assignments.every(a => a.completed);
+        const comments = (plain.comments || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        return {
+          id: plain.id,
+          title: plain.title,
+          description: plain.description,
+          priority: plain.priority,
+          dueDate: plain.dueDate,
+          createdAt: plain.createdAt,
+          linkedEntityType: plain.linkedEntityType,
+          linkedEntityId: plain.linkedEntityId,
+          linkedEntityLabel: plain.linkedEntityLabel,
+          creator: plain.creator?.name || null,
+          done,
+          completedAt: done ? assignments.map(a => a.completedAt).filter(Boolean).sort().pop() || null : null,
+          assignees: assignments.map(a => ({ staffId: a.staff?.id, name: a.staff?.name, completed: a.completed })),
+          commentsCount: comments.length,
+          // Solo las notas donde aparece alguna de las palabras buscadas
+          matchedComments: comments
+            .filter(c => lowerTerms.some(t => String(c.message || '').toLowerCase().includes(t)))
+            .slice(0, 5)
+            .map(c => ({ id: c.id, message: c.message, author: c.author?.name || null, createdAt: c.createdAt })),
+        };
+      }).filter(r => (status === 'all' ? true : status === 'done' ? r.done : !r.done));
+
+      res.json({ success: true, results, terms });
+    } catch (err) {
+      console.error('[ReminderController] searchReminders:', err);
+      res.status(500).json({ error: true, message: 'Error buscando órdenes de trabajo' });
+    }
+  },
+
   // GET /reminders/:id — Detalle completo de un recordatorio
   async getReminderById(req, res) {
     try {
