@@ -77,6 +77,7 @@ const SalesIndicators = () => {
 
   // Max value for mini bars
   const maxVentas    = Math.max(...months.map(m => m.ventas),    1);
+  const maxEnviados  = Math.max(...months.map(m => m.enviados || 0), 1);
   const maxInstall   = Math.max(...months.map(m => m.instalados), 1);
 
   return (
@@ -85,7 +86,7 @@ const SalesIndicators = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Indicadores de Ventas</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Ventas · Instalados · Backlog mensual</p>
+          <p className="text-sm text-gray-500 mt-0.5">Presupuestos enviados · Ventas · Instalados · Backlog mensual</p>
         </div>
         <div className="flex items-center gap-2">
           {years.map(y => (
@@ -106,7 +107,13 @@ const SalesIndicators = () => {
 
       {/* Annual Summary Cards */}
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <Stat
+            label="Presupuestos Enviados"
+            value={totals.enviados ?? 0}
+            color="bg-sky-50 text-sky-800"
+            sub={totals.enviados > 0 ? `${Math.round((totals.ventas / totals.enviados) * 100)}% se vendió` : undefined}
+          />
           <Stat label="Ventas Año" value={totals.ventas}    color="bg-cyan-50 text-cyan-800"  />
           <Stat label="Instalados Año" value={totals.instalados} color="bg-green-50 text-green-800" />
           <Stat
@@ -131,6 +138,7 @@ const SalesIndicators = () => {
             <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
               <tr>
                 <th className="px-4 py-3 text-left">Mes</th>
+                <th className="px-4 py-3 text-center">Enviados</th>
                 <th className="px-4 py-3 text-center">Ventas</th>
                 <th className="px-4 py-3 text-center">Instalados</th>
                 <th className="px-4 py-3 text-center">Backlog</th>
@@ -145,6 +153,19 @@ const SalesIndicators = () => {
                     {/* Mes */}
                     <td className="px-4 py-3 font-medium text-gray-800 capitalize">
                       {m.monthName}
+                    </td>
+
+                    {/* Presupuestos enviados */}
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-lg font-bold text-sky-700">{m.enviados ?? 0}</span>
+                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-sky-500 rounded-full"
+                            style={{ width: `${((m.enviados || 0) / maxEnviados) * 100}%` }}
+                          />
+                        </div>
+                      </div>
                     </td>
 
                     {/* Ventas */}
@@ -218,7 +239,7 @@ const SalesIndicators = () => {
                   {/* Expandable: source detail */}
                   {expanded === idx && (
                     <tr className="bg-gray-50">
-                      <td colSpan={6} className="px-6 py-3">
+                      <td colSpan={7} className="px-6 py-3">
                         <div className="flex flex-wrap gap-3">
                           {m.sources.map(s => (
                             <div
@@ -256,6 +277,7 @@ const SalesIndicators = () => {
             <tfoot className="bg-gray-50 font-semibold border-t-2 border-gray-200">
               <tr>
                 <td className="px-4 py-3 text-gray-700">Total {selectedYear}</td>
+                <td className="px-4 py-3 text-center text-sky-700 text-lg">{totals.enviados ?? 0}</td>
                 <td className="px-4 py-3 text-center text-cyan-700 text-lg">{totals.ventas}</td>
                 <td className="px-4 py-3 text-center text-green-700 text-lg">{totals.instalados}</td>
                 <td className="px-4 py-3 text-center text-gray-600">
@@ -271,6 +293,10 @@ const SalesIndicators = () => {
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-sky-500 inline-block" />
+          <span>Enviados: presupuestos que se enviaron al cliente, por la fecha del presupuesto (sin borradores)</span>
+        </div>
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full bg-cyan-500 inline-block" />
           <span>Ventas: nuevos works confirmados (budget aprobado)</span>

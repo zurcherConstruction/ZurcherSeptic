@@ -24,6 +24,7 @@ const LEAD_SOURCE_LABELS = {
  * GET /sales-indicators/monthly?year=2026
  *
  * Devuelve por cada mes del año:
+ *   - enviados: presupuestos enviados al cliente ese mes (por su fecha) y monto cotizado
  *   - ventas: works nuevos creados ese mes
  *   - instalados: works que alcanzaron estado 'installed' ese mes (de cualquier año)
  *   - backlog: works vendidos y no instalados al cierre del mes
@@ -51,6 +52,19 @@ const getMonthlySalesIndicators = async (req, res) => {
         attributes: ['idBudget', 'leadSource'],
         required: false,
       }],
+    });
+
+    // ── 1b. Presupuestos enviados: por la fecha del presupuesto (la que se ve en Gestión de Budgets),
+    //     solo los que salieron al cliente (no borradores ni "created" sin enviar, ni mantenimientos legacy)
+    const NOT_SENT_STATUSES = ['draft', 'created', 'legacy_maintenance'];
+    const yearBudgets = await Budget.findAll({
+      where: {
+        date:            { [Op.between]: [`${targetYear}-01-01`, `${targetYear}-12-31`] },
+        status:          { [Op.notIn]: NOT_SENT_STATUSES },
+        propertyAddress: { [Op.notILike]: 'DEMO%' },
+      },
+      attributes: ['idBudget', 'date', 'totalPrice'],
+      raw: true,
     });
 
     // ── 2. Para el backlog: works de instalación activos (no cancelados, no mantenimiento, no demos).
@@ -140,9 +154,14 @@ const getMonthlySalesIndicators = async (req, res) => {
         return new Date(installedAt) > monthEnd;
       }).length;
 
+      // Presupuestos enviados este mes (cantidad y monto total cotizado)
+      const enviadosBudgets = yearBudgets.filter(b => String(b.date).slice(0, 7) === `${targetYear}-${mPad}`);
+
       monthlyData.push({
         month:    m,
         monthName: getMonthName(targetYear, m),
+        enviados: enviadosBudgets.length,
+        enviadosMonto: Math.round(enviadosBudgets.reduce((s, b) => s + (Number(b.totalPrice) || 0), 0)),
         ventas:   ventasWorks.length,
         instalados,
         backlog,
@@ -151,6 +170,8 @@ const getMonthlySalesIndicators = async (req, res) => {
     }
 
     const totals = {
+      enviados:  monthlyData.reduce((s, d) => s + d.enviados,  0),
+      enviadosMonto: monthlyData.reduce((s, d) => s + d.enviadosMonto, 0),
       ventas:    monthlyData.reduce((s, d) => s + d.ventas,    0),
       instalados: monthlyData.reduce((s, d) => s + d.instalados, 0),
     };
