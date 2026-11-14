@@ -34,26 +34,29 @@ const PHONE_HREF = 'tel:+19546368200';
 
 // Imágenes reutilizadas de la página de ATU (Cloudinary)
 const heroImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_1600/v1777473709/atuPortada_bz1aax.jpg';
-const atuUnitImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1777491666/atu1_ey1jon.png';
 
+// Mismo contenido que el newsletter de mantenimiento (13/11/2026)
 const PLAN_INCLUDES = [
   '2 service visits per year — one every 6 months',
-  'Full inspection of your ATU on every visit',
-  'Visit records kept on file for your system',
-  'Renewal reminder before your contract expires',
-  'Keeps you compliant with the Florida Department of Health',
+  'Inspection & service following manufacturer guidelines',
+  'Health Department reports after every visit',
+  'Early problem detection — we let you know if repairs are needed',
+  'Permit renewal assistance at no extra cost',
 ];
 
 const NOT_INCLUDED = [
   {
-    title: 'Health Department permit renewal fee',
-    desc: 'Paid by the owner directly to the county. It usually runs between $100 and $200 depending on the county — for example, Lee County charges $175.',
+    title: 'Health Department permit fee',
+    desc: 'We handle the renewal process for you at no extra cost, but the county fee itself is paid by the owner. It usually runs between $100 and $200 depending on the county — for example, Lee County charges $175.',
   },
   {
-    title: 'Pumping, parts and repairs',
-    desc: 'If a visit finds something that needs fixing, we explain it and send you a quote before doing any work.',
+    title: 'Repairs and tank pumping',
+    desc: 'If a visit finds something that needs fixing or the tank needs pumping, we explain it and send you a quote before doing any work.',
   },
 ];
+
+// Flyer del newsletter de mantenimiento
+const flyerImg = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/f_auto,q_auto,w_900/v1794589357/newsletter_images/rvcgcjq4htbrooi0aevc.jpg';
 
 const VISIT_CHECKS = [
   { title: 'Aerator & air flow', desc: 'We check that the aerator runs and delivers the air the bacteria need.' },
@@ -85,7 +88,7 @@ const WHO_FOR = [
 const STEPS = [
   { title: 'Contact us', desc: 'Call, message us or request it online. Tell us your address and your ATU brand if you know it.' },
   { title: 'Sign your contract', desc: 'We send you the contract and the payment link. You can pay online.' },
-  { title: 'We visit every 6 months', desc: 'Our team contacts you to schedule each visit and inspects the whole system.' },
+  { title: 'We visit every 6 months', desc: 'We schedule each visit, service the system and file the Health Department report.' },
   { title: 'We remind you to renew', desc: 'Before your contract ends we send you the renewal, so you are never out of compliance.' },
 ];
 
@@ -100,7 +103,11 @@ const FAQS = [
   },
   {
     q: 'Is the Health Department fee included?',
-    a: 'No. The operating permit renewal fee is paid by the owner directly to the county. It is usually between $100 and $200 depending on the county — Lee County, for example, charges $175.',
+    a: 'We take care of the permit renewal process at no extra cost, but the county fee itself is not included: the owner pays it to the county. It is usually between $100 and $200 depending on the county — Lee County, for example, charges $175.',
+  },
+  {
+    q: 'Do you report the visits to the Health Department?',
+    a: 'Yes. After every visit we file the Health Department report, so your system stays on record as properly maintained.',
   },
   {
     q: 'I live farther away. Can you still service my ATU?',
@@ -224,8 +231,13 @@ const MaintenancePage = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-center bg-slate-50 rounded-3xl p-8 shadow-xl">
-            <img src={atuUnitImg} alt="ATU aerobic treatment unit" className="max-h-[380px] w-auto object-contain" />
+          <div className="flex items-center justify-center">
+            <img
+              src={flyerImg}
+              alt={`Zurcher Septic annual maintenance plan — $${PRICE} per year, 2 visits`}
+              loading="lazy"
+              className="w-full max-w-md h-auto rounded-2xl shadow-2xl"
+            />
           </div>
         </div>
       </div>

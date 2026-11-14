@@ -27,7 +27,8 @@ const MaintenanceServices = () => {
   const contractIncludes = [
     '1 year of ATU maintenance',
     '2 service visits — one every 6 months',
-    'Keeps you compliant with the Health Department',
+    'Health Department reports after every visit',
+    'Permit renewal assistance at no extra cost',
   ];
 
   return (
@@ -94,7 +95,7 @@ const MaintenanceServices = () => {
                 ))}
               </ul>
               <p className="text-xs text-slate-500 mb-4">
-                Does not include the Health Department permit renewal fee ($100–$200 depending on the county, e.g. Lee County $175).
+                Not included: Health Department permit fee ($100–$200 depending on the county, e.g. Lee County $175), repairs or tank pumping.
               </p>
               <a
                 href="/maintenance-services"
