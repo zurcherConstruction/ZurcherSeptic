@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { FaTimes, FaCalendar, FaTools, FaCheckCircle, FaUser, FaFileUpload, FaChevronRight, FaChevronLeft } from 'react-icons/fa';
 import { sendContact } from '../../Redux/Actions/contactActions';
 
-const ScheduleQuoteModal = ({ isOpen, onClose }) => {
+const ScheduleQuoteModal = ({ isOpen, onClose, defaultService = 'New Installation' }) => {
   const dispatch = useDispatch();
   const [currentStep, setCurrentStep] = useState(1);
   const [submitted, setSubmitted] = useState(false);
@@ -13,7 +13,7 @@ const ScheduleQuoteModal = ({ isOpen, onClose }) => {
     name: '',
     email: '',
     phone: '',
-    serviceType: 'New Installation',
+    serviceType: defaultService,
     preferredDate: '',
     additionalMessage: ''
   });
@@ -127,7 +127,7 @@ ${fileList.length > 0 ? `\n📎 Archivos adjuntos: ${fileList.length}` : ''}
           name: '',
           email: '',
           phone: '',
-          serviceType: 'New Installation',
+          serviceType: defaultService,
           preferredDate: '',
           additionalMessage: ''
         });

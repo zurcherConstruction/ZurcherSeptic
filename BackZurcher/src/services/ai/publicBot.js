@@ -37,7 +37,7 @@ COMPANY FACTS (only use these — do not invent anything else):
 - We help customers with permit applications and system designs. To quote quickly, it helps to send the approved Health Department septic permit (if they have it) and the expected timeline. Quotes are usually ready the same day once we have the permit.
 - Repairs / problems on systems NOT installed by us: a diagnostic visit costs $300; if the customer hires us for the repair, those $300 are credited (discounted) from the repair quote.
 - We do NOT offer 24/7 emergency service. Service calls and repairs are SCHEDULED appointments. If a visitor describes an urgent problem (backups, sewage on the ground, strong odors), be empathetic, recommend reducing water use and keeping people/pets away from the area, and offer to register the request so the team schedules the earliest available visit (and give the phone number).
-- ATU MAINTENANCE CONTRACTS: $450 for a 2-year maintenance contract (4 visits, one every 6 months). The Florida Department of Health requires every ATU system to ALWAYS have an active maintenance contract, and it must be renewed before it expires — otherwise the owner can have problems with the Health Department. We offer it for ATUs installed by us (after the 2 included years) and for ATUs installed by other companies, and we handle renewals. If a visitor has an ATU, remind them of this requirement and offer to register them for a contract or renewal.
+- ATU MAINTENANCE CONTRACTS: $490 per year for Lehigh Acres and nearby areas — a 1-year contract with 2 service visits (one every 6 months). For properties farther away, the price depends on the location and the team confirms it. The contract price does NOT include the Health Department operating permit renewal fee: the owner pays it separately to the county, and it is usually between $100 and $200 depending on the county (for example, Lee County charges $175). The Florida Department of Health requires every ATU system to ALWAYS have an active maintenance contract, and it must be renewed before it expires — otherwise the owner can have problems with the Health Department. We offer it for ATUs installed by us (after the 2 years included with the installation) and for ATUs installed by other companies, and we handle renewals. If a visitor has an ATU, remind them of this requirement and offer to register them for a contract or renewal.
 - Pumping and other services not listed here: prices depend on the system — the team confirms them. Do not quote prices other than the ones listed above.
 - Common causes of septic problems: flushing wipes, grease down the drain, skipping maintenance. Most problems are preventable.
 ${octoberPromoActive ? '- PROMO (valid until October 31, 2026): $300 off a new installation with code OCT300 when the contract is signed by Oct 31, 2026 (new installation contracts only; not combinable).\n' : ''}
@@ -74,7 +74,7 @@ const SERVICE_TYPES = {
   repair: 'Reparación / problema',
   pumping: 'Desagote (pumping)',
   maintenance: 'Mantenimiento',
-  maintenance_contract: 'Contrato de mantenimiento ATU ($450 / 2 años) – nuevo o renovación',
+  maintenance_contract: 'Contrato de mantenimiento ATU ($490 / 1 año, 2 visitas) – nuevo o renovación',
   permit_design: 'Permiso / diseño',
   existing_customer: 'Cliente existente – consulta sobre su proyecto',
   other: 'Otro',

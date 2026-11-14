@@ -2,12 +2,15 @@
  * 🔁 Renovación de contratos de mantenimiento ATU + 💳 visita de diagnóstico
  *
  * Renovaciones (cron diario):
- *  - Un contrato vence en la fecha de la última visita programada de la obra (4 visitas = 2 años).
+ *  - Un contrato vence en la fecha de la última visita programada de la obra.
  *  - Solo se renuevan contratos con al menos UNA visita hecha por nosotros (status "completed").
  *  - 45 días antes del vencimiento (o si ya venció hace poco) se crea una Custom Invoice en borrador
- *    ($450, 2 años, 4 visitas) con su link de pago de Stripe, y una tarea para el empleado asignado
+ *    ($490, 1 año, 2 visitas) con su link de pago de Stripe, y una tarea para el empleado asignado
  *    al evento "maintenance_renewal_due". El envío al cliente es MANUAL (revisión del equipo).
- *  - Cuando se paga (Stripe o "marcar como pagado"), se generan las 4 visitas del nuevo período.
+ *  - Cuando se paga (Stripe o "marcar como pagado"), se generan las 2 visitas del nuevo período.
+ *  - El precio no incluye el fee de renovación del operating permit del Health Department
+ *    (entre $100 y $200 según el county; Lee cobra $175), que paga el cliente aparte.
+ *  - Las facturas viejas "(2 years)" de $450 siguen reconociéndose: al pagarse generan 4 visitas.
  *
  * Visita de diagnóstico ($300): la crea el asistente de la landing con su link de pago; al pagarse,
  * se crea una tarea para programar la visita.
@@ -21,9 +24,13 @@ const { createCustomInvoicePaymentLink } = require('../utils/stripePaymentLink')
 const { createRoutedReminder } = require('../utils/createRoutedReminder');
 const { sendEmail } = require('../utils/notifications/emailService');
 
-const RENEWAL_TITLE = 'ATU Maintenance Contract Renewal (2 years)';
+const RENEWAL_TITLE = 'ATU Maintenance Contract Renewal (1 year)';
+// Plan anterior ($450 / 2 años): las facturas ya emitidas con este título siguen valiendo 4 visitas
+const LEGACY_RENEWAL_TITLE = 'ATU Maintenance Contract Renewal (2 years)';
+const RENEWAL_TITLES = [RENEWAL_TITLE, LEGACY_RENEWAL_TITLE];
+const visitsForTitle = title => (title === LEGACY_RENEWAL_TITLE ? 4 : 2);
 const DIAGNOSTIC_TITLE = 'Septic Diagnostic Visit';
-const RENEWAL_PRICE = 450;
+const RENEWAL_PRICE = 490;
 const DIAGNOSTIC_PRICE = 300;
 const RENEWAL_DAYS_BEFORE = 45;
 const RENEWAL_LOOKBACK_DAYS = 90; // contratos ya vencidos sin renovar que todavía se incluyen
@@ -151,7 +158,7 @@ async function checkMaintenanceRenewals({ dryRun = false } = {}) {
       const existing = await CustomInvoice.findOne({
         where: {
           workId: item.workId,
-          title: RENEWAL_TITLE,
+          title: { [Op.in]: RENEWAL_TITLES },
           status: { [Op.ne]: 'void' },
           createdAt: { [Op.gte]: addDays(item.endsAt, -180) },
         },
@@ -170,7 +177,7 @@ async function checkMaintenanceRenewals({ dryRun = false } = {}) {
 
       const { invoice, paymentUrl, publicUrl } = await createAutoInvoice({
         title: RENEWAL_TITLE,
-        description: `ATU maintenance contract renewal — 2 years, 4 service visits (one every 6 months). Required by the Florida Department of Health. Property: ${work.propertyAddress}. Current contract ends ${endsLabel}.`,
+        description: `ATU maintenance contract renewal — 1 year, 2 service visits (one every 6 months). Required by the Florida Department of Health. Does not include the Health Department operating permit renewal fee, which is paid separately to the county. Property: ${work.propertyAddress}. Current contract ends ${endsLabel}.`,
         amount: RENEWAL_PRICE,
         client: contact,
         workId: work.idWork,
@@ -205,13 +212,13 @@ async function checkMaintenanceRenewals({ dryRun = false } = {}) {
       subject: `🔁 ${created.length} contrato(s) de mantenimiento ATU por renovar`,
       html: `<div style="font-family:Arial,sans-serif;max-width:680px">
         <h2>🔁 Contratos de mantenimiento ATU por renovar</h2>
-        <p>Se generaron las facturas de renovación ($${RENEWAL_PRICE} / 2 años) con su link de pago de Stripe, en <strong>borrador</strong>.
+        <p>Se generaron las facturas de renovación (${RENEWAL_PRICE} / 1 año, 2 visitas) con su link de pago de Stripe, en <strong>borrador</strong>.
         Revisalas, completá los datos de contacto que falten y envialas al cliente desde Custom Invoices (o copiá el link de pago para WhatsApp/SMS).</p>
         <table style="border-collapse:collapse;width:100%;font-size:13px">
           <tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left">Propiedad</th><th style="padding:6px 8px;text-align:left">Vence</th><th style="padding:6px 8px;text-align:left">Factura</th><th style="padding:6px 8px;text-align:left">Contacto</th></tr>
           ${rows}
         </table>
-        <p style="color:#6b7280;font-size:12px">El Health Department exige que todo ATU tenga contrato de mantenimiento vigente. Al pagarse la factura, el sistema crea automáticamente las 4 visitas del nuevo período.</p>
+        <p style="color:#6b7280;font-size:12px">El Health Department exige que todo ATU tenga contrato de mantenimiento vigente. Al pagarse la factura, el sistema crea automáticamente las 2 visitas del nuevo período. El fee de renovación del Health Department ($100–$200 según el county; Lee $175) no está incluido.</p>
       </div>`,
     }).catch(err => console.error('❌ [Renewals] email resumen:', err.message));
   }
@@ -220,18 +227,18 @@ async function checkMaintenanceRenewals({ dryRun = false } = {}) {
   return created;
 }
 
-// Al pagarse la renovación: 4 visitas nuevas, una cada 6 meses desde el fin del contrato anterior
-async function generateRenewalVisits(workId, contractEndDate = null) {
+// Al pagarse la renovación: visitas nuevas (2 por año), una cada 6 meses desde el fin del contrato anterior
+async function generateRenewalVisits(workId, contractEndDate = null, count = 2) {
   const visits = await MaintenanceVisit.findAll({ where: { workId }, attributes: ['visitNumber', 'scheduledDate'], raw: true });
   if (!visits.length) return 0;
   // Si ya existen visitas posteriores al fin del contrato renovado, no se duplican
   if (contractEndDate) {
     const end = parseDateOnly(contractEndDate);
-    if (visits.filter(v => v.scheduledDate && parseDateOnly(v.scheduledDate) > end).length >= 4) return 0;
+    if (visits.filter(v => v.scheduledDate && parseDateOnly(v.scheduledDate) > end).length >= count) return 0;
   }
   const lastNumber = Math.max(...visits.map(v => v.visitNumber || 0));
   const lastDate = new Date(Math.max(...visits.map(v => v.scheduledDate).filter(Boolean).map(parseDateOnly)));
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= count; i++) {
     await MaintenanceVisit.create({
       workId,
       visitNumber: lastNumber + i,
@@ -239,8 +246,8 @@ async function generateRenewalVisits(workId, contractEndDate = null) {
       status: 'pending_scheduling',
     });
   }
-  console.log(`✅ [Renewals] 4 visitas nuevas creadas para work ${workId} (desde la #${lastNumber + 1})`);
-  return 4;
+  console.log(`✅ [Renewals] ${count} visitas nuevas creadas para work ${workId} (desde la #${lastNumber + 1})`);
+  return count;
 }
 
 /**
@@ -248,8 +255,8 @@ async function generateRenewalVisits(workId, contractEndDate = null) {
  */
 async function onCustomInvoicePaid(invoice) {
   try {
-    if (invoice.title === RENEWAL_TITLE && invoice.workId) {
-      await generateRenewalVisits(invoice.workId, invoice.dueDate);
+    if (RENEWAL_TITLES.includes(invoice.title) && invoice.workId) {
+      await generateRenewalVisits(invoice.workId, invoice.dueDate, visitsForTitle(invoice.title));
       createRoutedReminder('maintenance_renewal_paid', { idWork: invoice.workId, propertyAddress: invoice.clientAddress });
     } else if (invoice.title === DIAGNOSTIC_TITLE) {
       createRoutedReminder('diagnostic_visit_paid', {
