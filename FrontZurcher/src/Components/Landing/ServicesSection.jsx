@@ -24,7 +24,7 @@ const ServicesSection = () => {
     {
       icon: <FaClipboardCheck className="text-5xl text-purple-600" />,
       title: 'Maintenance Programs',
-      description: 'ATU maintenance contracts ($450 / 2 years) as required by the Health Department, plus pumping and routine service.',
+      description: 'ATU maintenance contracts ($490 / year, 2 visits) as required by the Health Department, plus pumping and routine service.',
       features: ['ATU maintenance contracts', 'Contract renewals', 'Pumping service', 'Scheduled inspections']
     },
     {

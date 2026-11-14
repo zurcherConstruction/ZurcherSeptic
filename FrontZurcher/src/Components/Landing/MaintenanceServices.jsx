@@ -25,9 +25,10 @@ const MaintenanceServices = () => {
 
   // Contrato de mantenimiento ATU (exigido por el Health Department; se debe renovar)
   const contractIncludes = [
-    '2 years of ATU maintenance',
-    '4 service visits — one every 6 months',
-    'Keeps you compliant with the Health Department',
+    '1 year of ATU maintenance',
+    '2 service visits — one every 6 months',
+    'Health Department reports after every visit',
+    'Permit renewal assistance at no extra cost',
   ];
 
   return (
@@ -83,8 +84,8 @@ const MaintenanceServices = () => {
               <div className="bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full inline-block mb-3">
                 HEALTH DEPARTMENT REQUIRED
               </div>
-              <div className="text-4xl font-bold text-blue-600 mb-1">$450</div>
-              <div className="text-slate-500 mb-4">2-year contract · renewable</div>
+              <div className="text-4xl font-bold text-blue-600 mb-1">$490<span className="text-lg font-semibold text-slate-500"> / year</span></div>
+              <div className="text-slate-500 mb-4">Lehigh Acres &amp; nearby areas · renewable</div>
               <ul className="space-y-2 mb-4">
                 {contractIncludes.map((item, idx) => (
                   <li key={idx} className="flex items-center gap-2 text-slate-700">
@@ -93,11 +94,14 @@ const MaintenanceServices = () => {
                   </li>
                 ))}
               </ul>
+              <p className="text-xs text-slate-500 mb-4">
+                Not included: Health Department permit fee ($100–$200 depending on the county, e.g. Lee County $175), repairs or tank pumping.
+              </p>
               <a
-                href="tel:+19546368200"
+                href="/maintenance-services"
                 className="block text-center w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors"
               >
-                Start or renew my contract
+                See maintenance plans
               </a>
             </div>
           </div>

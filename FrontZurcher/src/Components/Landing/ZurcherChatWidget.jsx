@@ -7,6 +7,8 @@ import { FaTimes, FaPaperPlane, FaWhatsapp, FaPhoneAlt, FaCheckCircle, FaRedo, F
 import api from '../../utils/axios';
 import { OPEN_QUOTE_EVENT } from './FloatingQuoteButton';
 
+export const OPEN_CHAT_EVENT = 'zurcher:open-chat';
+
 const LOGO = 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1770244237/logo_v2cxn3.png';
 const PHONE = '(954) 636-8200';
 const WHATSAPP = 'https://wa.me/19546368200?text=' + encodeURIComponent("Hello, I'm interested in your septic system services.");
@@ -162,6 +164,18 @@ export default function ZurcherChatWidget() {
     }
   };
 
+  // Otras páginas pueden abrir el chat (y opcionalmente hacer una pregunta): window.dispatchEvent(new CustomEvent(OPEN_CHAT_EVENT, { detail: { message } }))
+  const sendRef = useRef(null);
+  useEffect(() => {
+    const handler = (e) => {
+      hideTeaser();
+      setOpen(true);
+      if (e.detail?.message) setTimeout(() => sendRef.current?.(e.detail.message), 300);
+    };
+    window.addEventListener(OPEN_CHAT_EVENT, handler);
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, handler);
+  }, []);
+
   const send = async (text) => {
     const content = (text ?? input).trim();
     if (!content || loading) return;
@@ -225,6 +239,8 @@ export default function ZurcherChatWidget() {
   };
 
   const allMessages = [{ role: 'assistant', content: TEXT.welcome }, ...state.messages];
+
+  sendRef.current = send;
 
   return (
     <>

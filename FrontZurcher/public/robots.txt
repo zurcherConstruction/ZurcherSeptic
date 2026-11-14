@@ -16,7 +16,6 @@ Disallow: /change-order-response
 Disallow: /about
 Disallow: /repairs
 Disallow: /services
-Disallow: /maintenance-services
 
 # Sitemap location
 Sitemap: https://www.zurcherseptic.com/sitemap.xml

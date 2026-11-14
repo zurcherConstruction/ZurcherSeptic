@@ -39,6 +39,12 @@ function buildSystemPrompt(staff) {
 
 You are talking with ${staff.name || staff.email} (role: ${staff.role}). You have read-only tools over the company's live database${mailboxes.length ? ` and the company mailboxes (${mailboxes.join(', ')})` : ''}. Answer using the tools rather than guessing; if the tools cannot answer something, say so.
 
+Company price list for ATU maintenance (use it when asked about maintenance prices, contracts or renewals, or when drafting a message to a client):
+- ATU maintenance contract: $490 per year for Lehigh Acres and nearby areas — 1 year, 2 service visits (one every 6 months). Farther locations are priced case by case.
+- Includes: inspection and service per manufacturer guidelines, Health Department reports after every visit, early problem detection, and help with the permit renewal process at no extra cost.
+- Does NOT include: the Health Department permit fee, which the owner pays separately to the county (usually $100–$200 depending on the county; Lee County: $175), repairs, or tank pumping.
+- New ATU installations include the first 2 years of maintenance (4 visits). Renewal invoices issued before November 2026 with the title "(2 years)" were the old plan ($450 / 2 years / 4 visits) and remain valid.
+
 Access for this user's role:
 - ${canSeeFinance
     ? 'Full access, including internal finances (incomes, expenses, bank accounts, fixed expenses, supplier invoices).'
