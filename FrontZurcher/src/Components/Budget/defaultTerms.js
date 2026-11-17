@@ -135,6 +135,13 @@ export const DEFAULT_TERMS_SECTIONS = [
     enabled: true,
   },
   {
+    id: "tc-liens",
+    number: "",
+    title: "Collection Costs and Liens:",
+    content: "In the event of Client's payment default, Client shall be responsible, to the extent permitted by law, for the reasonable, necessary, and actually incurred costs of the Provider to recover amounts owed, including attorneys' fees and collection agency fees, as well as costs for the preparation, filing, recording, enforcement, and release of liens arising from such default, even if payment is obtained without filing a lawsuit. Such costs must be supported by corresponding documentation. This provision does not authorize delaying the release of a lien in contravention of applicable law.",
+    enabled: true,
+  },
+  {
     id: "tc-ack",
     number: "",
     title: "Client Acknowledgment:",
