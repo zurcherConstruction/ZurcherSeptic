@@ -898,6 +898,10 @@ const DEFAULT_TERMS_SECTIONS = [
     content: "Attorneys' Fees and Costs. In the event of any dispute, claim, or litigation arising out of, or related in any way to, this Agreement or the transaction contemplated herein, the prevailing party shall be entitled to recover from the non-prevailing party all attorneys' fees, court costs, expert witness fees, and expenses actually incurred, whether before or after the filing of a lawsuit, and including any appeals, arbitration, mediation, or bankruptcy proceedings."
   },
   {
+    title: "Collection Costs and Liens:",
+    content: "In the event of Client's payment default, Client shall be responsible, to the extent permitted by law, for the reasonable, necessary, and actually incurred costs of the Provider to recover amounts owed, including attorneys' fees and collection agency fees, as well as costs for the preparation, filing, recording, enforcement, and release of liens arising from such default, even if payment is obtained without filing a lawsuit. Such costs must be supported by corresponding documentation. This provision does not authorize delaying the release of a lien in contravention of applicable law."
+  },
+  {
     title: "Client Acknowledgment:",
     content: "By signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein."
   }
