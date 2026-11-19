@@ -32,7 +32,7 @@ router.post('/', async (req, res) => {
     }
 
     res.json({ ok: true }); // se responde enseguida; la sincronización sigue en segundo plano
-    sync.markWebhookReceived().catch(() => {});
+    if (String(body.type || '').startsWith('page.')) sync.markWebhookReceived().catch(() => {});
     sync.handleWebhookEvent(body).catch(err => console.error('❌ [Notion] webhook:', err.message));
   } catch (err) {
     console.error('❌ [Notion] webhook:', err.message);
