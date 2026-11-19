@@ -100,6 +100,7 @@ router.get('/final-invoice/review/:token', FinalInvoiceController.trackAndRedire
 // Public custom invoice endpoints (no auth required)
 router.get('/invoice/:token', publicView);
 router.post('/invoice/:token/approve', clientApprove);
+router.use('/notion/webhook', require('./notionWebhookRoutes')); // 🔗 Webhook de Notion (público, valida la firma de Notion)
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');
@@ -152,6 +153,7 @@ router.use('/knowledge-base', knowledgeBaseRoutes); // 🆕 Ruta para base de co
 router.use('/fleet', fleetRoutes); // 🆕 Ruta para flota y maquinaria
 router.use('/signature-documents', signatureDocumentRoutes); // 🆕 Ruta para documentos de firma genéricos (SignNow/DocuSign)
 router.use('/ai', aiRoutes); // 🆕 Ruta para consultas de IA en lenguaje natural
+router.use('/notion', require('./notionRoutes')); // 🔗 Notion: sincronización de prospectos con Leads
 router.use('/maps', require('./mapRoutes')); // 🗺️ Mapas de trabajos: coordenadas y distancias desde la sede
 router.use('/notification-routing', notificationRoutingRoutes); // 🆕 Routing de alertas automáticas por responsable
 router.use('/sales-indicators', salesIndicatorsRoutes); // 🆕 Indicadores mensuales de ventas/instalados/backlog

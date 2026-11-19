@@ -94,7 +94,11 @@ io.on("connection", (socket) => {
 });
 
 // Middlewares
-app.use(express.json({ limit: "10mb" })); // Cambia "10mb" según tus necesidades
+app.use(express.json({
+  limit: "10mb",
+  // El webhook de Notion firma el cuerpo tal cual llega: se guarda para validar la firma
+  verify: (req, res, buf) => { if (req.originalUrl.startsWith('/notion/webhook')) req.rawBody = buf; },
+})); // Cambia "10mb" según tus necesidades
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // 🚀 Compresión HTTP - Reduce respuestas hasta 70%

@@ -12,6 +12,7 @@ const { startFleetExpiryRemindersCron } = require("./src/services/checkFleetExpi
 const { startGoogleReviewRemindersCron } = require("./src/services/checkGoogleReviewReminders.js");
 const { startNoticeToOwnerCron } = require("./src/services/checkNoticeToOwnerReminders.js");
 const { startMaintenanceRenewalCron } = require("./src/services/maintenanceRenewals.js");
+const { startNotionSyncCron } = require("./src/services/notion/notionProspectsSync.js");
 
 require("dotenv").config();
 
@@ -107,6 +108,7 @@ function startServer() {
     startGoogleReviewRemindersCron(); // Iniciar el cron para recordatorios de Google Review
     startNoticeToOwnerCron(); // Iniciar el cron para Notice to Owner día 35
     startMaintenanceRenewalCron(); // 🔁 Renovaciones de contratos de mantenimiento ATU (45 días antes)
+    startNotionSyncCron(); // 🔗 Notion ↔ Leads cada 10 min (solo si hay NOTION_TOKEN)
   });
 }
 

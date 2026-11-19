@@ -11,6 +11,7 @@ const { chooseModel } = require('../services/ai/aiRouter');
 const { checkBudget, budgetStatus, setMonthlyBudget, isOutOfCredit, alertOutOfCredit } = require('../services/ai/aiBudget');
 const { executeAction, executedActions, ACTION_TOOL_NAMES } = require('../services/ai/aiActions');
 const { dailySummary } = require('../services/ai/aiDailySummary');
+const { isNotionConfigured } = require('../services/notion/notionClient');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -81,7 +82,9 @@ ${mailboxes.length ? `Emails: when the user asks you to write or answer an email
 
 ` : ''}Routes: when the user asks for a route, the order to visit jobs, or distances between them, collect the addresses with the other tools and use plan_route; present the ordered stops with leg times, the total and the Google Maps link.
 
-Respond in the language the user writes in (Spanish or English). Be concise and professional; use lists or tables when presenting several records, and include addresses/names so the user can find them in the system. Your answers may be read aloud, so avoid unnecessary symbols.`;
+${isNotionConfigured() ? `Notion: the company also uses Notion. The database "Seguimiento de Prospectos — Zurcher Septic" (contact, company, estado, responsible employee, next follow-up date, next step, situation, team comments) is synced automatically with Sales Leads, and each prospect's follow-up becomes a task on the responsible employee's task board. For prospect follow-ups ("mis seguimientos", "qué prospectos tengo que llamar") use notion_list_prospects (responsible "me" for the current user); for other Notion content use notion_search and notion_read_page. To record a follow-up result, change estado/next step/date or add a comment, use propose_notion_prospect_update; to add a prospect, propose_notion_prospect_create; to write notes or procedures, propose_notion_page or propose_notion_append. Include the Notion link in your answer.
+
+` : ''}Respond in the language the user writes in (Spanish or English). Be concise and professional; use lists or tables when presenting several records, and include addresses/names so the user can find them in the system. Your answers may be read aloud, so avoid unnecessary symbols.`;
 }
 
 /**
@@ -264,6 +267,13 @@ function describeToolCall(name, input = {}) {
     case 'propose_note': return '📝 Preparando la nota';
     case 'propose_lead_status': return '📝 Preparando el cambio de estado';
     case 'propose_email_draft': return '✉️ Preparando el borrador';
+    case 'notion_search': return `🗒️ Buscando en Notion${input.query ? `: ${String(input.query).slice(0, 40)}` : ''}`;
+    case 'notion_read_page': return '🗒️ Leyendo página de Notion';
+    case 'notion_list_prospects': return '🗒️ Revisando prospectos en Notion';
+    case 'propose_notion_prospect_update':
+    case 'propose_notion_prospect_create':
+    case 'propose_notion_page':
+    case 'propose_notion_append': return '🗒️ Preparando el cambio en Notion';
     case 'search_emails': return `📧 Buscando correos${input.query ? `: ${String(input.query).slice(0, 40)}` : ''}`;
     case 'read_email': return '📧 Leyendo correo';
     case 'read_email_thread': return '📧 Leyendo conversación de correo';
