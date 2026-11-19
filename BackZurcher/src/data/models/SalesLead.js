@@ -175,6 +175,33 @@ module.exports = (sequelize) => {
       field: 'application_date'
     },
 
+    // 🔗 NOTION (base "Seguimiento de Prospectos")
+    notionPageId: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      unique: true,
+      comment: 'Página de Notion vinculada',
+      field: 'notion_page_id'
+    },
+    notionSyncedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Última sincronización con Notion',
+      field: 'notion_synced_at'
+    },
+    notionSnapshot: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Valores de la última sincronización (detecta qué cambió en cada lado)',
+      field: 'notion_snapshot'
+    },
+    notionReminderId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Tarea de seguimiento del tablero creada desde Notion',
+      field: 'notion_reminder_id'
+    },
+
     // 👤 CREACIÓN
     createdBy: {
       type: DataTypes.UUID,

@@ -35,6 +35,7 @@ import DailyCallQueue from './DailyCallQueue';
 import WeeklyActivityReport from './WeeklyActivityReport';
 import MonthlyActivityReport from './MonthlyActivityReport';
 import api from '../../utils/axios';
+import { NotionSyncButton, NotionBadge } from './NotionSync';
 
 // 🔔 Componente de badge de alertas para leads
 const LeadAlertBadge = ({ leadId, alertData, className = "h-5 w-5" }) => {
@@ -682,6 +683,8 @@ const SalesLeads = () => {
             >
               📋 <span className="hidden md:inline">Llamadas</span>
             </button>
+            {/* 🗒️ Sincronización con Notion (solo si está configurado) */}
+            <NotionSyncButton onSynced={silentLoadLeads} />
             {/* �🔀 Botón unificar duplicados (solo admin/owner) */}
             {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && (
               <button
@@ -1146,7 +1149,7 @@ const SalesLeads = () => {
                 {/* Cabecera: nombre + badges */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">{lead.applicantName}</p>
+                    <p className="font-semibold text-gray-900 truncate">{lead.applicantName} <NotionBadge lead={lead} className="align-middle" /></p>
                     {lead._groupType && (
                       <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full mt-0.5 ${
                         lead._groupType === 'email' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
@@ -1333,6 +1336,7 @@ const SalesLeads = () => {
                       <div className="flex flex-col gap-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-medium text-gray-900">{lead.applicantName}</span>
+                          <NotionBadge lead={lead} />
                           {lead._groupType && (
                             <span className={`px-1.5 py-0.5 text-xs rounded-full ${
                               lead._groupType === 'email' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'

@@ -12,6 +12,7 @@ const { CREATE_PDF_TOOL, prepareCreatePdf } = require('./aiPdf');
 const { PLAN_ROUTE_TOOL, planRoute } = require('./aiRoutePlanner');
 const { getActionTools, ACTION_TOOL_NAMES, proposeAction } = require('./aiActions');
 const { fileToContentBlocks, readCompanyFile } = require('./aiFileReader');
+const { getNotionTools, NOTION_READ_TOOL_NAMES, executeNotionReadTool } = require('../notion/aiNotionTools');
 
 const READ_FILE_TOOL = {
   name: 'read_file',
@@ -89,6 +90,7 @@ function getToolsForRole(role) {
     CREATE_PDF_TOOL,
     PLAN_ROUTE_TOOL,
     ...getActionTools(role),
+    ...getNotionTools().filter(t => NOTION_READ_TOOL_NAMES.includes(t.name)),
     READ_FILE_TOOL,
   ];
   const mailboxes = getAllowedMailboxes(role);
@@ -116,6 +118,7 @@ async function executeTool(role, name, input = {}, { toolUseId, staff } = {}) {
   if (name === 'create_pdf') return prepareCreatePdf(input, toolUseId);
   if (name === 'plan_route') return planRoute(input);
   if (ACTION_TOOL_NAMES.includes(name)) return proposeAction(role, staff, name, input, toolUseId);
+  if (NOTION_READ_TOOL_NAMES.includes(name)) return executeNotionReadTool(staff, name, input);
   if (name === 'read_file') return { contentBlocks: await readCompanyFile(input) };
 
   if (ENTITY_TOOL_NAMES.includes(name)) {

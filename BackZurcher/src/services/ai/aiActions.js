@@ -12,6 +12,7 @@ const {
 } = require('../../data/index');
 const { getAllowedMailboxes } = require('./aiPermissions');
 const gmail = require('./gmailService');
+const { getNotionTools, NOTION_ACTION_TOOL_NAMES, describeNotionAction, runNotionAction } = require('../notion/aiNotionTools');
 
 const ACTION_LINK = (toolUseId) => `#ai-action/${toolUseId}`;
 const LEAD_STATUSES = ['new', 'contacted', 'no_answer', 'interested', 'quoted', 'negotiating', 'won', 'lost', 'archived'];
@@ -96,10 +97,11 @@ const EMAIL_DRAFT_TOOL = {
 function getActionTools(role) {
   const tools = [...ACTION_TOOLS];
   if (getAllowedMailboxes(role).length && gmail.isGmailConfigured()) tools.push(EMAIL_DRAFT_TOOL);
+  tools.push(...getNotionTools().filter(t => NOTION_ACTION_TOOL_NAMES.includes(t.name)));
   return tools;
 }
 
-const ACTION_TOOL_NAMES = [...ACTION_TOOLS.map(t => t.name), EMAIL_DRAFT_TOOL.name];
+const ACTION_TOOL_NAMES = [...ACTION_TOOLS.map(t => t.name), EMAIL_DRAFT_TOOL.name, ...NOTION_ACTION_TOOL_NAMES];
 
 // ---------------------------------------------------------------------------
 // Validaciones (se usan al proponer y otra vez al ejecutar)
@@ -151,6 +153,7 @@ function assertMailbox(role, mailbox) {
 
 // Arma la descripción de la acción (al proponer y al ejecutar)
 async function describe(role, staff, name, input) {
+  if (NOTION_ACTION_TOOL_NAMES.includes(name)) return describeNotionAction(staff, name, input);
   if (name === 'propose_reminder') {
     if (!String(input.title || '').trim()) throw new Error('title is required');
     if (input.dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate)) throw new Error('dueDate must be YYYY-MM-DD');
@@ -194,6 +197,7 @@ async function proposeAction(role, staff, name, input, toolUseId) {
 // ---------------------------------------------------------------------------
 
 async function run(role, staff, name, input, plan) {
+  if (NOTION_ACTION_TOOL_NAMES.includes(name)) return runNotionAction(staff, name, input, plan);
   if (plan.type === 'reminder') {
     const reminder = await Reminder.create({
       title: input.title.trim().slice(0, 200),
