@@ -236,10 +236,12 @@ const SimpleWorkController = {
       // Calcular total final basado en items
       let finalAmount = estimatedAmount;
       if (items && items.length > 0) {
-        finalAmount = items.reduce((sum, item) => {
+        const itemsTotal = items.reduce((sum, item) => {
           const finalCost = parseFloat(item.finalCost || item.totalCost || 0);
           return sum + finalCost;
         }, 0);
+        // Descuento general (%) sobre el total de los items
+        finalAmount = Math.round(itemsTotal * (1 - (parseFloat(discountPercentage) || 0) / 100) * 100) / 100;
       }
 
       // Calculate initial payment
@@ -569,10 +571,12 @@ const SimpleWorkController = {
       // 🆕 Si vienen items, recalcular finalAmount basado en los items
       const { items } = updates;
       if (items && items.length > 0) {
-        const calculatedAmount = items.reduce((sum, item) => {
+        const itemsTotal = items.reduce((sum, item) => {
           const finalCost = parseFloat(item.finalCost || item.totalCost || 0);
           return sum + finalCost;
         }, 0);
+        // Descuento general (%) sobre el total de los items
+        const calculatedAmount = Math.round(itemsTotal * (1 - (parseFloat(simpleWork.discountPercentage) || 0) / 100) * 100) / 100;
         simpleWork.estimatedAmount = calculatedAmount;
         simpleWork.finalAmount = calculatedAmount;
       }

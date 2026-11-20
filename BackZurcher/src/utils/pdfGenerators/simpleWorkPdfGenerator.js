@@ -126,9 +126,7 @@ function _addPageHeader(doc, simpleWorkData, formattedDate) {
       .text("PAYMENT INFO", paymentInfoX, subHeaderStartY, { width: columnWidth });
     doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
     
-    const paymentPercentage = parseFloat(initialPaymentPercentage);
-    const totalAmount = parseFloat(simpleWorkData.finalAmount || simpleWorkData.estimatedAmount || 0);
-    const initialAmount = parseFloat(initialPayment || 0);
+    const { total: totalAmount, paymentPct: paymentPercentage, initialPayment: initialAmount } = computeTotals(simpleWorkData);
     const remainingAmount = totalAmount - initialAmount;
     
     if (paymentPercentage === 100) {
@@ -260,25 +258,36 @@ function _addItemsTable(doc, simpleWorkData) {
 }
 
 /**
+ * Totales del trabajo: subtotal (cantidad × precio), descuentos (por item + % general), total y pago inicial.
+ * Se calculan desde los items para que el PDF siempre coincida con lo que se ve en pantalla.
+ */
+function computeTotals(simpleWorkData) {
+  const round2 = n => Math.round(n * 100) / 100;
+  const items = simpleWorkData.items || [];
+  const lineTotal = item => (parseFloat(item.quantity) || 1) * (parseFloat(item.unitCost) || 0);
+  let subtotal = items.reduce((sum, item) => sum + lineTotal(item), 0);
+  let afterItemDiscounts = items.reduce((sum, item) => {
+    const finalCost = parseFloat(item.finalCost);
+    return sum + (Number.isFinite(finalCost) ? finalCost : lineTotal(item));
+  }, 0);
+  if (subtotal === 0) {
+    // Sin items: el monto guardado ya tiene el descuento aplicado
+    subtotal = afterItemDiscounts = parseFloat(simpleWorkData.finalAmount || simpleWorkData.estimatedAmount || 0);
+  }
+  const discountPct = items.length ? (parseFloat(simpleWorkData.discountPercentage) || 0) : 0;
+  const total = round2(afterItemDiscounts * (1 - discountPct / 100));
+  const discount = round2(Math.max(0, subtotal - total));
+  if (!discount) subtotal = total; // (p. ej. con markup) no se muestra un subtotal distinto sin explicación
+  const paymentPct = parseFloat(simpleWorkData.initialPaymentPercentage || 100);
+  return { subtotal: round2(subtotal), discount, discountPct, total, paymentPct, initialPayment: round2(total * paymentPct / 100) };
+}
+
+/**
  * Genera el resumen de pago — mismo estilo que Budget
  */
 function _addPaymentSummary(doc, simpleWorkData) {
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
-  const { estimatedAmount, finalAmount, initialPaymentPercentage, initialPayment, items } = simpleWorkData;
-
-  // Total desde items o fallback a finalAmount/estimatedAmount
-  let totalAmount = 0;
-  if (items && items.length > 0) {
-    totalAmount = items.reduce((sum, item) => {
-      return sum + (parseFloat(item.quantity) || 1) * (parseFloat(item.unitCost) || 0);
-    }, 0);
-  }
-  if (totalAmount === 0) {
-    totalAmount = parseFloat(finalAmount || estimatedAmount || 0);
-  }
-
-  const paymentPct    = parseFloat(initialPaymentPercentage || 100);
-  const paymentAmt    = parseFloat(initialPayment || (totalAmount * paymentPct / 100));
+  const { subtotal, discount, discountPct, total: totalAmount, paymentPct, initialPayment: paymentAmt } = computeTotals(simpleWorkData);
   const isZeroPayment = paymentPct === 0;
   const pctLabel      = paymentPct === 100 ? 'INITIAL PAYMENT (TOTAL)' : `INITIAL PAYMENT (${paymentPct}%)`;
 
@@ -322,8 +331,18 @@ function _addPaymentSummary(doc, simpleWorkData) {
   doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM)
     .text('SUBTOTAL', totalsStartX, cy, { width: totalsValueX - totalsStartX - cellPadding });
   doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM)
-    .text(`$${totalAmount.toFixed(2)}`, totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    .text(`$${subtotal.toFixed(2)}`, totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.6);
+
+  // DISCOUNT (general % y/o descuentos por item)
+  if (discount > 0) {
+    cy = doc.y;
+    doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM)
+      .text(discountPct > 0 ? `DISCOUNT (${discountPct}%)` : 'DISCOUNT', totalsStartX, cy, { width: totalsValueX - totalsStartX - cellPadding });
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+      .text(`-$${discount.toFixed(2)}`, totalsValueX, cy, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    doc.moveDown(0.6);
+  }
 
   // TAX
   cy = doc.y;
