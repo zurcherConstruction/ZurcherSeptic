@@ -144,15 +144,18 @@ const SimpleWorkController = {
           return sum + parseFloat(item.finalCost || item.totalCost || 0);
         }, 0) || 0;
         
-        const totalCost = itemsTotal > 0 ? itemsTotal : (work.finalAmount || work.estimatedAmount || 0);
-        const finalAmount = parseFloat(work.finalAmount || work.estimatedAmount || 0);
+        // Con descuento general (%) aplicado — igual que el PDF y el detalle
+        const discountPct = parseFloat(work.discountPercentage) || 0;
+        const totalCost = itemsTotal > 0
+          ? Math.round(itemsTotal * (1 - discountPct / 100) * 100) / 100
+          : parseFloat(work.finalAmount || work.estimatedAmount || 0);
 
         return {
           ...workData,
-          totalCost: parseFloat(totalCost),
+          totalCost,
           totalPaid,
           totalExpenses,
-          remainingAmount: Math.max(0, finalAmount - totalPaid),
+          remainingAmount: Math.max(0, totalCost - totalPaid),
           profit: totalPaid - totalExpenses,
           statusDisplay: work.getStatusDisplay(),
           workTypeDisplay: work.getWorkTypeDisplay()

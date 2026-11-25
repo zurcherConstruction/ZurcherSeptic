@@ -34,4 +34,10 @@ router.get('/campaigns', CompanyEmailController.getCampaigns.bind(CompanyEmailCo
  */
 router.get('/campaigns/:id', CompanyEmailController.getCampaignDetails.bind(CompanyEmailController));
 
+/**
+ * @route   POST /api/company-emails/campaigns/:id/retry-failed
+ * @desc    Reenvía la campaña solo a los emails que fallaron
+ */
+router.post('/campaigns/:id/retry-failed', CompanyEmailController.retryFailed.bind(CompanyEmailController));
+
 module.exports = router;
