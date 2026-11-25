@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import api from '../../utils/axios';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   XMarkIcon,
@@ -15,6 +16,23 @@ import { clearCurrentCampaign } from '../../Redux/Reducer/marketingCampaignsRedu
 const CampaignDetailsModal = ({ campaignId, onClose }) => {
   const dispatch = useDispatch();
   const { currentCampaign: selectedCampaign, loading } = useSelector((state) => state.marketingCampaigns);
+  const [retryTitle, setRetryTitle] = useState("Season's Greetings!");
+  const [retrying, setRetrying] = useState(false);
+
+  // 🔁 Reenvía solo a los fallidos (en segundo plano, de a uno, para que Gmail no bloquee)
+  const handleRetry = async () => {
+    if (!window.confirm(`¿Reenviar la campaña a ${selectedCampaign.failedEmails.length} emails que fallaron?`)) return;
+    setRetrying(true);
+    try {
+      const { data } = await api.post(`/company-emails/campaigns/${campaignId}/retry-failed`, { emailTitle: retryTitle.trim() });
+      alert(`✅ ${data.message}\nPodés cerrar esta ventana; el avance se ve en el listado de campañas.`);
+      dispatch(fetchCampaignById(campaignId));
+    } catch (err) {
+      alert(`No se pudo reintentar: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (campaignId) {
@@ -204,6 +222,27 @@ const CampaignDetailsModal = ({ campaignId, onClose }) => {
                 <XCircleIcon className="h-6 w-6" />
                 ❌ Emails Fallidos ({campaign.failedEmails.length})
               </h3>
+              {campaign.status !== 'sending' && (
+                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-end gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      Título del email (el que usaste en la campaña)
+                    </label>
+                    <input
+                      value={retryTitle}
+                      onChange={e => setRetryTitle(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={handleRetry}
+                    disabled={retrying || !retryTitle.trim()}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 disabled:opacity-60 whitespace-nowrap"
+                  >
+                    {retrying ? 'Iniciando…' : `🔁 Reintentar fallidos (${campaign.failedEmails.length})`}
+                  </button>
+                </div>
+              )}
               <div className="bg-red-50 border border-red-200 rounded-xl overflow-hidden">
                 <div className="max-h-64 overflow-y-auto">
                   <div className="divide-y divide-red-100">

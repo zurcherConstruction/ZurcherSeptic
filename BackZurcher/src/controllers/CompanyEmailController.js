@@ -1,6 +1,6 @@
 const { Budget, Work, Permit, SalesLead, Staff, MarketingCampaign } = require('../data');
 const { Op } = require('sequelize');
-const { sendEmail } = require('../utils/notifications/emailService');
+const nodemailer = require('nodemailer');
 
 class CompanyEmailController {
   /**
@@ -232,77 +232,134 @@ class CompanyEmailController {
   }
 
   /**
-   * 🔄 Función privada para enviar emails en lotes
-   * Se ejecuta en segundo plano después de responder al cliente
+   * 🔄 Envío de la campaña en segundo plano
+   *  - UNA conexión SMTP reutilizada (pool): Gmail bloquea la cuenta si se inicia sesión por cada email
+   *    ("454 4.7.0 Too many login attempts").
+   *  - De a un email, con pausa entre envíos.
+   *  - Si Gmail frena temporalmente (4xx), espera y reintenta. Si sigue frenando, se detiene y deja los
+   *    pendientes como fallidos para reintentarlos después (POST /campaigns/:id/retry-failed).
+   *
+   * retry = true: reenvío de los fallidos de una campaña existente (suma a los enviados)
    */
-  async _sendCampaignEmails(campaignId, recipients, subject, message, imageUrl, emailTitle, titleColor, titleFont) {
+  async _sendCampaignEmails(campaignId, recipients, subject, message, imageUrl, emailTitle, titleColor, titleFont, { retry = false } = {}) {
+    const SEND_DELAY_MS = 1500;                       // ~40 emails por minuto
+    const BACKOFF_MS = [60 * 1000, 3 * 60 * 1000, 10 * 60 * 1000];
+    const isTemporary = (err) => {
+      const code = Number(err?.responseCode);
+      return (code >= 400 && code < 500)
+        || /4\.7\.0|too many|try again later|rate limit/i.test(err?.message || '')
+        || ['ECONNECTION', 'ETIMEDOUT', 'ESOCKET', 'ECONNRESET'].includes(err?.code);
+    };
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      pool: true,
+      maxConnections: 1,
+      maxMessages: 100, // re-login cada 100 emails, no por cada uno
+    });
+
+    const campaign = await MarketingCampaign.findByPk(campaignId);
+    let sentCount = retry ? (campaign?.sentCount || 0) : 0;
+    const failedEmails = [];
+    const htmlContent = this._buildEmailHTML(message, imageUrl, emailTitle, titleColor, titleFont);
+    const saveProgress = (extra = {}) => MarketingCampaign.update(
+      { sentCount, failedCount: failedEmails.length, failedEmails: failedEmails.length ? failedEmails : null, ...extra },
+      { where: { id: campaignId } },
+    ).catch(err => console.error('⚠️ No se pudo guardar el progreso de la campaña:', err.message));
+
     try {
-      let sentCount = 0;
-      let failedCount = 0;
-      const failedEmails = [];
-
-      const BATCH_SIZE = 5; // Enviar 5 emails a la vez para evitar bloqueo SMTP
-      const DELAY_MS = 1000; // 1 segundo entre lotes
-
-      // Construir HTML del email
-      const htmlContent = this._buildEmailHTML(message, imageUrl, emailTitle, titleColor, titleFont);
-
-      for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
-        const batch = recipients.slice(i, i + BATCH_SIZE);
-        
-        // Enviar lote en paralelo
-        const promises = batch.map(async (recipient) => {
+      for (let i = 0; i < recipients.length; i++) {
+        const recipient = recipients[i];
+        let attempt = 0;
+        while (true) {
           try {
-            await sendEmail({
+            await transporter.sendMail({
+              from: `"Zurcher Septic " <${process.env.SMTP_USER}>`,
               to: recipient.email,
-              subject: subject,
-              html: htmlContent.replace('{{NAME}}', recipient.name || 'Valued Customer')
+              subject,
+              html: htmlContent.replace(/\{\{NAME\}\}/g, recipient.name || 'Valued Customer'),
             });
             sentCount++;
-            console.log(`✅ Email enviado a: ${recipient.email}`);
-            return { success: true, email: recipient.email };
+            console.log(`✅ [Campaña] ${i + 1}/${recipients.length} enviado a: ${recipient.email}`);
+            break;
           } catch (error) {
-            failedCount++;
-            failedEmails.push({
-              email: recipient.email,
-              error: error.message
-            });
-            console.error(`❌ Falló envío a ${recipient.email}:`, error.message);
-            return { success: false, email: recipient.email, error: error.message };
+            if (isTemporary(error) && attempt < BACKOFF_MS.length) {
+              console.warn(`⏸️ [Campaña] Gmail frenó el envío (${error.message.split('\n')[0]}). Reintento en ${BACKOFF_MS[attempt] / 60000} min...`);
+              await wait(BACKOFF_MS[attempt]);
+              attempt++;
+              continue;
+            }
+            if (isTemporary(error)) {
+              // Gmail sigue bloqueando: se detiene y los pendientes quedan para reintentar
+              const reason = `Pendiente: Gmail bloqueó temporalmente el envío (${error.message.split('\n')[0]}). Usá "Reintentar fallidos" más tarde.`;
+              for (const r of recipients.slice(i)) failedEmails.push({ email: r.email, name: r.name || null, error: reason });
+              console.error(`🛑 [Campaña] Detenida: Gmail sigue bloqueando. ${recipients.length - i} pendientes para reintentar.`);
+              i = recipients.length;
+              break;
+            }
+            failedEmails.push({ email: recipient.email, name: recipient.name || null, error: error.message });
+            console.error(`❌ [Campaña] Falló envío a ${recipient.email}:`, error.message);
+            break;
           }
-        });
-
-        await Promise.allSettled(promises);
-
-        // Delay entre lotes
-        if (i + BATCH_SIZE < recipients.length) {
-          await new Promise(resolve => setTimeout(resolve, DELAY_MS));
         }
+        if ((i + 1) % 10 === 0) await saveProgress();
+        if (i < recipients.length - 1) await wait(SEND_DELAY_MS);
       }
 
-      // Actualizar campaña con resultados
-      await MarketingCampaign.update({
-        sentCount,
-        failedCount,
-        failedEmails: failedEmails.length > 0 ? failedEmails : null,
-        status: failedCount === recipients.length ? 'failed' : 'completed',
-        completedAt: new Date()
-      }, {
-        where: { id: campaignId }
+      const total = campaign?.recipientCount || recipients.length;
+      await saveProgress({
+        status: sentCount === 0 && failedEmails.length ? 'failed' : 'completed',
+        completedAt: new Date(),
+        ...(retry ? {} : { recipientCount: total }),
       });
-
-      console.log(`📊 Campaña completada: ${sentCount} enviados, ${failedCount} fallidos`);
-
+      console.log(`📊 Campaña ${retry ? '(reintento) ' : ''}completada: ${sentCount} enviados, ${failedEmails.length} fallidos`);
     } catch (error) {
       console.error('❌ Error crítico en envío de campaña:', error);
-      
-      // Marcar campaña como fallida
-      await MarketingCampaign.update({
-        status: 'failed',
-        completedAt: new Date()
-      }, {
-        where: { id: campaignId }
-      });
+      await saveProgress({ status: 'failed', completedAt: new Date() });
+    } finally {
+      transporter.close();
+    }
+  }
+
+  /**
+   * 🔁 POST /api/company-emails/campaigns/:id/retry-failed
+   * Reenvía la campaña solo a los emails que fallaron
+   */
+  async retryFailed(req, res) {
+    try {
+      const campaign = await MarketingCampaign.findByPk(req.params.id);
+      if (!campaign) return res.status(404).json({ success: false, error: 'Campaña no encontrada' });
+      if (campaign.status === 'sending') return res.status(409).json({ success: false, error: 'La campaña todavía se está enviando' });
+      const failed = Array.isArray(campaign.failedEmails) ? campaign.failedEmails : [];
+      if (!failed.length) return res.status(400).json({ success: false, error: 'No hay emails fallidos para reintentar' });
+
+      // Nombres: los guardados con el fallo, o los de la lista de destinatarios (campañas viejas)
+      let names = new Map();
+      if (failed.some(f => !f.name)) {
+        await this.getUniqueRecipients({}, {
+          json: data => { names = new Map((data.recipients || []).map(r => [r.email, r.name])); },
+          status: () => ({ json: () => {} }),
+        });
+      }
+      const recipients = failed.map(f => ({ email: f.email, name: f.name || names.get(String(f.email).toLowerCase()) || null }));
+
+      const { emailTitle, titleColor, titleFont } = req.body || {};
+      await campaign.update({ status: 'sending', failedCount: 0, failedEmails: null, completedAt: null });
+
+      this._sendCampaignEmails(
+        campaign.id, recipients, campaign.subject, campaign.message, campaign.imageUrl,
+        emailTitle || 'Special Message', titleColor || '#1a3a5c', titleFont || 'Playfair Display',
+        { retry: true },
+      );
+
+      res.json({ success: true, message: `Reintentando ${recipients.length} emails. Tarda ~${Math.ceil(recipients.length * 1.5 / 60)} min.` });
+    } catch (error) {
+      console.error('❌ Error al reintentar campaña:', error);
+      res.status(500).json({ success: false, error: 'Error al reintentar la campaña', message: error.message });
     }
   }
 
