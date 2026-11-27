@@ -16,15 +16,25 @@ import { clearCurrentCampaign } from '../../Redux/Reducer/marketingCampaignsRedu
 const CampaignDetailsModal = ({ campaignId, onClose }) => {
   const dispatch = useDispatch();
   const { currentCampaign: selectedCampaign, loading } = useSelector((state) => state.marketingCampaigns);
-  const [retryTitle, setRetryTitle] = useState("Season's Greetings!");
+  const [retryTitle, setRetryTitle] = useState('');
+  const [retryWithImage, setRetryWithImage] = useState(true);
   const [retrying, setRetrying] = useState(false);
+
+  // Título e imagen del reintento: los guardados con la campaña
+  useEffect(() => {
+    if (selectedCampaign?.id !== campaignId) return;
+    setRetryTitle(selectedCampaign.design?.emailTitle || '');
+    setRetryWithImage(!!selectedCampaign.imageUrl);
+  }, [selectedCampaign?.id, selectedCampaign?.design?.emailTitle, selectedCampaign?.imageUrl, campaignId]);
 
   // 🔁 Reenvía solo a los fallidos (en segundo plano, de a uno, para que Gmail no bloquee)
   const handleRetry = async () => {
     if (!window.confirm(`¿Reenviar la campaña a ${selectedCampaign.failedEmails.length} emails que fallaron?`)) return;
     setRetrying(true);
     try {
-      const { data } = await api.post(`/company-emails/campaigns/${campaignId}/retry-failed`, { emailTitle: retryTitle.trim() });
+      const payload = { emailTitle: retryTitle.trim() };
+      if (selectedCampaign.imageUrl && !retryWithImage) payload.imageUrl = null; // quitar la imagen
+      const { data } = await api.post(`/company-emails/campaigns/${campaignId}/retry-failed`, payload);
       alert(`✅ ${data.message}\nPodés cerrar esta ventana; el avance se ve en el listado de campañas.`);
       dispatch(fetchCampaignById(campaignId));
     } catch (err) {
@@ -100,7 +110,16 @@ const CampaignDetailsModal = ({ campaignId, onClose }) => {
                 <label className="text-sm font-medium text-gray-500">Asunto</label>
                 <p className="text-base text-gray-900 font-medium mt-1">{campaign.subject}</p>
               </div>
-              
+
+              {campaign.design?.emailTitle && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Título del email</label>
+                  <p className="text-base font-bold mt-1" style={{ color: campaign.design.titleColor }}>
+                    {campaign.design.emailTitle}
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="text-sm font-medium text-gray-500">Tipo de Campaña</label>
                 <p className="text-base text-gray-900 mt-1">{campaign.campaignType}</p>
@@ -226,13 +245,25 @@ const CampaignDetailsModal = ({ campaignId, onClose }) => {
                 <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-end gap-3">
                   <div className="flex-1">
                     <label className="block text-xs font-semibold text-gray-700 mb-1">
-                      Título del email (el que usaste en la campaña)
+                      Título del email {campaign.design?.emailTitle ? '(guardado con la campaña, podés corregirlo)' : '(escribí el que usaste en la campaña)'}
                     </label>
                     <input
                       value={retryTitle}
                       onChange={e => setRetryTitle(e.target.value)}
+                      placeholder="ej: Season's Greetings!"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
+                    {campaign.imageUrl && (
+                      <label className="mt-2 flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={retryWithImage}
+                          onChange={e => setRetryWithImage(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300"
+                        />
+                        Incluir la imagen de la campaña
+                      </label>
+                    )}
                   </div>
                   <button
                     onClick={handleRetry}

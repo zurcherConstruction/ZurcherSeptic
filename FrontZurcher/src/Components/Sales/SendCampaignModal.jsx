@@ -70,7 +70,7 @@ const SendCampaignModal = ({ onClose, onSent }) => {
   const [loading, setLoading] = useState(false);
   const [excludedEmails, setExcludedEmails] = useState(new Set());
   const [showRecipientsList, setShowRecipientsList] = useState(false);
-  const [imageSource, setImageSource] = useState('predefined'); // 'predefined' | 'upload'
+  const [imageSource, setImageSource] = useState('predefined'); // 'predefined' | 'upload' | 'none'
   const [selectedPredefinedImage, setSelectedPredefinedImage] = useState(PREDEFINED_IMAGES[4].url);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -233,11 +233,16 @@ const SendCampaignModal = ({ onClose, onSent }) => {
       return;
     }
 
+    if (imageSource === 'upload' && !uploadedImage) {
+      setError('Subí una imagen o elegí "Sin imagen"');
+      return;
+    }
+
     setStep(3); // Ir a paso de envío
     setLoading(true);
 
     try {
-      const imageUrl = imageSource === 'upload' ? uploadedImage : selectedPredefinedImage;
+      const imageUrl = getCurrentImage();
 
       const campaignPayload = {
         ...formData,
@@ -275,8 +280,11 @@ const SendCampaignModal = ({ onClose, onSent }) => {
     return recipients.length - excludedEmails.size;
   };
 
+  // Imagen que se va a mandar (null = email sin imagen)
   const getCurrentImage = () => {
-    return imageSource === 'upload' && uploadedImage ? uploadedImage : selectedPredefinedImage;
+    if (imageSource === 'none') return null;
+    if (imageSource === 'upload') return uploadedImage || null;
+    return selectedPredefinedImage;
   };
 
   return (
@@ -660,9 +668,24 @@ const SendCampaignModal = ({ onClose, onSent }) => {
                   >
                     Subir Nueva
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageSource('none')}
+                    className={`flex-1 px-4 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                      imageSource === 'none'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    🚫 Sin imagen
+                  </button>
                 </div>
 
-                {imageSource === 'predefined' ? (
+                {imageSource === 'none' ? (
+                  <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    El email se enviará solo con el título y el mensaje, sin imagen.
+                  </p>
+                ) : imageSource === 'predefined' ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {PREDEFINED_IMAGES.map((img) => (
                       <button
@@ -741,17 +764,19 @@ const SendCampaignModal = ({ onClose, onSent }) => {
               </div>
 
               {/* Preview selected image */}
-              <div className="border-t pt-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">Vista previa de la imagen:</p>
-                <img
-                  src={getCurrentImage()}
-                  alt="Preview"
-                  className="max-h-40 rounded-lg border border-gray-300"
-                  onError={(e) => {
-                    e.target.src = 'https://via.placeholder.com/400x200?text=No+Image';
-                  }}
-                />
-              </div>
+              {getCurrentImage() && (
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Vista previa de la imagen:</p>
+                  <img
+                    src={getCurrentImage()}
+                    alt="Preview"
+                    className="max-h-40 rounded-lg border border-gray-300"
+                    onError={(e) => {
+                      e.target.src = 'https://via.placeholder.com/400x200?text=No+Image';
+                    }}
+                  />
+                </div>
+              )}
 
               {/* Error */}
               {error && (

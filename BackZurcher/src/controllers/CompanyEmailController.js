@@ -193,7 +193,12 @@ class CompanyEmailController {
       const campaign = await MarketingCampaign.create({
         subject,
         message,
-        imageUrl,
+        imageUrl: imageUrl || null,
+        design: {
+          emailTitle: emailTitle ?? 'Special Message',
+          titleColor: titleColor || '#1a3a5c',
+          titleFont: titleFont || 'Playfair Display',
+        },
         recipientCount: finalRecipients.length,
         uniqueEmails: finalRecipients.map(r => r.email),
         campaignType: campaignType || 'holiday',
@@ -208,9 +213,9 @@ class CompanyEmailController {
         campaign.id, 
         finalRecipients, 
         subject, 
-        message, 
-        imageUrl,
-        emailTitle || 'Special Message',
+        message,
+        imageUrl || null,
+        emailTitle ?? 'Special Message',
         titleColor || '#1a3a5c',
         titleFont || 'Playfair Display'
       );
@@ -347,12 +352,20 @@ class CompanyEmailController {
       }
       const recipients = failed.map(f => ({ email: f.email, name: f.name || names.get(String(f.email).toLowerCase()) || null }));
 
-      const { emailTitle, titleColor, titleFont } = req.body || {};
-      await campaign.update({ status: 'sending', failedCount: 0, failedEmails: null, completedAt: null });
+      // Diseño: el guardado con la campaña; lo que venga en el body lo corrige (y queda guardado)
+      const body = req.body || {};
+      const saved = campaign.design || {};
+      const design = {
+        emailTitle: body.emailTitle ?? saved.emailTitle ?? 'Special Message',
+        titleColor: body.titleColor || saved.titleColor || '#1a3a5c',
+        titleFont: body.titleFont || saved.titleFont || 'Playfair Display',
+      };
+      const imageUrl = body.imageUrl !== undefined ? (body.imageUrl || null) : campaign.imageUrl;
+      await campaign.update({ status: 'sending', failedCount: 0, failedEmails: null, completedAt: null, design, imageUrl });
 
       this._sendCampaignEmails(
-        campaign.id, recipients, campaign.subject, campaign.message, campaign.imageUrl,
-        emailTitle || 'Special Message', titleColor || '#1a3a5c', titleFont || 'Playfair Display',
+        campaign.id, recipients, campaign.subject, campaign.message, imageUrl,
+        design.emailTitle, design.titleColor, design.titleFont,
         { retry: true },
       );
 
@@ -402,13 +415,13 @@ class CompanyEmailController {
                     <table border="0" cellpadding="0" cellspacing="0" width="100%">
                       
                       <!-- Email Title -->
-                      <tr>
+                      ${emailTitle ? `<tr>
                         <td align="center" style="padding-bottom: 30px;">
                           <h1 style="margin: 0; font-family: '${titleFont}', Georgia, serif; font-size: 32px; font-weight: 700; color: ${titleColor}; line-height: 1.2;">
                             ${emailTitle}
                           </h1>
                         </td>
-                      </tr>
+                      </tr>` : ''}
                       
                       <!-- Divider -->
                       <tr>

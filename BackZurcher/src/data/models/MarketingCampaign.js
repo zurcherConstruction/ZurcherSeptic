@@ -25,7 +25,12 @@ module.exports = (sequelize) => {
       comment: 'URL de la imagen incluida en el email',
       field: 'image_url'
     },
-    
+    design: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: 'Diseño del email: { emailTitle, titleColor, titleFont }',
+    },
+
     // 📊 DESTINATARIOS Y ESTADÍSTICAS
     recipientCount: {
       type: DataTypes.INTEGER,
